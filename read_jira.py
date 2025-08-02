@@ -28,6 +28,7 @@ with open("Book1.jira.csv", "w") as outfile:
 
 jira_ids = data.get('jira_ids', [])
 jira_filter_str = "id in (" + ','.join(jira_ids) + ")"
+
 print(jira_filter_str)
 
 # Replace with your Jira Cloud credentials and URL
@@ -38,19 +39,29 @@ JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
 JIRA_URL = os.environ.get("JIRA_URL")
 JIRA_EMAIL = os.environ.get("JIRA_EMAIL")
 
-
 if not JIRA_API_TOKEN:
     print("Error: JIRA_API_TOKEN environment variable not set.")
     sys.exit(1)
 
-# Connect to Jira Cloud
-jira = JIRA(
-    server=JIRA_URL,
-    basic_auth=(JIRA_EMAIL, JIRA_API_TOKEN)
-)
 
-# Search issues using the JQL filter
-issues = jira.search_issues(jira_filter_str)
+# Connect to Jira with basic auth
+try:
+    jira = JIRA(server=JIRA_URL, basic_auth=(JIRA_EMAIL, JIRA_API_TOKEN))
+    #print("✅ Successfully connected to Jira.")
+except Exception as e:
+    print(f"❌ Failed to connect to Jira: {e}")
+    sys.exit(1)
+
+# Try running the search
+try:
+    issues = jira.search_issues(jira_filter_str, maxResults=10)
+    #print(f"✅ Found {len(issues)} issue(s) matching the filter.")
+    #for i, issue in enumerate(issues, start=1):
+    #    print(f"{i}. {issue.key} — {issue.fields.summary}")
+except Exception as e:
+    print(f"❌ Failed to search issues: {e}")
+
+
 print(f"Found {len(issues)} issues matching the filter:")
 
 # Print only the fields specified in field_values_str for each issue
@@ -62,9 +73,9 @@ for issue in issues:
             value = issue.fields.assignee.displayName if issue.fields.assignee else None
             if value is None:
                 value = "unassigned"
-        elif field == id:
-            value = issue.id
         elif field == "id":
+            value = issue.id
+        elif field == "key":
             value = issue.key
 
     # Collect all field values for this issue
