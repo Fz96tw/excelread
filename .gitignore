@@ -2,7 +2,7 @@
 *.jira.csv
 *.scope.yaml
 *.xlsx
-*.env
+.env
  
 # Ignore virtual environment
 venv/
