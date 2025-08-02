@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
         if fields_found:
             # lookup the index of the field "ID"
-            index_of_id = next((field['index'] for field in jira_fields if field['value'] == "ID"), None)
+            index_of_id = next((field['index'] for field in jira_fields if field['value'] == "key"), None)
             if index_of_id is not None:
                 jira_ids.append(row[index_of_id])
         
