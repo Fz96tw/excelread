@@ -1,6 +1,8 @@
 import sys
 import yaml
 from jira import JIRA
+import os
+from dotenv import load_dotenv
 
 if len(sys.argv) != 2:
     print("Usage: python read_jira.py <yaml_file>")
@@ -29,9 +31,17 @@ jira_filter_str = "id in (" + ','.join(jira_ids) + ")"
 print(jira_filter_str)
 
 # Replace with your Jira Cloud credentials and URL
-JIRA_URL = "https://fz96tw.atlassian.net"
-JIRA_EMAIL = "fz96tw@gmail.com"
-JIRA_API_TOKEN = "ATATT3xFfGF0yX0hvcVBjjU6DAnTQGR3tG4yQKmEw8w3eauChil0itrBt4IWQD-FcBRG5AQucwW-k9rScyVaEt-mGRqkALEC1uKJomaaUYdJQTTH-gUj0FagyqpfRhTMtytPGgNTHS4Dm2MXwPZaL2quXIwJFAQXFppbZ_X6Y2xNuRMt4EuVXWQ=9D0AA0AE"
+
+# Load environment variables from a .env file if present
+load_dotenv()
+JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
+JIRA_URL = os.environ.get("JIRA_URL")
+JIRA_EMAIL = os.environ.get("JIRA_EMAIL")
+
+
+if not JIRA_API_TOKEN:
+    print("Error: JIRA_API_TOKEN environment variable not set.")
+    sys.exit(1)
 
 # Connect to Jira Cloud
 jira = JIRA(
