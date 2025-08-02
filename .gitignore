@@ -1,7 +1,8 @@
 # ignore working temp files created by python scripts
 *.jira.csv
-.scope.yaml
+*.scope.yaml
 *.xlsx
+*.env
  
 # Ignore virtual environment
 venv/
