@@ -4,6 +4,7 @@ from jira import JIRA
 import os
 from dotenv import load_dotenv
 
+
 if len(sys.argv) != 2:
     print("Usage: python read_jira.py <yaml_file>")
     sys.exit(1)
@@ -12,6 +13,16 @@ yaml_file = sys.argv[1]
 
 with open(yaml_file, 'r') as f:
     data = yaml.safe_load(f)
+
+fileinfo = data.get('fileinfo', {})
+if not fileinfo:
+    print("No fileinfo found in the YAML file.")
+    sys.exit(1)
+basename = fileinfo.get('basename')
+if not basename:
+    print("No 'basename'found in fileinfo. Expecting 'basename' key.")
+    sys.exit(1)
+output_file = basename + ".jira.csv"
 
 fields = data.get('fields', [])
 field_values = [field.get('value') for field in fields if 'value' in field]
@@ -22,7 +33,7 @@ field_indexes_str = ','.join(map(str, field_indexes))
 print("Field indexes:", field_indexes_str)
 print("Field values:", field_values_str)
 
-with open("Book1.jira.csv", "w") as outfile:
+with open(output_file, "w") as outfile:
     outfile.write("Field indexes: " + field_indexes_str + "\n")
     outfile.write("Field values: " + field_values_str + "\n")
 
@@ -93,5 +104,5 @@ for issue in issues:
         
         values.append(str(value))
     print(','.join(values))
-    with open("Book1.jira.csv", "a") as outfile:
+    with open(output_file, "a") as outfile:
         outfile.write(','.join(values) + "\n") 
