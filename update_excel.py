@@ -1,9 +1,11 @@
 import sys
 
-def load_jira_file(filename):
-    field_index_map = {}
-    jira_data = {}
+field_index_map = {}
+jira_data = {}
+change_list = []  # ← This will hold "A1=newvalue"-style strings
 
+def load_jira_file(filename):
+    print(f"Loading JIRA data from {filename}")
     with open(filename, 'r', encoding='utf-8') as f:
         lines = f.readlines()
 
@@ -28,22 +30,86 @@ def load_jira_file(filename):
         if not line:
             continue  # skip blank lines
         parts = [p.strip() for p in line.split(',')]
-        key = parts[field_index_map["key"]]
-        record = {field: parts[i] if i < len(parts) else None for field, i in field_index_map.items()}
+        print(f"Processing line: {line}")
+
+        # >>>> New code fragment here <<<<
+        if len(parts) != len(field_names):
+            print("Warning: Mismatched field count.")
+            continue
+
+        record = dict(zip(field_names, parts))
+        key = record.get("key")
+        if not key:
+            print("Warning: No key found in line.")
+            continue
+        # <<<< End of inserted fragment >>>>
+
+        print(f"Record for {key}: {record}")
         jira_data[key] = record
+        print(f"Added record for {key} to jira_data.")
 
     return field_index_map, jira_data
+
+
+from openpyxl import load_workbook
+
+def process_jira_table_blocks(filename):
+    wb = load_workbook(filename)
+    ws = wb.active
+
+    printing = False  # Flag to track when we're in a Jira Table block
+
+    for row in ws.iter_rows():
+        for cell in row:
+            if cell.value and "Jira Table" in str(cell.value):
+                if printing:
+                    # Found another "Jira Table" — stop
+                    return
+                else:
+                    # First time encountering "Jira Table" — start printing
+                    printing = True
+                    break  # No need to check the rest of the row
+
+        if printing:
+            first_cell = row[field_index_map["key"]].value
+            print(first_cell)
+            if (jira_data and first_cell in jira_data):
+                print(f"Updating row {row[field_index_map["key"]].row} with data for {first_cell}")
+                record = jira_data[first_cell]
+                for field, index in field_index_map.items():
+                    print(f"Checking field {field} at index {index}")
+                    if field in record:
+                        print(f"Updating field {field} at index {index} with value {record[field]}")
+                        cell_value = record[field]
+                        print(f"Cell value for {field}: {cell_value}")
+                        if cell_value is not None:
+                            #print(f"Setting cell value: {cell_value}")
+                            #ws.cell(row=row[0].row, column=index + 1, value=cell_value)
+                            target_cell = ws.cell(row=row[0].row, column=index + 1)
+                            print(f"Setting cell {target_cell.coordinate} = {cell_value}")  # <-- Coordinate logging
+                            target_cell.value = cell_value
+                            # Save coordinate + value to list
+                            change_list.append(f"{target_cell.coordinate}={cell_value}")
+
+            else:
+                print(f"No data found for {first_cell} in jira_data.")
+    # Save updates to the same file
+    print(f"Saving updates to {filename}")
+    wb.save(filename)                
 
 
 
 if __name__ == "__main__":
     #main()
-    if len(sys.argv) < 2:
-        print("Usage: python update_excel.py <csv file>")
+    if len(sys.argv) < 3:
+        print("Usage: python update_excel.py <csv file> <xlsx file>")
         sys.exit(1)
     
     jiracsv = sys.argv[1]
     print(f"Received argument: {jiracsv}")
+    xlfile = sys.argv[2]
+    print(f"Received argument: {xlfile}")
+
     field_index_map, jira_data = load_jira_file(jiracsv)
     print(f"Loaded {len(jira_data)} records from {jiracsv}")
     
@@ -53,3 +119,12 @@ if __name__ == "__main__":
     for key, record in jira_data.items():
         print(f"{key}: {record}")
 
+    process_jira_table_blocks(xlfile)
+    print("Finished processing Jira Table blocks.")
+
+    if not change_list:
+        print("No changes made.")
+    else:
+        print("Changes made:")
+        for entry in change_list:
+            print(entry)
