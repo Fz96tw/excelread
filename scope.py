@@ -3,6 +3,7 @@ import pandas as pd
 import sys
 import os
 import yaml
+import re
 
 def read_excel_rows(filename):
     df = pd.read_excel(filename)
@@ -16,6 +17,10 @@ def set_output_filename(filename, table_name=""):
     #name, ext = os.path.splitext(base_name)        # name = "Book1", ext = ".xlsx"
     outputfile = f"{base_name}.{table_name}.scope.yaml"
     return outputfile  
+
+def is_valid_jira_id(jira_id):
+    return re.match(r'^[A-Z][A-Z0-9]+-\d+$', jira_id) is not None
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
@@ -98,8 +103,11 @@ if __name__ == "__main__":
             index_of_id = next((field['index'] for field in jira_fields if field['value'] == "key"), None)
             if index_of_id is not None:
                 cell_value = row[index_of_id]
-                if pd.notna(cell_value) and str(cell_value).strip():
+                #if pd.notna(cell_value) and str(cell_value).strip():
+                if is_valid_jira_id(str(cell_value).strip()):
                     jira_ids.append(cell_value)
+                else:
+                    print(f"Ignoring Invalid JIRA ID found: {cell_value} in row {row[0]}")
         
     if jira_ids:
         print(f"JIRA IDs found: {jira_ids}")
