@@ -19,10 +19,17 @@ if not fileinfo:
     print("No fileinfo found in the YAML file.")
     sys.exit(1)
 basename = fileinfo.get('basename')
+tablename = fileinfo.get('table').replace(" ", "_") if fileinfo.get('table') else ""
+
 if not basename:
     print("No 'basename'found in fileinfo. Expecting 'basename' key.")
     sys.exit(1)
-output_file = basename + ".jira.csv"
+
+if not tablename:
+    print("No 'table' found in fileinfo. Expecting 'table' key.")
+    sys.exit(1)
+
+output_file = basename + "." + tablename + ".jira.csv"
 
 fields = data.get('fields', [])
 field_values = [field.get('value') for field in fields if 'value' in field]
