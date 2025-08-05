@@ -3,18 +3,30 @@ import sys
 field_index_map = {}
 jira_data = {}
 change_list = []  # ← This will hold "A1=newvalue"-style strings
+file_info = {}
 
 def load_jira_file(filename):
     print(f"Loading JIRA data from {filename}")
     with open(filename, 'r', encoding='utf-8') as f:
         lines = f.readlines()
 
-    if len(lines) < 2:
-        raise ValueError("File must contain at least two header lines.")
+    if len(lines) < 6:
+        raise ValueError("File must contain at least 6 header lines.")
+
+    file_info['source'] = lines[0].strip().replace("Source file,", "").strip()
+    file_info['basename'] = lines[1].strip().replace("Basename,", "").strip()
+    file_info['scope file'] = lines[2].strip().replace("Scope file,", "").strip()
+    file_info['table'] = lines[3].strip().replace("Table,", "").strip()
+
+    print(f"lines[4]: {lines[4].strip()}")
+    print(f"lines[5]: {lines[5].strip()}")
 
     # Parse field indexes and values from the first two lines
-    index_line = lines[0].strip().replace("Field indexes:", "").strip()
-    value_line = lines[1].strip().replace("Field values:", "").strip()
+    index_line = lines[4].strip().replace("Field indexes,", "").strip()
+    value_line = lines[5].strip().replace("Field values,", "").strip()
+
+    #print(f"Index line: {index_line}")
+    #print(f"Value line: {value_line}")
 
     index_values = [int(i.strip()) for i in index_line.split(',')]
     field_names = [v.strip() for v in value_line.split(',')]
@@ -25,7 +37,7 @@ def load_jira_file(filename):
     field_index_map = dict(zip(field_names, index_values))
 
     # Parse the remaining lines (data rows)
-    for line in lines[2:]:
+    for line in lines[6:]:
         line = line.strip()
         if not line:
             continue  # skip blank lines
@@ -60,15 +72,21 @@ def process_jira_table_blocks(filename):
     printing = False  # Flag to track when we're in a Jira Table block
 
     for row in ws.iter_rows():
+        #print(f"Processing row {row[0].row}: {[cell.value for cell in row]}")
         for cell in row:
+            #print(f"Processing cell {cell.coordinate}: {cell.value}")
+            cleaned_value = str(cell.value).strip().replace(" ", "_")
+            #print(f"Cleaned cell value: {cleaned_value}")
+            #if file_info["table"] in str(cell).strip().replace(" ", "_"):
+            if file_info["table"] in cleaned_value:
+                print(f"Found table header '{file_info['table']}' in cell {cell.coordinate}")
+                printing = True
+                break
             if cell.value and "Jira Table" in str(cell.value):
                 if printing:
+                    print("Found start of new Jira Table. Exiting Jira Table block.")
                     # Found another "Jira Table" — stop
                     return
-                else:
-                    # First time encountering "Jira Table" — start printing
-                    printing = True
-                    break  # No need to check the rest of the row
 
         if printing:
             first_cell = row[field_index_map["key"]].value
@@ -94,8 +112,8 @@ def process_jira_table_blocks(filename):
             else:
                 print(f"No data found for {first_cell} in jira_data.")
     # Save updates to the same file
-    print(f"Saving updates to {filename}")
-    wb.save(filename)                
+    #print(f"Saving updates to {filename}")
+    #wb.save(filename)                
 
 
 
@@ -128,3 +146,4 @@ if __name__ == "__main__":
         print("Changes made:")
         for entry in change_list:
             print(entry)
+            
