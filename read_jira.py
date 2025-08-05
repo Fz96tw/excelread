@@ -20,6 +20,8 @@ if not fileinfo:
     sys.exit(1)
 basename = fileinfo.get('basename')
 tablename = fileinfo.get('table').replace(" ", "_") if fileinfo.get('table') else ""
+source = fileinfo.get('source')
+scope_file = fileinfo.get('scope file')
 
 if not basename:
     print("No 'basename'found in fileinfo. Expecting 'basename' key.")
@@ -37,12 +39,19 @@ field_indexes = [field.get('index') for field in fields if 'index' in field]
 field_values_str = ','.join(field_values)
 field_indexes_str = ','.join(map(str, field_indexes))
 
-print("Field indexes:", field_indexes_str)
-print("Field values:", field_values_str)
+print("Source file,", source)
+print("basename,", basename)
+print("Table,", tablename)
+print("Field indexes,", field_indexes_str)
+print("Field values,", field_values_str)
 
 with open(output_file, "w") as outfile:
-    outfile.write("Field indexes: " + field_indexes_str + "\n")
-    outfile.write("Field values: " + field_values_str + "\n")
+    outfile.write("Source file," + source + "\n")
+    outfile.write("Basename," + basename + "\n")
+    outfile.write("Scope file," + scope_file + "\n")    
+    outfile.write("Table," + tablename + "\n")
+    outfile.write("Field indexes," + field_indexes_str + "\n")
+    outfile.write("Field values," + field_values_str + "\n")
 
 jira_ids = data.get('jira_ids', [])
 jira_filter_str = "id in (" + ','.join(jira_ids) + ")"
