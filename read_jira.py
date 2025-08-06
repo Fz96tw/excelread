@@ -10,7 +10,30 @@ import re
 # Cache dictionary to avoid repeated calls
 user_cache = {}
 
-def get_user_display_name(account_id, jira_client):
+import requests
+from requests.auth import HTTPBasicAuth
+
+
+# Cache dictionary to avoid repeated calls
+user_cache = {}
+
+def get_user_display_name(account_id):
+    if account_id in user_cache:
+        return user_cache[account_id]
+
+    url = f"{JIRA_URL}/rest/api/3/user?accountId={account_id}"
+    response = requests.get(url, auth=HTTPBasicAuth(JIRA_EMAIL, JIRA_API_TOKEN))
+
+    if response.status_code == 200:
+        user_data = response.json()
+        display_name = user_data.get("displayName", "unknown")
+    else:
+        display_name = "unknown"
+
+    user_cache[account_id] = display_name
+    return display_name
+
+def get_user_display_name2(account_id, jira_client):
     if account_id in user_cache:
         return user_cache[account_id]
 
@@ -30,7 +53,16 @@ def get_user_display_name(account_id, jira_client):
     user_cache[account_id] = display_name
     return display_name
 
-def replace_account_ids_with_names(text, jira_client):
+
+def replace_account_ids_with_names(text):
+    def replacer(match):
+        account_id = match.group(1)
+        display_name = get_user_display_name(account_id)
+        return f"@{display_name}"
+    return re.sub(r"\[~accountid:([a-zA-Z0-9:\-]+)\]", replacer, text)
+
+
+def replace_account_ids_with_names2(text, jira_client):
     import re
     def replacer(match):
         account_id = match.group(1)
@@ -141,7 +173,7 @@ for issue in issues:
             if issue.fields.comment.comments:
                 sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
                 value = "\n".join([
-                    f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body, jira)}"
+                    f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
                     for comment in sorted_comments
                 ])
             else:
