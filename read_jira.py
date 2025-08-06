@@ -5,6 +5,40 @@ import os
 from dotenv import load_dotenv
 
 
+import re
+
+# Cache dictionary to avoid repeated calls
+user_cache = {}
+
+def get_user_display_name(account_id, jira_client):
+    if account_id in user_cache:
+        return user_cache[account_id]
+
+    # Search users with account_id as query
+    users = jira_client.search_users(query=account_id, maxResults=1)
+
+    if users:
+        # Check if the first user matches the accountId exactly
+        user = users[0]
+        if user.accountId == account_id:
+            display_name = user.displayName
+        else:
+            display_name = "unknown"
+    else:
+        display_name = "unknown"
+
+    user_cache[account_id] = display_name
+    return display_name
+
+def replace_account_ids_with_names(text, jira_client):
+    import re
+    def replacer(match):
+        account_id = match.group(1)
+        display_name = get_user_display_name(account_id, jira_client)
+        return f"@{display_name}"
+    return re.sub(r"\[~accountid:([a-zA-Z0-9:\-]+)\]", replacer, text)
+
+
 if len(sys.argv) != 2:
     print("Usage: python read_jira.py <yaml_file>")
     sys.exit(1)
@@ -55,7 +89,7 @@ with open(output_file, "w") as outfile:
 
 jira_ids = data.get('jira_ids', [])
 jira_filter_str = "id in (" + ','.join(jira_ids) + ")"
-
+ 
 print(jira_filter_str)
 
 # Replace with your Jira Cloud credentials and URL
@@ -91,22 +125,10 @@ except Exception as e:
 
 print(f"Found {len(issues)} issues matching the filter:")
 
+
 # Print only the fields specified in field_values_str for each issue
 for issue in issues:
-    for field in field_values:
-        value = getattr(issue.fields, field, None)
-        if field == "assignee":
-            #print("field is assignee")
-            value = issue.fields.assignee.displayName if issue.fields.assignee else None
-            if value is None:
-                value = "unassigned"
-        elif field == "id":
-            value = issue.id
-        elif field == "key":
-            value = issue.key
-
-    # Collect all field values for this issue
-    values = []
+    values = [] 
     for field in field_values:
         value = getattr(issue.fields, field, None)
         if field == "assignee":
@@ -115,10 +137,18 @@ for issue in issues:
             value = issue.id
         elif field == "key":
             value = issue.key
-        #elif field == "sprint":
-        #    value = issue.sprints[0].name if issue.sprints else "No Sprint"
-        
+        elif field == "comments":
+            if issue.fields.comment.comments:
+                sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
+                value = "\n".join([
+                    f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body, jira)}"
+                    for comment in sorted_comments
+                ])
+            else:
+                value = "No comments"
+                
         values.append(str(value))
+
     print(','.join(values))
     with open(output_file, "a") as outfile:
-        outfile.write(','.join(values) + "\n") 
+        outfile.write(','.join(values) + "\n")  
