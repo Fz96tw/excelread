@@ -85,9 +85,15 @@ if __name__ == "__main__":
                     yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
                 continue
             
-            if "<JIRA>" in str(cell).upper():
+            import re
+            match = re.search(r'<(.*?)>', str(cell).lower())    
+            if match:
+                value = match.group(1).strip()
+                jira_fields.append({"value": value, "index": idx})
+
+            '''if "<JIRA>" in str(cell).upper():
                 value = str(cell).replace("<JIRA>", "").strip()
-                jira_fields.append({"value":value,"index":idx})
+                jira_fields.append({"value":value,"index":idx})'''
             # keep list of cells that a
 
         if jira_fields and not fields_found:
