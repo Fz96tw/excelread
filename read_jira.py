@@ -179,7 +179,7 @@ for issue in issues:
         elif field == "comments":
             if issue.fields.comment.comments:
                 sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
-                value = "\n".join([
+                value = ";".join([
                     f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
                     for comment in sorted_comments
                 ])
@@ -260,6 +260,7 @@ if jql_ids:
                     #values.append(str(value))
                 if field == "assignee":
                     print(f"Assignee list: {assignee_list}")
+                    assignee_list.sort()
                     assignee_str = ";".join(assignee_list)
                     value = assignee_str
                 elif field == "id":
