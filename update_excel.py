@@ -1,4 +1,6 @@
 import sys
+from openpyxl.styles import Alignment
+
 
 field_index_map = {}
 jira_data = {}
@@ -105,15 +107,20 @@ def process_jira_table_blocks(filename):
                             #ws.cell(row=row[0].row, column=index + 1, value=cell_value)
                             target_cell = ws.cell(row=row[0].row, column=index + 1)
                             print(f"Setting cell {target_cell.coordinate} = {cell_value}")  # <-- Coordinate logging
-                            target_cell.value = cell_value
+                            target_cell.value = cell_value.replace(";", "\n")  # Replace ; with newline
+                                                    
+                            # Enable text wrapping to show newlines
+                            target_cell.alignment = Alignment(wrapText=True)
+                            
                             # Save coordinate + value to list
                             change_list.append(f"{target_cell.coordinate}={cell_value}")
 
             else:
                 print(f"No data found for {first_cell} in jira_data.")
+    
     # Save updates to the same file
-    #print(f"Saving updates to {filename}")
-    #wb.save(filename)                
+    print(f"Saving updates to {filename}")
+    wb.save(filename)                
 
 
 

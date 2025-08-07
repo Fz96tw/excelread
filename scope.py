@@ -19,7 +19,7 @@ def set_output_filename(filename, table_name=""):
     return outputfile  
 
 def is_valid_jira_id(jira_id):
-    return re.match(r'^[A-Z][A-Z0-9]+-\d+$', jira_id) is not None
+    return re.match(r'^[A-Z][A-Z0-9]+-\d+$', jira_id) is not None or "JQL" in jira_id
 
 
 if __name__ == "__main__":

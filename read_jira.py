@@ -119,9 +119,16 @@ with open(output_file, "w") as outfile:
     outfile.write("Field indexes," + field_indexes_str + "\n")
     outfile.write("Field values," + field_values_str + "\n")
 
+#jira_ids = data.get('jira_ids', [])
+#jira_filter_str = "id in (" + ','.join(jira_ids) + ")"
 jira_ids = data.get('jira_ids', [])
-jira_filter_str = "id in (" + ','.join(jira_ids) + ")"
- 
+
+# IDs without JQL
+filtered_ids = [jid for jid in jira_ids if 'JQL' not in jid]
+
+# IDs with "JQL"
+jql_ids = [jid for jid in jira_ids if 'JQL' in jid]
+jira_filter_str = "id in (" + ','.join(filtered_ids) + ")" 
 print(jira_filter_str)
 
 # Replace with your Jira Cloud credentials and URL
@@ -178,9 +185,122 @@ for issue in issues:
                 ])
             else:
                 value = "No comments"
-                
+        elif field == "synopsis":
+            value_parts = []
+            issuetype = getattr(issue.fields, 'issuetype', None)
+            if issuetype and hasattr(issuetype, 'name'):
+                if issuetype.name == "Epic":
+                    value_parts.append("Epic")
+            if hasattr(issue.fields, 'subtasks'):
+                value_parts.append(f"sub-tasks {len(issue.fields.subtasks)}")
+            value = "|".join(value_parts) if value_parts else ""
+            # Add more text to the synopsis if needed below here
+        
+
         values.append(str(value))
 
     print(','.join(values))
     with open(output_file, "a") as outfile:
         outfile.write(','.join(values) + "\n")  
+
+# Now process the JQL queries
+if jql_ids:
+    print("Processing JQL queries:")    
+    
+    for jql_id in jql_ids:
+        jql_query = jql_id.replace("JQL ", "").strip()
+        print(f"Running JQL query: {jql_query}")
+        try:
+            issues = jira.search_issues(jql_query, maxResults=10)
+            print(f"Found {len(issues)} issues for JQL query '{jql_query}':")
+            if len(issues) == 0:
+                print(f"No issues found for JQL query '{jql_query}'.")
+                continue
+
+            assignee_list = []
+            id_list = []
+            key_list = []
+            comments_list = []
+            synopsis_list = []
+            values = []
+
+            for field in field_values:
+                print(f"Processing field: {field}")
+                for issue in issues:
+                    print(f"Processing issue: {issue.key}")
+
+                    value = getattr(issue.fields, field, None)
+                    if field == "assignee":
+                        temp = (issue.fields.assignee.displayName) if issue.fields.assignee else "unassigned"
+                        assignee_list.append(temp + "[" + issue.key + "]")
+                    elif field == "id":
+                        id_list.append(issue.id)
+                    elif field == "key":
+                        key_list.append(issue.key)
+                    elif field == "comments":
+                        if issue.fields.comment.comments:   
+                            sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
+                            comments_list = "; ".join([
+                                f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
+                                for comment in sorted_comments
+                            ])
+                        else:
+                            comments_list = "No comments"
+                    elif field == "synopsis":
+                        value_parts = []
+                        issuetype = getattr(issue.fields, 'issuetype', None)
+                        if issuetype and hasattr(issuetype, 'name'):
+                            if issuetype.name == "Epic":
+                                value_parts.append("Epic")
+                        if hasattr(issue.fields, 'subtasks'):
+                            value_parts.append(f"sub-tasks {len(issue.fields.subtasks)}")
+                        synopsis_list = "|".join(value_parts) if value_parts else ""
+                    
+
+                    #values.append(str(value))
+                if field == "assignee":
+                    print(f"Assignee list: {assignee_list}")
+                    assignee_str = ";".join(assignee_list)
+                    value = assignee_str
+                elif field == "id":
+                    print(f"ID list: {id_list}")
+                    id_str = ",".join(id_list)
+                    value = id_str
+                elif field == "key":
+                    print(f"Key list: {key_list}")
+                    #synopsis_str = ", ".join(key_list)  # put key into synopsis field, do not over
+                    value = jql_id
+                elif field == "comments":
+                    print(f"Comments list: {comments_list}")
+                    value = comments_list
+                elif field == "synopsis":
+                    print(f"Synopsis list: {synopsis_list}")
+                    final_value = ";".join(key_list) if key_list else ""
+                    value = final_value + "; " + synopsis_list if synopsis_list else final_value
+                    #value = synopsis_list
+                else:
+                    print(f"Field {field} not recognized. Using 'NA' as value.")
+                    value = "NA"
+
+
+                values.append(str(value))
+                
+                
+                
+            print(','.join(values))
+            with open(output_file, "a") as outfile:
+                outfile.write(','.join(values) + "\n")
+        except Exception as e:
+            print(f"❌ Failed to run JQL query '{jql_id}': {e}")
+            for field in field_values:
+                if field == "key":
+                    value = jql_id
+                else:
+                    value = "Bad JQL query"
+            values.append(str(value))            
+            print(','.join(values))
+            with open(output_file, "a") as outfile:
+                outfile.write(','.join(values) + "\n")
+
+
+print(f"Data written to {output_file}")
