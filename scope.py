@@ -49,7 +49,9 @@ if __name__ == "__main__":
     for row in rows:
         print(row)
         for idx, cell in enumerate(row):
-            if "JIRA TABLE" in str(cell).upper():
+#            if "JIRA TABLE" in str(cell).upper():
+            cell_str = str(cell).strip().lower()
+            if cell_str.endswith("<jira>") and len(str(cell_str)) > 6:
                 if jira_table_found:
                     print("Found a NEW 'Jira Table'")
 
@@ -69,22 +71,28 @@ if __name__ == "__main__":
                     jira_ids = []
                     jira_fields = []
                     fields_found = False
-                    cleaned_value = str(cell).strip().replace(" ", "_")
+                    #cleaned_value = str(cell).strip().replace(" ", "_")
+                    cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
                     scope_output_file = set_output_filename(filename,cleaned_value)
                 else:
                     jira_table_found = True
                 
                 print(f"Found 'Jira Table' in row {row[0]}")     
                 #cleaned_value = str(cell).replace("Jira", "", 1).strip().replace(" ", "_")
-                cleaned_value = str(cell).strip().replace(" ", "_")
+                #cleaned_value = str(cell).strip().replace(" ", "_")
+                cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
                 scope_output_file = set_output_filename(filename, cleaned_value)
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
-                file_info["table"] = cell
+                file_info["table"] = cleaned_value
                 with open(scope_output_file, 'w') as f:
                     yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
                 continue
-            
+            else:
+                if not jira_table_found:
+                    print("No 'Jira Table' found in this row. Skipping.")
+                    break
+
             import re
             match = re.search(r'<(.*?)>', str(cell).lower())    
             if match:
