@@ -240,12 +240,15 @@ if jql_ids:
                     elif field == "comments":
                         if issue.fields.comment.comments:   
                             sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
-                            comments_list = "; ".join([
+                            comments_list.append("[" + issue.key +"] ")
+                            comments_list.append("; ".join([
                                 f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
                                 for comment in sorted_comments
-                            ])
+                            ]))
+                            comments_list.append(";")  # Add a semicolon after final comment for this issue
                         else:
-                            comments_list = "No comments"
+                            comments_list.append("[" + issue.key + "] ")
+                            comments_list.append("No comments;")
                     elif field == "synopsis":
                         value_parts = []
                         issuetype = getattr(issue.fields, 'issuetype', None)
@@ -272,8 +275,10 @@ if jql_ids:
                     #synopsis_str = ", ".join(key_list)  # put key into synopsis field, do not over
                     value = jql_id
                 elif field == "comments":
-                    print(f"Comments list: {comments_list}")
-                    value = comments_list
+                    # Flatten the list
+                    cleaned_comments = ";".join(comments_list)
+                    print(f"Comments list: {cleaned_comments}")
+                    value = cleaned_comments
                 elif field == "synopsis":
                     print(f"Synopsis list: {synopsis_list}")
                     final_value = ";".join(key_list) if key_list else ""
