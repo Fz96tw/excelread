@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Config Form</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        h3 {
+            margin-bottom: 4px; /* reduce space below the title */
+        }
+        ol {
+            margin-top: 4px; /* reduce space above the list */
+        }
+        /* Optionally, reduce space below the paragraph line */
+        .sync-desc {
+            margin: 0 0 4px 0;
+        }     
+
+        /* Make label and input inline, with some spacing */
+        form label {
+            display: inline-block;
+            width: 150px; /* fixed width for labels to align inputs */
+            vertical-align: middle;
+        }
+        form input[type="text"] {
+            display: inline-block;
+            vertical-align: middle;
+            width: 300px;
+            margin-bottom: 10px;
+        }
+        form button {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <img src="{{ banner_path }}" alt="Banner" style="width:100%; max-height:200px; object-fit:cover;">
+    <h1>Excel Jira Sync Prototype </h1>
+
+    <!-- Section 1 -->
+    <h2>Jira Connection Info</h2>
+    <form method="POST">
+        <label>Jira Cloud URL:</label>
+        <input type="text" name="jira_url" value="{{ foo_values.get('jira_url', '') }}"><br>
+
+        <label>Jira Email:</label>
+        <input type="text" name="jira_user" value="{{ foo_values.get('jira_user', '') }}"><br>
+
+        <label>Jira API Token:</label>
+        <input type="text" name="jira_token" value="{{ foo_values.get('jira_token', '') }}"><br>
+
+        <button type="submit" name="save_foo">💾 Save Jira Details</button>
+    </form>
+
+    <hr>
+
+    <!-- Section 2 -->
+    <h2>Select Excel Files for JIRA Sync</h2>
+    <form method="POST">
+        <label>Path/File:</label>
+        <input type="text" name="bar_value">
+        <button type="submit" name="add_bar">➕ Add to Sync Group</button>
+    </form>
+
+    <h3>Sync Group</h3>
+    <p class="sync-desc">Files currently in sync group:</p>
+    <ol>
+        {% for val in bar_values %}
+        <li>
+             📄 {{ val }}
+            <form method="POST" style="display:inline;">
+                <input type="hidden" name="remove_bar" value="{{ val }}">
+                <button type="submit" onclick="return confirm('Remove this value?')">🗑️</button>
+            </form>
+            <form method="POST" style="display:inline;">
+                <input type="hidden" name="login_bar" value="{{ val }}">
+                <button type="submit" onclick="return confirm('Enter credentials?')">➕</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ol>
+</body>
+</html>
