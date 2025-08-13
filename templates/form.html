@@ -73,11 +73,16 @@
         <!-- Remove -->
         <form method="POST" style="display:inline;">
         <input type="hidden" name="remove_bar" value="{{ val }}">
-        <button type="submit" onclick="return confirm('Remove this value?')">🗑️</button>
+        <button type="submit" onclick="return confirm('Remove this value?')">🗑️ Remove</button>
         </form>
 
+
         <!-- Login (popup) -->
-        <button type="button" class="login-btn" onclick="openLoginPopup(this)" title="Login">➕ Authorization Needed</button>
+        {% if logged_in %}
+            <button type="button" title="Logged in">✅ Authorized</button>
+        {% else %}
+            <button type="button" class="login-btn" onclick="openLoginPopup(this)" title="Login">🔐 Login Required</button>
+            {% endif %}
     </li>
     {% endfor %}
     </ol>
@@ -89,10 +94,10 @@
     lastLoginBtn = btn;
     const popup = window.open("/login", "LoginWindow", "width=600,height=700");
     if (!popup) alert("Please allow popups for this site.");
-    }
+}
 
     // Receive status from popup
-    window.addEventListener("message", function(e) {
+window.addEventListener("message", function(e) {
     if (e.data === "login-success") {
         // Update the clicked button (and optionally all)
         if (lastLoginBtn) {
@@ -107,8 +112,8 @@
         lastLoginBtn.title = "Login failed";
         }
     }
-    });
-    </script>
+});
+</script>
 
 
 </body>

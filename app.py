@@ -9,6 +9,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key")  # Use a real secret in production
+
 
 FOO_FILE = '.env'
 BAR_FILE = '.bar'
@@ -33,12 +35,14 @@ TOKEN_CACHE_FILE = "token_cache.json"
 def load_cache():
     cache = msal.SerializableTokenCache()
     if os.path.exists(TOKEN_CACHE_FILE):
+        print("Loading token cache from file...")
         cache.deserialize(open(TOKEN_CACHE_FILE, "r").read())
     return cache
 
 
 def save_cache(cache):
     if cache.has_state_changed:
+        print("Saving token cache to file...")
         with open(TOKEN_CACHE_FILE, "w") as f:
             f.write(cache.serialize())
 
@@ -63,9 +67,11 @@ def write_file_lines(path, lines):
     with open(path, 'w') as f:
         f.write("\n".join(lines))
 
+import time
 
-@app.route("/check_token")
-def check_token():
+import time
+
+def is_logged_in():
     cache = load_cache()
     cca = build_msal_app(cache)
     accounts = cca.get_accounts()
@@ -73,40 +79,28 @@ def check_token():
     if accounts:
         result = cca.acquire_token_silent(SCOPES, account=accounts[0])
         save_cache(cache)
-        if result:
-            return """
-                <h3>Access token ready!</h3>
-                <pre>{}</pre>
-                <button onclick="logout()">Logout</button>
-                <script>
-                    function logout() {{
-                        fetch('/logout').then(() => {{
-                            document.getElementById("loginBtn").textContent = "Login with Microsoft";
-                        }});
-                    }}
-                </script>
-            """.format(result['access_token'][:40] + "...")
+        print("acquire_token_silent result:", result)
+        if result and "access_token" in result:
+            # Calculate expiry based on expires_in (seconds) if expires_on missing
+            expires_on = result.get("expires_on")
+            expires_in = result.get("expires_in")
+            current_time = time.time()
 
-    # Not logged in → show login button
-    return """
-        <h3>Not logged in</h3>
-        <button id="loginBtn">Login with Microsoft</button>
-        <script>
-        document.getElementById("loginBtn").addEventListener("click", function() {
-            window.open("/login", "LoginWindow", "width=600,height=700");
-        });
+            if expires_on:
+                expiry_time = int(expires_on)
+            elif expires_in:
+                expiry_time = int(current_time + expires_in)
+            else:
+                expiry_time = 0  # no expiry info available
 
-        window.addEventListener("message", function(e) {
-            if (e.data === "login-success") {
-                document.getElementById("loginBtn").textContent = "✅ Logged in";
-            } else if (e.data === "login-failed") {
-                document.getElementById("loginBtn").textContent = "❌ Login failed";
-            }
-        });
-        </script>
-    """
+            print(f"Token expiry time: {expiry_time}, current time: {current_time}")
 
+            if expiry_time > current_time:
+                print("Token is valid and not expired.")
+                return True
 
+    print("No valid token found or token is expired.")
+    return False
 
 
 @app.route("/login")
@@ -133,6 +127,7 @@ def authorized():
         save_cache(cache)
 
         if "access_token" in result:
+            session["is_logged_in"] = True
             return """
                 <html>
                 <body style="font-family: sans-serif; text-align: center; padding: 40px;">
@@ -152,6 +147,7 @@ def authorized():
                 </html>
             """
         else:
+            session["is_logged_in"] = False
             err = result.get("error_description", "Unknown error")
             return f"""
                 <html>
@@ -197,6 +193,12 @@ def index():
 
     bar_values = read_file_lines(BAR_FILE)
 
+    # Synchronize session login status with real token state every request
+    logged_in_state = is_logged_in()  # returns True or False
+    session["is_logged_in"] = logged_in_state
+    logged_in = logged_in_state
+
+
     if request.method == 'POST':
         if 'save_foo' in request.form:
             jira_url = "JIRA_URL = \"" + request.form.get('jira_url', '') + "\""
@@ -219,14 +221,12 @@ def index():
                 write_file_lines(BAR_FILE, bar_values)
             return redirect(url_for('index'))
         
-        #elif 'login_bar' in request.form:
-        #    #get_access_token()  # Trigger login flow
-        #    return redirect(url_for('check_token'))
-
+    print(f"Logged in status: {logged_in}")
     return render_template('form.html',
                            banner_path=BANNER_PATH,
                            foo_values=foo_values,
-                           bar_values=bar_values)
+                           bar_values=bar_values,
+                            logged_in=logged_in)
 
 if __name__ == '__main__':
     app.run(debug=True)
