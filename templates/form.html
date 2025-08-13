@@ -67,19 +67,49 @@
     <h3>Sync Group</h3>
     <p class="sync-desc">Files currently in sync group:</p>
     <ol>
-        {% for val in bar_values %}
-        <li>
-             📄 {{ val }}
-            <form method="POST" style="display:inline;">
-                <input type="hidden" name="remove_bar" value="{{ val }}">
-                <button type="submit" onclick="return confirm('Remove this value?')">🗑️</button>
-            </form>
-            <form method="POST" style="display:inline;">
-                <input type="hidden" name="login_bar" value="{{ val }}">
-                <button type="submit" onclick="return confirm('Enter credentials?')">➕</button>
-            </form>
-        </li>
-        {% endfor %}
+    {% for val in bar_values %}
+    <li>
+        📄 {{ val }}
+        <!-- Remove -->
+        <form method="POST" style="display:inline;">
+        <input type="hidden" name="remove_bar" value="{{ val }}">
+        <button type="submit" onclick="return confirm('Remove this value?')">🗑️</button>
+        </form>
+
+        <!-- Login (popup) -->
+        <button type="button" class="login-btn" onclick="openLoginPopup(this)" title="Login">➕ Authorization Needed</button>
+    </li>
+    {% endfor %}
     </ol>
+
+    <script>
+    let lastLoginBtn = null;
+
+    function openLoginPopup(btn) {
+    lastLoginBtn = btn;
+    const popup = window.open("/login", "LoginWindow", "width=600,height=700");
+    if (!popup) alert("Please allow popups for this site.");
+    }
+
+    // Receive status from popup
+    window.addEventListener("message", function(e) {
+    if (e.data === "login-success") {
+        // Update the clicked button (and optionally all)
+        if (lastLoginBtn) {
+        lastLoginBtn.textContent = "✅ Authorized";
+        lastLoginBtn.title = "Logged in";
+        }
+        // If you want all login buttons to reflect state:
+        // document.querySelectorAll(".login-btn").forEach(b => { b.textContent = "✅"; b.title = "Logged in"; });
+    } else if (e.data === "login-failed") {
+        if (lastLoginBtn) {
+        lastLoginBtn.textContent = "❌ Authorization Failed";
+        lastLoginBtn.title = "Login failed";
+        }
+    }
+    });
+    </script>
+
+
 </body>
 </html>
