@@ -51,7 +51,8 @@ if __name__ == "__main__":
         for idx, cell in enumerate(row):
 #            if "JIRA TABLE" in str(cell).upper():
             cell_str = str(cell).strip().lower()
-            if cell_str.endswith("<jira>") and len(str(cell_str)) > 6:
+            #if cell_str.endswith("<jira>") and len(str(cell_str)) > 6:
+            if "<jira>" in cell_str and len(str(cell_str)) > 6:
                 if jira_table_found:
                     print("Found a NEW 'Jira Table'")
 
@@ -94,7 +95,9 @@ if __name__ == "__main__":
                     break
 
             import re
-            match = re.search(r'<(.*?)>', str(cell).lower())    
+            cell_str = str(cell).replace("\xa0", " ").lower().strip()
+            #match = re.search(r'<(.*?)>', str(cell).lower())
+            match = re.search(r'<(.*?)>', cell_str)    
             if match:
                 value = match.group(1).strip()
                 jira_fields.append({"value": value, "index": idx})
@@ -132,3 +135,4 @@ if __name__ == "__main__":
     print("Total rows processed:", len(rows))
     # close the file
     f.close()
+    print("Scope file created successfully:", scope_output_file)
