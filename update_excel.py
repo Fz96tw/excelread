@@ -1,6 +1,13 @@
 import sys
 from openpyxl.styles import Alignment
 
+import re
+
+def is_valid_jira_id(jira_id):
+    return re.match(r'^[A-Z][A-Z0-9]+-\d+$', jira_id) is not None or "JQL" not in jira_id
+
+def is_JQL(jira_id):
+    return "JQL" in jira_id
 
 field_index_map = {}
 jira_data = {}
@@ -84,11 +91,11 @@ def process_jira_table_blocks(filename):
                 print(f"Found table header '{file_info['table']}' in cell {cell.coordinate}")
                 printing = True
                 break
-            if cell.value and "Jira Table" in str(cell.value):
-                if printing:
-                    print("Found start of new Jira Table. Exiting Jira Table block.")
-                    # Found another "Jira Table" — stop
-                    return
+            #if cell.value and "<jira>" in str(cell.value):
+            #    if printing:
+            #        print("Found start of new Jira Table. Exiting Jira Table block.")
+            #        # Found another "Jira Table" — stop
+            #        return
 
         if printing:
             first_cell = row[field_index_map["key"]].value
@@ -106,14 +113,24 @@ def process_jira_table_blocks(filename):
                             #print(f"Setting cell value: {cell_value}")
                             #ws.cell(row=row[0].row, column=index + 1, value=cell_value)
                             target_cell = ws.cell(row=row[0].row, column=index + 1)
+                            old_value = target_cell.value
+                            old_value = str(old_value).replace("\n", ";") if old_value else None  # Replace newlines with semicolons for comparison
+                            print(f"Old value for {target_cell.coordinate}: {old_value}")
                             print(f"Setting cell {target_cell.coordinate} = {cell_value}")  # <-- Coordinate logging
                             target_cell.value = cell_value.replace(";", "\n")  # Replace ; with newline
                                                     
                             # Enable text wrapping to show newlines
                             target_cell.alignment = Alignment(wrapText=True)
+
+                            if field == "key" and is_valid_jira_id(cell_value):
+                                target_cell.hyperlink = "https://fz96tw.atlassian.net/browse/" + cell_value  # The actual link
+                                target_cell.style = "Hyperlink"  # Optional: makes it blue and underlined
+                            elif field == "key" and is_JQL(cell_value):
+                                target_cell.hyperlink = "https://fz96tw.atlassian.net/issues/?jql=" + cell_value.replace("JQL", "")  # The actual link
+                                target_cell.style = "Hyperlink"
                             
                             # Save coordinate + value to list
-                            change_list.append(f"{target_cell.coordinate}={cell_value}")
+                            change_list.append(f"{target_cell.coordinate}={cell_value.replace("\n",";")}||{old_value}")
 
             else:
                 print(f"No data found for {first_cell} in jira_data.")
@@ -147,10 +164,17 @@ if __name__ == "__main__":
     process_jira_table_blocks(xlfile)
     print("Finished processing Jira Table blocks.")
 
+            
     if not change_list:
         print("No changes made.")
     else:
-        print("Changes made:")
-        for entry in change_list:
-            print(entry)
-            
+        changes_file = xlfile.replace(".xlsx", "_changes.txt")
+        print(f"Writing changes to {changes_file}")
+        with open(changes_file, "w") as f:
+            for entry in change_list:
+                if "||None" in entry:
+                    entry = entry.replace("||None", "||")
+                f.write(entry + "\n")
+                print(entry)
+    print(f"Changes written to {changes_file} with ({len(change_list)} entries).")
+

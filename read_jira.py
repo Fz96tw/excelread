@@ -3,9 +3,8 @@ import yaml
 from jira import JIRA
 import os
 from dotenv import load_dotenv
-
-
 import re
+import ollama
 
 # Cache dictionary to avoid repeated calls
 user_cache = {}
@@ -16,6 +15,47 @@ from requests.auth import HTTPBasicAuth
 
 # Cache dictionary to avoid repeated calls
 user_cache = {}
+
+
+
+def get_summarized_comments(comments_list_asc):
+    """
+    Summarize comments for LLM processing.
+    This function takes a list of comments in ascending order and returns a summarized version.
+    """
+    if not comments_list_asc:
+        return "No comments available."
+
+    # Join comments into a single string separated by semicolons
+    comments_str = "; ".join(comments_list_asc)
+
+    model_name = "llama3.2:1b"
+    prompt = (
+        "Summarize the following into 2-3 short sentences. Do not expand any abbreviations."
+        "The text contains semi colon separated list of jira comment starting with jira id in [ ].  prefix the summary with this jira id.  Focus on things that are done versus those that are blocked and preventing completion of the work. You can directly reference the name of user who made the comment. Do not expand any abbreviations. "
+        "also list any issues with no comments. do not add any newlines in the summary."
+        f"{comments_str}"
+    )
+
+    # Stream the response from Ollama and accumulate
+    stream = ollama.chat(
+        model=model_name,
+        messages=[{"role": "user", "content": prompt}],
+        stream=True
+    )
+
+    full_response = ""
+    for chunk in stream:
+        full_response += chunk['message']['content']
+        print(chunk['message']['content'], end="", flush=True)
+    print()  # Final newline        
+
+     # Replace all newlines with semicolons
+    full_response = full_response.replace("\n", "; ")
+    full_response = full_response.replace(",", ";")
+
+    return "OLLAMA-->" + full_response + " <---OLLAMA"
+
 
 def get_user_display_name(account_id):
     if account_id in user_cache:
@@ -195,7 +235,10 @@ for issue in issues:
                 value_parts.append(f"sub-tasks {len(issue.fields.subtasks)}")
             value = "|".join(value_parts) if value_parts else ""
             # Add more text to the synopsis if needed below here
-        
+         
+        #elif field == "ai":
+        #    if value is None: # don't want to set this to None, so make it blank
+        #        value = ""
 
         values.append(str(value))
 
@@ -218,9 +261,12 @@ if jql_ids:
                 continue
 
             assignee_list = []
+            status_list = []
             id_list = []
             key_list = []
             comments_list = []
+            comments_list_asc = [] # for ascending order for LLM
+            comments_summarized_list = []
             synopsis_list = []
             values = []
 
@@ -233,22 +279,36 @@ if jql_ids:
                     if field == "assignee":
                         temp = (issue.fields.assignee.displayName) if issue.fields.assignee else "unassigned"
                         assignee_list.append(temp + "[" + issue.key + "]")
+                    elif field == "status":
+                        temp = issue.fields.status.name if issue.fields.status else "unknown"
+                        status_list.append(temp + "[" + issue.key + "]")
                     elif field == "id":
                         id_list.append(issue.id)
                     elif field == "key":
                         key_list.append(issue.key)
                     elif field == "comments":
                         if issue.fields.comment.comments:   
+                            sorted_comments_asc = sorted(issue.fields.comment.comments, key=lambda c: c.created) # ascending order for LLM   
                             sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
                             comments_list.append("[" + issue.key +"] ")
+                            comments_list_asc.append("[" + issue.key +"] ")
                             comments_list.append("; ".join([
                                 f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
                                 for comment in sorted_comments
                             ]))
-                            comments_list.append(";")  # Add a semicolon after final comment for this issue
+                            comments_list_asc.append("; ".join([
+                                f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
+                                for comment in sorted_comments_asc
+                            ]))
+                            #comments_list.append(";")  # Add a semicolon after final comment for this issue
+                            #comments_list_asc.append(";")  # Add a semicolon after final comment for this issue
+                            comments_summarized_list.append(get_summarized_comments(comments_list_asc))
                         else:
                             comments_list.append("[" + issue.key + "] ")
                             comments_list.append("No comments;")
+                            comments_list_asc.append("[" + issue.key + "] ")
+                            comments_list_asc.append("No comments;")
+                            comments_summarized_list.append("[" + issue.key + "]" + " No comments")
                     elif field == "synopsis":
                         value_parts = []
                         issuetype = getattr(issue.fields, 'issuetype', None)
@@ -266,6 +326,11 @@ if jql_ids:
                     assignee_list.sort()
                     assignee_str = ";".join(assignee_list)
                     value = assignee_str
+                elif field == "status":
+                    print(f"status list: {status_list}")
+                    status_list.sort()
+                    status_str = ";".join(status_list)
+                    value = status_str
                 elif field == "id":
                     print(f"ID list: {id_list}")
                     id_str = ",".join(id_list)
@@ -279,6 +344,11 @@ if jql_ids:
                     cleaned_comments = ";".join(comments_list)
                     print(f"Comments list: {cleaned_comments}")
                     value = cleaned_comments
+                elif field == "ai":
+                    print(f"Comments for AI summarization: {comments_list_asc}")
+                    #value = comments_summarized_list
+                    value = ";".join(comments_summarized_list)
+                    print(f"AI summarized comments: {value}")
                 elif field == "synopsis":
                     print(f"Synopsis list: {synopsis_list}")
                     final_value = ";".join(key_list) if key_list else ""
@@ -298,6 +368,7 @@ if jql_ids:
                 outfile.write(','.join(values) + "\n")
         except Exception as e:
             print(f"❌ Failed to run JQL query '{jql_id}': {e}")
+            
             for field in field_values:
                 if field == "key":
                     value = jql_id
