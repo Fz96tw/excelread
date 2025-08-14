@@ -6,7 +6,7 @@ import yaml
 import re
 
 def read_excel_rows(filename):
-    df = pd.read_excel(filename)
+    df = pd.read_excel(filename, header=None)  # Treat all rows as data
     # Remove rows where all cells are NaN (i.e., completely blank)
     df = df.dropna(how='all')
     return df.values.tolist()
