@@ -29,15 +29,16 @@ def get_summarized_comments(comments_list_asc):
     # Join comments into a single string separated by semicolons
     comments_str = "; ".join(comments_list_asc)
 
+    #model_name = "falcon:7b"
     model_name = "llama3.2:1b"
     prompt = (
-        "Summarize the following into 2-3 short sentences. Do not expand any abbreviations."
-        "The text contains semi colon separated list of jira comment starting with jira id in [ ].  prefix the summary with this jira id.  Focus on things that are done versus those that are blocked and preventing completion of the work. You can directly reference the name of user who made the comment. Do not expand any abbreviations. "
-        "also list any issues with no comments. do not add any newlines in the summary."
+        "This is a chronological sequence of notes for an Jira issue. Summarize the following text into 1 or 2 short sentences using only words already included. Do not expand any abbreviations."
+        "Do not add any newlines in the summary. Only summarize what is included here, do not add any additional information"
         f"{comments_str}"
     )
 
     # Stream the response from Ollama and accumulate
+    print("Creating ollama chat stream")
     stream = ollama.chat(
         model=model_name,
         messages=[{"role": "user", "content": prompt}],
@@ -54,7 +55,12 @@ def get_summarized_comments(comments_list_asc):
     full_response = full_response.replace("\n", "; ")
     full_response = full_response.replace(",", ";")
 
-    return "OLLAMA-->" + full_response + " <---OLLAMA"
+    from datetime import datetime
+
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    #print(now_str)
+
+    return "OLLAMA " + now_str + "-->" + full_response
 
 
 def get_user_display_name(account_id):
@@ -223,6 +229,21 @@ for issue in issues:
                     f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
                     for comment in sorted_comments
                 ])
+
+                from datetime import datetime
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                value = "As of " + now_str + ";" + value
+            else:
+                value = "No comments"
+        elif field == "ai":
+            if issue.fields.comment.comments:
+                sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=False)
+                value = ";".join([
+                    f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
+                    for comment in sorted_comments
+                ])
+                ai_summarized = get_summarized_comments(value)
+                value = ai_summarized
             else:
                 value = "No comments"
         elif field == "synopsis":
@@ -262,6 +283,7 @@ if jql_ids:
 
             assignee_list = []
             status_list = []
+            summary_list = []
             id_list = []
             key_list = []
             comments_list = []
@@ -272,16 +294,23 @@ if jql_ids:
 
             for field in field_values:
                 print(f"Processing field: {field}")
+                
                 for issue in issues:
                     print(f"Processing issue: {issue.key}")
 
+                    # reset so it contains comments for thsi issue only. But do not reset comments_list here!
+                    comments_list_asc = [] 
+                    
                     value = getattr(issue.fields, field, None)
                     if field == "assignee":
                         temp = (issue.fields.assignee.displayName) if issue.fields.assignee else "unassigned"
-                        assignee_list.append(temp + "[" + issue.key + "]")
+                        assignee_list.append(temp + " [" + issue.key + "]")
+                    elif field == "summary":
+                        temp = issue.fields.summary if issue.fields.summary else "No summary"
+                        summary_list.append(temp + " [" + issue.key + "]")
                     elif field == "status":
                         temp = issue.fields.status.name if issue.fields.status else "unknown"
-                        status_list.append(temp + "[" + issue.key + "]")
+                        status_list.append(temp + " [" + issue.key + "]")
                     elif field == "id":
                         id_list.append(issue.id)
                     elif field == "key":
@@ -300,9 +329,14 @@ if jql_ids:
                                 f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
                                 for comment in sorted_comments_asc
                             ]))
+                            
+                            print(f"*****comments_list_asc = {comments_list_asc}")
                             #comments_list.append(";")  # Add a semicolon after final comment for this issue
                             #comments_list_asc.append(";")  # Add a semicolon after final comment for this issue
-                            comments_summarized_list.append(get_summarized_comments(comments_list_asc))
+                            ai_summarized = get_summarized_comments(comments_list_asc)
+                            print(f"+++++ ai_summarized = {ai_summarized}")
+                            comments_summarized_list.append(ai_summarized)
+                        
                         else:
                             comments_list.append("[" + issue.key + "] ")
                             comments_list.append("No comments;")
@@ -331,6 +365,9 @@ if jql_ids:
                     status_list.sort()
                     status_str = ";".join(status_list)
                     value = status_str
+                elif field == "summary":
+                    summary_str = ";".join(summary_list)
+                    value = summary_str
                 elif field == "id":
                     print(f"ID list: {id_list}")
                     id_str = ",".join(id_list)
@@ -345,7 +382,7 @@ if jql_ids:
                     print(f"Comments list: {cleaned_comments}")
                     value = cleaned_comments
                 elif field == "ai":
-                    print(f"Comments for AI summarization: {comments_list_asc}")
+                    #print(f"Comments for AI summarization: {comments_list_asc}")
                     #value = comments_summarized_list
                     value = ";".join(comments_summarized_list)
                     print(f"AI summarized comments: {value}")

@@ -64,7 +64,7 @@ def load_jira_file(filename):
             print("Warning: No key found in line.")
             continue
         # <<<< End of inserted fragment >>>>
-
+        
         print(f"Record for {key}: {record}")
         jira_data[key] = record
         print(f"Added record for {key} to jira_data.")
