@@ -5,23 +5,22 @@
     <style>
         body {
             font-family: Arial, sans-serif;
+            margin: 0;
         }
 
         h3 {
-            margin-bottom: 4px; /* reduce space below the title */
+            margin-bottom: 4px;
         }
         ol {
-            margin-top: 4px; /* reduce space above the list */
+            margin-top: 4px;
         }
-        /* Optionally, reduce space below the paragraph line */
         .sync-desc {
             margin: 0 0 4px 0;
         }     
 
-        /* Make label and input inline, with some spacing */
         form label {
             display: inline-block;
-            width: 150px; /* fixed width for labels to align inputs */
+            width: 150px;
             vertical-align: middle;
         }
         form input[type="text"] {
@@ -33,88 +32,202 @@
         form button {
             margin-top: 10px;
         }
+
+        .menu-bar {
+            display: flex;
+            padding: 10px 20px;
+            gap: 20px;
+            background-image: url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1350&q=80');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            position: relative;
+        }
+        .menu-bar::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.4);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .menu-bar button {
+            position: relative;
+            z-index: 1;
+            background: none;
+            border: none;
+            color: white;
+            font-weight: bold;
+            font-size: 1em;
+            cursor: pointer;
+            padding: 8px 16px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .menu-bar button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        .menu-bar button.active {
+            background-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .section-content {
+            display: none;
+            padding: 20px;
+        }
+        .section-content.active {
+            display: block;
+        }
+
+        img.banner {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+            display: block;
+        }
+
+        h1 {
+            margin: 20px;
+        }
+
+        /* Log textarea */
+        #log-textarea {
+            width: 100%;
+            height: 300px;
+            resize: none;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
-    <img src="{{ banner_path }}" alt="Banner" style="width:100%; max-height:200px; object-fit:cover;">
-    <h1>Excel Jira Sync Prototype </h1>
+    <img src="{{ banner_path }}" alt="Banner" class="banner">
 
-    <!-- Section 1 -->
-    <h2>Jira Connection Info</h2>
-    <form method="POST">
-        <label>Jira Cloud URL:</label>
-        <input type="text" name="jira_url" value="{{ foo_values.get('jira_url', '') }}"><br>
+    <div class="menu-bar">
+        <button id="btn-section1">🔗 Jira Connection Info</button>
+        <button id="btn-section2" class="active">📁 Select Excel Files for JIRA Sync</button>
+        <button id="btn-section3">📝 Log</button>
+    </div>
 
-        <label>Jira Email:</label>
-        <input type="text" name="jira_user" value="{{ foo_values.get('jira_user', '') }}"><br>
-
-        <label>Jira API Token:</label>
-        <input type="text" name="jira_token" value="{{ foo_values.get('jira_token', '') }}"><br>
-
-        <button type="submit" name="save_foo">💾 Save Jira Details</button>
-    </form>
-
-    <hr>
-
-    <!-- Section 2 -->
-    <h2>Select Excel Files for JIRA Sync</h2>
-    <form method="POST">
-        <label>Path/File:</label>
-        <input type="text" name="bar_value">
-        <button type="submit" name="add_bar">➕ Add to Sync Group</button>
-    </form>
-
-    <h3>Sync Group</h3>
-    <p class="sync-desc">Files currently in sync group:</p>
-    <ol>
-    {% for val in bar_values %}
-    <li>
-        📄 {{ val }}
-        <!-- Remove -->
-        <form method="POST" style="display:inline;">
-        <input type="hidden" name="remove_bar" value="{{ val }}">
-        <button type="submit" onclick="return confirm('Remove this value?')">🗑️ Remove</button>
+    <div id="section1" class="section-content">
+        <h2>🔗 Jira Connection Info</h2>
+        <form method="POST">
+            <label>Jira Cloud URL:</label>
+            <input type="text" name="jira_url" value="{{ foo_values.get('jira_url', '') }}"><br>
+            <label>Jira Email:</label>
+            <input type="text" name="jira_user" value="{{ foo_values.get('jira_user', '') }}"><br>
+            <label>Jira API Token:</label>
+            <input type="text" name="jira_token" value="{{ foo_values.get('jira_token', '') }}"><br>
+            <button type="submit" name="save_foo">💾 Save Jira Details</button>
         </form>
+    </div>
 
-
-        <!-- Login (popup) -->
+    <div id="section2" class="section-content active">
+        <h2>📁 Select Excel Files for JIRA Sync</h2>
+        <form method="POST">
+            <label>Path/File:</label>
+            <input type="text" name="bar_value">
+            <button type="submit" name="add_bar">➕ Add to Sync Group</button>
+        </form>
         {% if logged_in %}
             <button type="button" title="Logged in">✅ Authorized</button>
         {% else %}
             <button type="button" class="login-btn" onclick="openLoginPopup(this)" title="Login">🔐 Login Required</button>
-            {% endif %}
-    </li>
-    {% endfor %}
-    </ol>
+        {% endif %}
+
+        <h3>Sync Group</h3>
+        <p class="sync-desc">Files currently in sync group:</p>
+        <ol>
+        {% for val in bar_values %}
+        <li>
+            📄 {{ val }}
+            <form method="POST" style="display:inline;">
+                <input type="hidden" name="remove_bar" value="{{ val }}">
+                <button type="submit" onclick="return confirm('Remove {{ val}}')">🗑️</button>
+            </form>
+            <form method="POST" style="display:inline;">
+                <input type="hidden" name="resync_bar" value="{{ val }}">
+                <button type="submit" onclick="return confirm('Resync {{ val }}?')">🔄</button>
+            </form>
+        </li>
+        {% endfor %}
+        </ol>
+    </div>
+
+    <!-- Log Section -->
+    <div id="section3" class="section-content">
+        <h3>Logs Explorer</h3>
+        <ul>
+        {% for file in folder_tree %}
+            <li>
+                📄 {{ file.name }} — <small>{{ file.modified }}</small>
+                <form method="POST" style="display:inline;">
+                    <input type="hidden" name="view_log" value="{{ file.name }}">
+                    <button type="submit">👁️ View</button>
+                </form>
+            </li>
+        {% endfor %}
+        </ul>    
+    </div>
 
     <script>
-    let lastLoginBtn = null;
+        const btnSection1 = document.getElementById('btn-section1');
+        const btnSection2 = document.getElementById('btn-section2');
+        const btnSection3 = document.getElementById('btn-section3');
 
-    function openLoginPopup(btn) {
-    lastLoginBtn = btn;
-    const popup = window.open("/login", "LoginWindow", "width=600,height=700");
-    if (!popup) alert("Please allow popups for this site.");
-}
+        const section1 = document.getElementById('section1');
+        const section2 = document.getElementById('section2');
+        const section3 = document.getElementById('section3');
 
-    // Receive status from popup
-window.addEventListener("message", function(e) {
-    if (e.data === "login-success") {
-        // Update the clicked button (and optionally all)
-        if (lastLoginBtn) {
-        lastLoginBtn.textContent = "✅ Authorized";
-        lastLoginBtn.title = "Logged in";
+        function showSection(sectionToShow) {
+            section1.classList.remove('active');
+            section2.classList.remove('active');
+            section3.classList.remove('active');
+            btnSection1.classList.remove('active');
+            btnSection2.classList.remove('active');
+            btnSection3.classList.remove('active');
+
+            if (sectionToShow === 'section1') {
+                section1.classList.add('active');
+                btnSection1.classList.add('active');
+            } else if (sectionToShow === 'section2') {
+                section2.classList.add('active');
+                btnSection2.classList.add('active');
+            } else {
+                section3.classList.add('active');
+                btnSection3.classList.add('active');
+            }
         }
-        // If you want all login buttons to reflect state:
-        // document.querySelectorAll(".login-btn").forEach(b => { b.textContent = "✅"; b.title = "Logged in"; });
-    } else if (e.data === "login-failed") {
-        if (lastLoginBtn) {
-        lastLoginBtn.textContent = "❌ Authorization Failed";
-        lastLoginBtn.title = "Login failed";
+
+        btnSection1.addEventListener('click', () => showSection('section1'));
+        btnSection2.addEventListener('click', () => showSection('section2'));
+        btnSection3.addEventListener('click', () => showSection('section3'));
+
+        // Default to section 2
+        showSection('section2');
+
+        let lastLoginBtn = null;
+
+        function openLoginPopup(btn) {
+            lastLoginBtn = btn;
+            const popup = window.open("/login", "LoginWindow", "width=600,height=700");
+            if (!popup) alert("Please allow popups for this site.");
         }
-    }
-});
-</script>
 
-
+        window.addEventListener("message", function(e) {
+            if (e.data === "login-success") {
+                if (lastLoginBtn) {
+                    lastLoginBtn.textContent = "✅ Authorized";
+                    lastLoginBtn.title = "Logged in";
+                }
+            } else if (e.data === "login-failed") {
+                if (lastLoginBtn) {
+                    lastLoginBtn.textContent = "❌ Authorization Failed";
+                    lastLoginBtn.title = "Login failed";
+                }
+            }
+        });
+    </script>
 </body>
 </html>
