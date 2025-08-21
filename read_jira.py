@@ -337,7 +337,7 @@ if jql_ids:
                             #comments_list_asc.append(";")  # Add a semicolon after final comment for this issue
                             ai_summarized = get_summarized_comments(comments_list_asc)
                             print(f"+++++ ai_summarized = {ai_summarized}")
-                            comments_summarized_list.append(ai_summarized)
+                            comments_summarized_list.append("[" + issue.key + "] " + ai_summarized + ";")
                         
                         else:
                             comments_list.append("[" + issue.key + "] ")
