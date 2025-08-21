@@ -168,7 +168,8 @@ if __name__ == "__main__":
     if not change_list:
         print("No changes made.")
     else:
-        changes_file = xlfile.replace(".xlsx", "_changes.txt")
+        #changes_file = xlfile.replace(".xlsx", ".changes.txt")
+        changes_file = jiracsv.replace(".jira.csv", ".changes.txt")
         print(f"Writing changes to {changes_file}")
         with open(changes_file, "w") as f:
             for entry in change_list:
