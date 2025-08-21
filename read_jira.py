@@ -338,6 +338,8 @@ if jql_ids:
             summary_list = []
             id_list = []
             key_list = []
+            duedate_list = []
+            createddate_list = []
             comments_list = []
             comments_list_asc = [] # for ascending order for LLM
             comments_summarized_list = []
@@ -346,6 +348,9 @@ if jql_ids:
 
             for field in field_values:
                 print(f"Processing field: {field}")
+                generic_fields_list = []
+                #TODO?? not sure if this is needed to avoid a latent bug?
+                # values_list = []  # Reset for each field
                 
                 for issue in issues:
                     print(f"Processing issue: {issue.key}")
@@ -395,6 +400,7 @@ if jql_ids:
                             comments_list_asc.append("[" + issue.key + "] ")
                             comments_list_asc.append("No comments;")
                             comments_summarized_list.append("[" + issue.key + "]" + " No comments")
+                    
                     elif field == "synopsis":
                         value_parts = []
                         issuetype = getattr(issue.fields, 'issuetype', None)
@@ -404,6 +410,11 @@ if jql_ids:
                         if hasattr(issue.fields, 'subtasks'):
                             value_parts.append(f"sub-tasks {len(issue.fields.subtasks)}")
                         synopsis_list = "|".join(value_parts) if value_parts else ""
+                     
+                    else:
+                        print(f"Processing generic field: {field} with value: {value}")
+                        generic_fields_list.append("[" + issue.key + "] " + str(value))
+
                     
 
                     #values.append(str(value))
@@ -444,8 +455,12 @@ if jql_ids:
                     value = final_value + "; " + synopsis_list if synopsis_list else final_value
                     #value = synopsis_list
                 else:
-                    print(f"Field {field} not recognized. Using 'NA' as value.")
-                    value = "NA"
+                    print(f"Field {field} is considered generic_field and will be processed as such.")
+                    #value = "NA"
+                    value = ";".join(generic_fields_list) if generic_fields_list else "NA"
+                
+                print(f"Final value for field {field}: {value}")
+
 
 
                 values.append(str(value))
