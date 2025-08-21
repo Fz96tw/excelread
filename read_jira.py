@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 import re
 import ollama
+from datetime import datetime
 
 # Cache dictionary to avoid repeated calls
 user_cache = {}
@@ -16,6 +17,54 @@ from requests.auth import HTTPBasicAuth
 # Cache dictionary to avoid repeated calls
 user_cache = {}
 
+class OllamaSummarizer:
+    def __init__(self, model_name="llama3.2:1b"):
+        self.model_name = model_name
+        print(f"[INFO] Initializing Ollama model: {self.model_name}")
+        # Warm up the model by sending a trivial prompt
+        self._warm_up()
+
+    def _warm_up(self):
+        try:
+            ollama.chat(
+                model=self.model_name,
+                messages=[{"role": "user", "content": "Hello"}]
+            )
+            print(f"[INFO] Model {self.model_name} is warmed up and ready.")
+        except Exception as e:
+            print(f"[ERROR] Failed to warm up model: {e}")
+
+    def summarize_comments(self, comments_list):
+        if not comments_list:
+            return "No comments available."
+
+        #comments_str = "; ".join(comments_list)
+        # Safety-aware prompt template
+        prompt = (
+            "You are a helpful assistant. Summarize the following Jira or internal team comments "
+            "in one or two short sentences. Only summarize the content; do not add extra information. Mention abbreviations but do not expand any abbreviations used here  "
+            "or opinions. Keep it concise and clear.\n\n"
+            + comments_list
+        )
+        print(f"Prompt for summarization: {prompt}")
+        try:
+            # Non-streaming call is faster
+            response = ollama.chat(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            summary = response["message"]["content"]
+            print(f"[INFO] Summary generated successfully. {summary}")
+        except Exception as e:
+            return f"[ERROR] Ollama chat failed: {e}"
+
+        # Clean up formatting
+        summary = summary.replace("\n", "; ").replace(",", ";")
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return f"OLLAMA {now_str} --> {summary}"
+
+# Initialize once
+summarizer = OllamaSummarizer(model_name="llama3.2:1b")
 
 
 def get_summarized_comments(comments_list_asc):
@@ -28,7 +77,7 @@ def get_summarized_comments(comments_list_asc):
 
     # Join comments into a single string separated by semicolons
     comments_str = "; ".join(comments_list_asc)
-
+    '''
     #model_name = "falcon:7b"
     model_name = "llama3.2:1b"
     prompt = (
@@ -37,26 +86,26 @@ def get_summarized_comments(comments_list_asc):
         "Summarize the following as briefly as possible:"
         f"{comments_str}"
     )
+    
+        # Stream the response from Ollama and accumulate
+        print("Creating ollama chat stream")
+        stream = ollama.chat(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            stream=True
+        )
 
-    # Stream the response from Ollama and accumulate
-    print("Creating ollama chat stream")
-    stream = ollama.chat(
-        model=model_name,
-        messages=[{"role": "user", "content": prompt}],
-        stream=True
-    )
-
-    full_response = ""
-    for chunk in stream:
-        full_response += chunk['message']['content']
-        print(chunk['message']['content'], end="", flush=True)
-    print()  # Final newline        
-
+        full_response = ""
+        for chunk in stream:
+            full_response += chunk['message']['content']
+            print(chunk['message']['content'], end="", flush=True)
+        print()  # Final newline        
+    '''
+    full_response = summarizer.summarize_comments(comments_str)
+    print(f"Full response: {full_response}")
      # Replace all newlines with semicolons
     full_response = full_response.replace("\n", "; ")
     full_response = full_response.replace(",", ";")
-
-    from datetime import datetime
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     #print(now_str)
@@ -244,6 +293,7 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                         f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
                         for comment in sorted_comments
                     ])
+                    print(f"calling get_summarized_comments with: {value}")
                     ai_summarized = get_summarized_comments(value)
                     value = ai_summarized
                 else:
