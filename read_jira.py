@@ -338,8 +338,6 @@ if jql_ids:
             summary_list = []
             id_list = []
             key_list = []
-            duedate_list = []
-            createddate_list = []
             comments_list = []
             comments_list_asc = [] # for ascending order for LLM
             comments_summarized_list = []
