@@ -199,74 +199,75 @@ except Exception as e:
     print(f"❌ Failed to connect to Jira: {e}")
     sys.exit(1)
 
-# Try running the search
-try:
-    issues = jira.search_issues(jira_filter_str, maxResults=10)
-    #print(f"✅ Found {len(issues)} issue(s) matching the filter.")
-    #for i, issue in enumerate(issues, start=1):
-    #    print(f"{i}. {issue.key} — {issue.fields.summary}")
-except Exception as e:
-    print(f"❌ Failed to search issues: {e}")
+if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise the search will throw exception
+    # Try running the search
+    try:
+        issues = jira.search_issues(jira_filter_str, maxResults=10)
+        #print(f"✅ Found {len(issues)} issue(s) matching the filter.")
+        #for i, issue in enumerate(issues, start=1):
+        #    print(f"{i}. {issue.key} — {issue.fields.summary}")
+    except Exception as e:
+        print(f"❌ Failed to search issues: {e}")
 
 
-print(f"Found {len(issues)} issues matching the filter:")
+    print(f"Found {len(issues)} issues matching the filter:")
 
 
-# Print only the fields specified in field_values_str for each issue
-for issue in issues:
-    values = [] 
-    for field in field_values:
-        value = getattr(issue.fields, field, None)
-        if field == "assignee":
-            value = issue.fields.assignee.displayName if issue.fields.assignee else "unassigned"
-        elif field == "id":
-            value = issue.id
-        elif field == "key":
-            value = issue.key
-        elif field == "comments":
-            if issue.fields.comment.comments:
-                sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
-                value = ";".join([
-                    f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
-                    for comment in sorted_comments
-                ])
+    # Print only the fields specified in field_values_str for each issue
+    for issue in issues:
+        values = [] 
+        for field in field_values:
+            value = getattr(issue.fields, field, None)
+            if field == "assignee":
+                value = issue.fields.assignee.displayName if issue.fields.assignee else "unassigned"
+            elif field == "id":
+                value = issue.id
+            elif field == "key":
+                value = issue.key
+            elif field == "comments":
+                if issue.fields.comment.comments:
+                    sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
+                    value = ";".join([
+                        f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
+                        for comment in sorted_comments
+                    ])
 
-                from datetime import datetime
-                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                value = "As of " + now_str + ";" + value
-            else:
-                value = "No comments"
-        elif field == "ai":
-            if issue.fields.comment.comments:
-                sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=False)
-                value = ";".join([
-                    f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
-                    for comment in sorted_comments
-                ])
-                ai_summarized = get_summarized_comments(value)
-                value = ai_summarized
-            else:
-                value = "No comments"
-        elif field == "synopsis":
-            value_parts = []
-            issuetype = getattr(issue.fields, 'issuetype', None)
-            if issuetype and hasattr(issuetype, 'name'):
-                if issuetype.name == "Epic":
-                    value_parts.append("Epic")
-            if hasattr(issue.fields, 'subtasks'):
-                value_parts.append(f"sub-tasks {len(issue.fields.subtasks)}")
-            value = "|".join(value_parts) if value_parts else ""
-            # Add more text to the synopsis if needed below here
-         
-        #elif field == "ai":
-        #    if value is None: # don't want to set this to None, so make it blank
-        #        value = ""
+                    from datetime import datetime
+                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    value = "As of " + now_str + ";" + value
+                else:
+                    value = "No comments"
+            elif field == "ai":
+                if issue.fields.comment.comments:
+                    sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=False)
+                    value = ";".join([
+                        f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
+                        for comment in sorted_comments
+                    ])
+                    ai_summarized = get_summarized_comments(value)
+                    value = ai_summarized
+                else:
+                    value = "No comments"
+            elif field == "synopsis":
+                value_parts = []
+                issuetype = getattr(issue.fields, 'issuetype', None)
+                if issuetype and hasattr(issuetype, 'name'):
+                    if issuetype.name == "Epic":
+                        value_parts.append("Epic")
+                if hasattr(issue.fields, 'subtasks'):
+                    value_parts.append(f"sub-tasks {len(issue.fields.subtasks)}")
+                value = "|".join(value_parts) if value_parts else ""
+                # Add more text to the synopsis if needed below here
+            
+            #elif field == "ai":
+            #    if value is None: # don't want to set this to None, so make it blank
+            #        value = ""
 
-        values.append(str(value))
+            values.append(str(value))
 
-    print(','.join(values))
-    with open(output_file, "a") as outfile:
-        outfile.write(','.join(values) + "\n")  
+        print(','.join(values))
+        with open(output_file, "a") as outfile:
+            outfile.write(','.join(values) + "\n")  
 
 # Now process the JQL queries
 if jql_ids:
