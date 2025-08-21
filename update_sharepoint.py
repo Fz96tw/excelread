@@ -310,10 +310,10 @@ for row_num, cols in row_values.items():
         #    skip_row = True
         #    break
 
-        if old_value == new_value:
-            print(f"Skipping row {row_num} because {cell_address} (no change reqd) already has the new value '{new_value}'")
-            skip_row = True
-            break
+        #if old_value == new_value:
+        #    print(f"Skipping row {row_num} because {cell_address} (no change reqd) already has the new value '{new_value}'")
+        #    skip_row = True
+        #    break
         
     if skip_row:
         continue
