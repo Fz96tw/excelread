@@ -177,5 +177,5 @@ if __name__ == "__main__":
                     entry = entry.replace("||None", "||")
                 f.write(entry + "\n")
                 print(entry)
-    print(f"Changes written to {changes_file} with ({len(change_list)} entries).")
+        print(f"Changes written to {changes_file} with ({len(change_list)} entries).")
 
