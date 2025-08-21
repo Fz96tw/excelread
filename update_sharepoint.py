@@ -4,6 +4,7 @@ import argparse
 from urllib.parse import urlparse, quote
 import msal
 import os
+import json
 
 
 # -------------------------------
@@ -104,6 +105,17 @@ if len(path_parts) < 3:
 site_path = f"/{path_parts[0]}/{path_parts[1]}"
 file_path = "/" + path_parts[2]
 
+# Build meta filename from file_path
+meta_filename = file_path.strip("/").replace("/", "_") + ".meta.json"
+if not os.path.exists(meta_filename):
+    raise FileNotFoundError(f"Metadata file {meta_filename} not found. Run download script first.")
+
+# --- LOAD SAVED ETAG ---
+with open(meta_filename, "r") as f:
+    saved_meta = json.load(f)
+saved_etag = saved_meta.get("etag")
+print(f"📂 Loaded saved eTag: {saved_etag} from {meta_filename}")
+
 # Get site ID
 site_api_url = f"https://graph.microsoft.com/v1.0/sites/{hostname}:{site_path}"
 resp_site = requests.get(site_api_url, headers=headers)
@@ -114,7 +126,19 @@ site_id = resp_site.json()["id"]
 file_api_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:{quote(file_path)}"
 resp_file = requests.get(file_api_url, headers=headers)
 resp_file.raise_for_status()
-item_id = resp_file.json()["id"]
+file_meta = resp_file.json()
+item_id = file_meta["id"]
+current_etag = file_meta["eTag"]
+
+print(f"🔎 Current eTag: {current_etag}")
+
+# --- COMPARE ETAG ---
+if current_etag != saved_etag:
+    print("❌ eTag mismatch! File has been modified since last download.")
+    print("👉 Aborting update to prevent overwriting newer changes.")
+    exit(1)
+
+print("✅ eTag matches. Safe to apply updates.")
 
 # --- ITERATE AND UPDATE SAFELY ---
 for row_num, cols in row_values.items():
@@ -134,7 +158,7 @@ for row_num, cols in row_values.items():
             expected_old = ""  # Treat missing old value as blank
 
         if current_value != expected_old:
-            print(f"Skipping row {row_num} because {cell_address} has value '{current_value}' instead of expected '{expected_old}'")
+            print(f"Skipping row {row_num} because {cell_address} has unexpected value '{current_value}' instead of expected '{expected_old}'")
             skip_row = True
             break
 

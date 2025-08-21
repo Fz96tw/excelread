@@ -1,129 +1,122 @@
 import os
+import sys
+import json
 import requests
 import msal
 from dotenv import load_dotenv
-from urllib.parse import urlparse
-
-
-import os
-import requests
-import msal
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 
 # -------------------------------
 # Config from environment variables
 # -------------------------------
-# Load env vars
 load_dotenv()
-SCOPES = ["https://graph.microsoft.com/.default"]  # Required for client credentials flow
 CLIENT_ID = os.environ["CLIENT_ID"]
 CLIENT_SECRET = os.environ["CLIENT_SECRET"]
 TENANT_ID = os.environ["TENANT_ID"]
 SCOPES = ["https://graph.microsoft.com/.default"]
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 
+TOKEN_CACHE_FILE = "token_cache.json"
+
 # -------------------------------
 # MSAL: get application token
 # -------------------------------
 def get_app_token():
-    authority = f"https://login.microsoftonline.com/{TENANT_ID}"
+    print("🔑 Acquiring app token...")
     cca = msal.ConfidentialClientApplication(
-        CLIENT_ID, authority=authority, client_credential=CLIENT_SECRET
+        CLIENT_ID, authority=AUTHORITY, client_credential=CLIENT_SECRET
     )
     result = cca.acquire_token_for_client(scopes=SCOPES)
     if "access_token" not in result:
-        raise Exception(f"Failed to get token: {result}")
+        raise Exception(f"❌ Failed to get token: {result}")
+    print("✅ Access token acquired.")
     return result["access_token"]
 
 # -------------------------------
 # Resolve site ID from SharePoint URL
 # -------------------------------
-def get_site_id(site_url):
-    token = get_app_token()
+def get_site_id(site_url, token):
+    print(f"📂 Resolving site ID for {site_url}...")
     headers = {"Authorization": f"Bearer {token}"}
-
-    # Convert https://tenant.sharepoint.com/sites/Engineering
-    # to cloudcurio.sharepoint.com:/sites/Engineering for Graph
     parsed = urlparse(site_url)
     path = parsed.path.rstrip("/")
     api_url = f"https://graph.microsoft.com/v1.0/sites/{parsed.netloc}:{path}"
     
-    print(f"Getting site ID for {site_url} using URL: {api_url}")
     r = requests.get(api_url, headers=headers)
     if r.status_code != 200:
-        raise Exception(f"Failed to get site ID: {r.status_code} {r.text}")
-    return r.json()["id"]
+        raise Exception(f"❌ Failed to get site ID: {r.status_code} {r.text}")
+    site_id = r.json()["id"]
+    print(f"✅ Site ID resolved: {site_id}")
+    return site_id
 
-from urllib.parse import quote
 def graph_encode_path(path):
     return "/".join(quote(part) for part in path.split("/"))
 
 # -------------------------------
-# Download Excel file from SharePoint
+# Download Excel file + metadata
 # -------------------------------
-def download_excel(site_url, file_path):
+def download_excel_with_meta(site_url, file_path):
     token = get_app_token()
-    site_id = get_site_id(site_url)
+    site_id = get_site_id(site_url, token)
     headers = {"Authorization": f"Bearer {token}"}
 
-    # URL-encode the file path
-    #file_path_encoded = requests.utils.quote(file_path)
     file_path_encoded = graph_encode_path(file_path)
+    print(f"📄 Fetching metadata for {file_path}...")
 
-    print(f"Downloading file from {file_path_encoded} in site {site_id}")
+    # 1. Get file metadata (etag, lastModifiedDateTime, download URL, etc.)
+    meta_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{file_path_encoded}"
+    meta_resp = requests.get(meta_url, headers=headers)
+    if meta_resp.status_code != 200:
+        raise Exception(f"❌ Failed to get metadata: {meta_resp.status_code} {meta_resp.text}")
+    meta = meta_resp.json()
 
-    #url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root/children"
-    #r = requests.get(url, headers=headers)
-    #print(r.status_code, r.json())
-   
-    url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{file_path_encoded}:/content"
+    etag = meta["eTag"]
+    last_modified = meta["lastModifiedDateTime"]
+    download_url = meta["@microsoft.graph.downloadUrl"]
 
-   
-    r = requests.get(url, headers=headers)
-    if r.status_code != 200:
-        raise Exception(f"Failed to download Excel: {r.status_code} {r.text}")
-    
-    return r.content
+    print(f"✅ Metadata retrieved. eTag={etag}, lastModified={last_modified}")
+
+    # 2. Download actual file content
+    print("⬇️  Downloading file content...")
+    content_resp = requests.get(download_url)
+    if content_resp.status_code != 200:
+        raise Exception(f"❌ Failed to download Excel: {content_resp.status_code} {content_resp.text}")
+    excel_bytes = content_resp.content
+
+    # 3. Save file
+    filename = file_path.replace("/", "_")
+    with open(filename, "wb") as f:
+        f.write(excel_bytes)
+    print(f"✅ File saved locally as {filename}")
+
+    # 4. Save metadata sidecar JSON
+    meta_filename = filename + ".meta.json"
+    with open(meta_filename, "w") as f:
+        json.dump({"etag": etag, "lastModified": last_modified}, f, indent=2)
+    print(f"✅ Metadata saved as {meta_filename}")
+
+    return filename, meta_filename
 
 # -------------------------------
 # Example usage
 # -------------------------------
-import sys
-from urllib.parse import urlparse
-
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python script.py <sharepoint_url>")
+        print("Usage: python script.py <sharepoint_file_url>")
         sys.exit(1)
 
     full_url = sys.argv[1]
-
-    # Parse the URL
     parsed_url = urlparse(full_url)
 
-    # Extract site_url (scheme + netloc + first path segment(s))
     path_parts = parsed_url.path.strip("/").split("/")
     if len(path_parts) < 2:
         print("Invalid URL format. Expected site path and file path.")
         sys.exit(1)
 
-    # Example: 'sites/Engineering/Milestones.xlsx'
     site_url = f"{parsed_url.scheme}://{parsed_url.netloc}/{path_parts[0]}/{path_parts[1]}"
-
-    # Everything after the site path is the file path
     file_path = "/".join(path_parts[2:])
-
-    # Create a safe filename by replacing '/' with '_'
-    filename = file_path.replace("/", "_")
-
 
     print("site_url:", site_url)
     print("file_path:", file_path)
 
-
-    excel_bytes = download_excel(site_url, file_path)
-    with open(filename, "wb") as f:
-        f.write(excel_bytes)
-    print("Download complete!")
-
-
+    download_excel_with_meta(site_url, file_path)
