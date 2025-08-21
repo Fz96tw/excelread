@@ -5,6 +5,7 @@ from urllib.parse import urlparse, quote
 import msal
 import os
 import json
+import string
 
 
 # -------------------------------
@@ -60,13 +61,159 @@ def is_valid_jira_id(value):
 def is_jql(value):
     return value.strip().upper().startswith("JQL")
 
-def create_hyperlink(value):
+def create_hyperlink(value, jira_base_url):
     if is_valid_jira_id(value):
         return f"{jira_base_url}/browse/{value}"
     elif is_jql(value):
         jql_query = value.replace("JQL", "").strip()
         return f"{jira_base_url}/issues/?jql={jql_query}"
     return None
+
+def _excel_escape_quotes(s: str) -> str:
+    # Excel doubles double-quotes inside string literals
+    return s.replace('"', '""')
+
+def _make_hyperlink_formula(url: str, text: str) -> str:
+    # Keep it simple: replace newlines for display; wrap handles line breaks visually
+    text = text.replace("\n", " ")
+    return f'=HYPERLINK("{_excel_escape_quotes(url)}","{_excel_escape_quotes(text)}")'
+
+def set_cell_hyperlink(site_id, item_id, worksheet_name, cell_address, display_text, url, headers):
+    formula = _make_hyperlink_formula(url, display_text)
+    url_patch = (
+        f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}"
+        f"/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')"
+    )
+    # Write formula, not values
+    resp = requests.patch(url_patch, json={"formulas": [[formula]]}, headers=headers)
+    resp.raise_for_status()
+    return resp.status_code
+
+
+# --- Row-level updater (sparse cells handled) ---
+def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url):
+    col_letters = sorted(cols.keys(), key=lambda c: string.ascii_uppercase.index(c))
+    start_col, end_col = col_letters[0], col_letters[-1]
+    row_range = f"{start_col}{row_num}:{end_col}{row_num}"
+
+    # --- 1. GET the full row range ---
+    url_get = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{row_range}')"
+    resp_get = requests.get(url_get, headers=headers)
+    resp_get.raise_for_status()
+    current_values = resp_get.json().get("values", [[]])[0]
+
+    # --- 2. Merge in updates ---
+    all_cols = list(range(ord(start_col), ord(end_col) + 1))
+    new_values = []
+    for i, col_ascii in enumerate(all_cols):
+        col_letter = chr(col_ascii)
+        if col_letter in cols:
+            new_val = cols[col_letter]["new"]
+            new_val = new_val.replace(";", "\n") if ";" in new_val else new_val
+            new_values.append(new_val)
+        else:
+            new_values.append(current_values[i])
+
+    # --- 3. PATCH back the updated row ---
+    payload = {"values": [new_values]}
+    resp_patch = requests.patch(url_get, json=payload, headers=headers)
+    resp_patch.raise_for_status()
+    print(f"✅ Row {row_num} updated with range {row_range}: {resp_patch.status_code}")
+
+    '''
+# --- 4. Post-process hyperlinks + wrap ---
+    for i, col_ascii in enumerate(all_cols):
+        col_letter = chr(col_ascii)
+        if col_letter not in cols:
+            continue
+        cell_address = f"{col_letter}{row_num}"
+        new_value = new_values[i]
+
+        hyperlink = create_hyperlink(new_value, jira_base_url)
+        if hyperlink:
+            code = set_cell_hyperlink(
+                site_id, item_id, worksheet_name, cell_address, new_value, hyperlink, headers
+            )
+            print(f"   🔗 Hyperlink set for {cell_address}: {code}")
+    
+
+        
+        url_wrap = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/wrapText"
+        payload_wrap = {"wrapText": True}
+        resp_wrap = requests.patch(url_wrap, json=payload_wrap, headers=headers)
+        print(f"   ↩ Wrap text enabled for {cell_address}: {resp_wrap.status_code}")
+    '''
+
+
+def update_row_batch(site_id, item_id, worksheet_name, row_num, cols, headers):
+    batch_url = "https://graph.microsoft.com/v1.0/$batch"
+    requests_list = []
+    req_id = 1
+    all_requests = []
+
+    for col_letter, values in cols.items():
+        cell_address = f"{col_letter}{row_num}"
+        new_value = values["new"].replace(";", "\n")
+
+        # 1. Value update
+        requests_list.append({
+            "id": str(req_id),
+            "method": "PATCH",
+            "url": f"/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')",
+            "headers": {"Content-Type": "application/json"},
+            "body": {"values": [[new_value]]}
+        })
+        req_id += 1
+
+        '''# 2. Hyperlink (if applicable)
+        hyperlink = create_hyperlink(new_value)
+        if hyperlink:
+            requests_list.append({
+                "id": str(req_id),
+                "method": "PATCH",
+                "url": f"/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/hyperlink",
+                "headers": {"Content-Type": "application/json"},
+                "body": {"hyperlink": hyperlink}
+            })
+            req_id += 1
+
+        # 3. Wrap text
+        requests_list.append({
+            "id": str(req_id),
+            "method": "PATCH",
+            "url": f"/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/wrapText",
+            "headers": {"Content-Type": "application/json"},
+            "body": {"wrapText": True}
+        })
+        req_id += 1
+        '''
+        # If we hit 20 requests, flush them into all_requests and start fresh
+        if len(requests_list) >= 20:
+            all_requests.append(requests_list)
+            requests_list = []
+
+    # Push any remaining requests
+    if requests_list:
+        all_requests.append(requests_list)
+
+    # --- Execute all batches ---
+    for batch_num, batch in enumerate(all_requests, 1):
+        batch_body = {"requests": batch}
+        resp = requests.post(batch_url, headers=headers, json=batch_body)
+
+        if resp.status_code != 200:
+            print(f"Batch {batch_num} failed: {resp.status_code} {resp.text}")
+            resp.raise_for_status()
+
+        results = resp.json().get("responses", [])
+        for r in results:
+            status = r.get("status")
+            sub_id = r.get("id")
+            if status >= 400:
+                print(f"Batch {batch_num}, request {sub_id} failed with {status}: {r}")
+            else:
+                print(f"Batch {batch_num}, request {sub_id} succeeded with {status}")
+
 
 # --- PARSE CHANGES FILE ---
 row_values = defaultdict(dict)
@@ -157,10 +304,11 @@ for row_num, cols in row_values.items():
         if expected_old == "":
             expected_old = ""  # Treat missing old value as blank
 
-        if current_value != expected_old:
-            print(f"Skipping row {row_num} because {cell_address} has unexpected value '{current_value}' instead of expected '{expected_old}'")
-            skip_row = True
-            break
+        
+        #if current_value != expected_old:
+        #    print(f"Skipping row {row_num} because {cell_address} has unexpected value '{current_value}' instead of expected '{expected_old}'")
+        #    skip_row = True
+        #    break
 
         if old_value == new_value:
             print(f"Skipping row {row_num} because {cell_address} (no change reqd) already has the new value '{new_value}'")
@@ -170,7 +318,11 @@ for row_num, cols in row_values.items():
     if skip_row:
         continue
 
-    # Update all cells in the row
+    print(f"Updating row {row_num} with values: {cols}")
+    #update_row_batch(site_id, item_id, worksheet_name, row_num, cols, headers)
+    update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url)
+
+    '''# Update all cells in the row
     for col_letter, values in cols.items():
         cell_address = f"{col_letter}{row_num}"
         new_value = values["new"]
@@ -196,3 +348,4 @@ for row_num, cols in row_values.items():
         payload_wrap = {"wrapText": True}
         resp_wrap = requests.patch(url_wrap, json=payload_wrap, headers=headers)
         print(f"Wrap text enabled for {cell_address}: {resp_wrap.status_code}")
+    '''
