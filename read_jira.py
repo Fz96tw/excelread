@@ -32,8 +32,9 @@ def get_summarized_comments(comments_list_asc):
     #model_name = "falcon:7b"
     model_name = "llama3.2:1b"
     prompt = (
-        "This is a chronological sequence of notes for an Jira issue. Summarize the following text into 1 or 2 short sentences using only words already included. Do not expand any abbreviations."
-        "Do not add any newlines in the summary. Only summarize what is included here, do not add any additional information"
+       # "This is a chronological sequence of notes for an Jira issue. Summarize the following text into 1 or 2 short sentences using only words already included. Do not expand any abbreviations."
+       # "Do not add any newlines in the summary. Only summarize what is included here, do not add any additional information"
+        "Summarize the following as briefly as possible:"
         f"{comments_str}"
     )
 
@@ -418,3 +419,4 @@ if jql_ids:
 
 
 print(f"Data written to {output_file}")
+print(f"CSV_CREATED:{output_file}")
