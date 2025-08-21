@@ -23,7 +23,7 @@ def is_valid_jira_id(jira_id):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
         print("Usage: python scope.py <filename>")
         sys.exit(1)
     filename = sys.argv[1]
