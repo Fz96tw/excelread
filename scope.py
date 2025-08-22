@@ -99,7 +99,10 @@ if __name__ == "__main__":
                     break
 
             import re
-            cell_str = str(cell).replace("\xa0", " ").lower().strip()
+            #cell_str = str(cell).replace("\xa0", " ").lower().strip()
+            # remove non-breaking spaces and newlines, then lower case. 
+            cell_str = str(cell).replace("\xa0", " ").replace("\n", " ").replace("\r", " ").lower().strip()
+
             #match = re.search(r'<(.*?)>', str(cell).lower())
             match = re.search(r'<(.*?)>', cell_str)    
             if match:
