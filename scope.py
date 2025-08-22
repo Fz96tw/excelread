@@ -46,8 +46,10 @@ if __name__ == "__main__":
         #"scope file": scope_output_file
     }
     
+    row_count = 0
     for row in rows:
-        print(row)
+        row_count += 1
+        print(f"row count {row_count} is:{row}")
         for idx, cell in enumerate(row):
 #            if "JIRA TABLE" in str(cell).upper():
             cell_str = str(cell).strip().lower()
@@ -62,10 +64,12 @@ if __name__ == "__main__":
                         with open(scope_output_file, 'a') as f:
                             yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
 
-                    print("JIRA rows have been written to output file:", scope_output_file)
-                    print("Total rows processed:", len(rows))
-                    # close the file
-                    f.close()
+                        print("JIRA rows have been written to output file:", scope_output_file)
+                        print("Total rows processed:", row_count)
+                        # close the file
+                        f.close()
+                    else:
+                        print(f"No scope file create because No JIRA IDs found in table {file_info['table']} in file {filename}")
 
 
                     #jira_table_found = False
@@ -130,6 +134,8 @@ if __name__ == "__main__":
         print(f"JIRA IDs found: {jira_ids}")
         with open(scope_output_file, 'a') as f:
             yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
+    else:
+        print(f"No JIRA IDs found in table {file_info['table']} in file {filename}")
 
     print("JIRA rows have been written to output file:", scope_output_file)
     print("Total rows processed:", len(rows))
