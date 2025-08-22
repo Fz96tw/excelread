@@ -296,6 +296,9 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                 value = issue.fields.assignee.displayName if issue.fields.assignee else "unassigned"
             elif field == "id":
                 value = issue.id
+            elif field == "timestamp":
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                value = now_str
             elif field == "headline":
                 #value = "[" + issue.key + "] " + issue.fields.summary[:10] | "..."
                 value = f"[{issue.key}] {issue.fields.summary[:15]}{'...' if len(issue.fields.summary) > 10 else ''}" 
@@ -473,7 +476,13 @@ if jql_ids:
                     headline_list.sort()
                     headline_str = f"Total Issues: {len(headline_list)}"
                     count = sum(1 for h in headline_list if "Assignee: unassigned" in h)
-                    headline_str += f"   Unassigned: {count};" 
+                    headline_str += f"   Unassigned: {count}"
+                    headline_str += "   Stories: " + str(len([h for h in headline_list if "Type: Story" in h]))
+                    headline_str += "   Epics: " + str(len([h for h in headline_list if "Type: Epic" in h]))
+                    headline_str += "   Tasks: " + str(len([h for h in headline_list if "Type: Task" in h]))
+                    headline_str += "   Bugs: " + str(len([h for h in headline_list if "Type: Bug" in h])) + ";"
+                    #headline_str += "   Sub-tasks: " + str(len([h for h in headline_list if "Type: Sub-task" in h]))
+                    #headline_str += "   Issues: " + str(len([h for h in headline_list if "Type: Issue" in h]))
                     headline_str += ";".join(headline_list)
                     value = headline_str
                 elif field == "timestamp":
