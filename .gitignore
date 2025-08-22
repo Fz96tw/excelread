@@ -3,6 +3,13 @@
 *.scope.yaml
 *.xlsx
 .env
+*.log
+logs/
+*.changes.txt
+*.json
+*.tfstate
+*.tfstate.backup
+*.hcl
  
 # Ignore virtual environment
 venv/
