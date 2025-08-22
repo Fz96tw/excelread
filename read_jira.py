@@ -167,6 +167,31 @@ def replace_account_ids_with_names2(text, jira_client):
     return re.sub(r"\[~accountid:([a-zA-Z0-9:\-]+)\]", replacer, text)
 
 
+import re
+
+def move_brackets_to_front(lines):
+    """
+    Moves [JIRA-KEY] from end of string to the front.
+
+    Args:
+        lines (list[str]): List of strings like "Task name [KEY-1]"
+
+    Returns:
+        list[str]: Reformatted strings like "[KEY-1] Task name"
+    """
+    result = []
+    pattern = re.compile(r'^(.*)\s+(\[[^\]]+\])$')
+
+    for line in lines:
+        match = pattern.match(line.strip())
+        if match:
+            text, ticket = match.groups()
+            result.append(f"{ticket} {text}")
+        else:
+            result.append(line)  # leave unchanged if no match
+    return result
+
+
 if len(sys.argv) != 2:
     print("Usage: python read_jira.py <yaml_file>")
     sys.exit(1)
@@ -362,7 +387,7 @@ if jql_ids:
                         assignee_list.append(temp + " [" + issue.key + "]")
                     elif field == "summary":
                         temp = issue.fields.summary if issue.fields.summary else "No summary"
-                        summary_list.append(temp + " [" + issue.key + "]")
+                        summary_list.append("[" + issue.key + "] " + temp)
                     elif field == "status":
                         temp = issue.fields.status.name if issue.fields.status else "unknown"
                         status_list.append(temp + " [" + issue.key + "]")
@@ -419,14 +444,20 @@ if jql_ids:
                 if field == "assignee":
                     print(f"Assignee list: {assignee_list}")
                     assignee_list.sort()
+                    assignee_list = move_brackets_to_front(assignee_list)
                     assignee_str = ";".join(assignee_list)
                     value = assignee_str
+                elif field == "timestamp":
+                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    value = now_str
                 elif field == "status":
                     print(f"status list: {status_list}")
                     status_list.sort()
+                    status_list = move_brackets_to_front(status_list)
                     status_str = ";".join(status_list)
                     value = status_str
                 elif field == "summary":
+                    summary_list.sort()
                     summary_str = ";".join(summary_list)
                     value = summary_str
                 elif field == "id":
