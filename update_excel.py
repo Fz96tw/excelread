@@ -85,7 +85,7 @@ def process_jira_table_blocks(filename):
         for cell in row:
             #print(f"Processing cell {cell.coordinate}: {cell.value}")
             cleaned_value = str(cell.value).strip().replace(" ", "_")
-            #print(f"Cleaned cell value: {cleaned_value}")
+            print(f"Cleaned cell value: {cleaned_value}" + f" | file_info['table']: {file_info['table']}")
             #if file_info["table"] in str(cell).strip().replace(" ", "_"):
             if file_info["table"] in cleaned_value:
                 print(f"Found table header '{file_info['table']}' in cell {cell.coordinate}")
