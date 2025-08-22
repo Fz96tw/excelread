@@ -49,10 +49,32 @@ changes_file = args.changes_file
 access_token = get_app_token()  # Use the function to get the token
 worksheet_name = args.worksheet_name
 
-jira_base_url = "https://fz96tw.atlassian.net"
 
+import re
 
+def read_jira_url(filename: str) -> str:
+    """
+    Reads the JIRA_URL value from a config-style file.
 
+    Args:
+        filename (str): Path to the file containing JIRA settings.
+
+    Returns:
+        str: The JIRA URL, or None if not found.
+    """
+    jira_url = None
+    pattern = re.compile(r'^JIRA_URL\s*=\s*["\'](.+?)["\']')
+
+    with open(filename, "r", encoding="utf-8") as file:
+        for line in file:
+            match = pattern.match(line.strip())
+            if match:
+                jira_url = match.group(1)
+                break
+
+    return jira_url
+
+#jira_base_url = "https://fz96tw.atlassian.net"
 
 # --- HELPER FUNCTIONS ---
 def is_valid_jira_id(value):
@@ -214,6 +236,9 @@ def update_row_batch(site_id, item_id, worksheet_name, row_num, cols, headers):
             else:
                 print(f"Batch {batch_num}, request {sub_id} succeeded with {status}")
 
+
+jira_base_url = read_jira_url("./.env")
+print(f"Using JIRA base URL: {jira_base_url}")
 
 # --- PARSE CHANGES FILE ---
 row_values = defaultdict(dict)
