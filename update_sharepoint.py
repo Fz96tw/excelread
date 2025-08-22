@@ -161,6 +161,7 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
         if hyperlink:
             new_value = new_value.replace("URL", "").strip()  # Clean up "URL" prefix
             new_value = new_value.replace("JQL", "").strip()  # Clean up "JQL" prefix
+            new_value = "🔗" #"🐞" "🌐"
             code = set_cell_hyperlink(
                 site_id, item_id, worksheet_name, cell_address, new_value, hyperlink, headers
             )
