@@ -296,8 +296,18 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                 value = issue.fields.assignee.displayName if issue.fields.assignee else "unassigned"
             elif field == "id":
                 value = issue.id
+            elif field == "headline":
+                #value = "[" + issue.key + "] " + issue.fields.summary[:10] | "..."
+                value = f"[{issue.key}] {issue.fields.summary[:15]}{'...' if len(issue.fields.summary) > 10 else ''}" 
+                value += "  Status: " + issue.fields.status.name  
+                value += "  Assignee: " + issue.fields.assignee.displayName  if issue.fields.assignee else "   Assignee: unassigned" 
+                value += "  Type: " + issue.fields.issuetype.name  
+                value += "  Created: " + issue.fields.created[:10] 
+                print(f"headline value: {value}")
             elif field == "key":
                 value = issue.key
+            elif field == "url":
+                value = f"{JIRA_URL}/browse/{issue.key}"
             elif field == "comments":
                 if issue.fields.comment.comments:
                     sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
@@ -367,11 +377,13 @@ if jql_ids:
             comments_list_asc = [] # for ascending order for LLM
             comments_summarized_list = []
             synopsis_list = []
+        
             values = []
 
             for field in field_values:
                 print(f"Processing field: {field}")
                 generic_fields_list = []
+                headline_list = []
                 #TODO?? not sure if this is needed to avoid a latent bug?
                 # values_list = []  # Reset for each field
                 
@@ -388,6 +400,15 @@ if jql_ids:
                     elif field == "summary":
                         temp = issue.fields.summary if issue.fields.summary else "No summary"
                         summary_list.append("[" + issue.key + "] " + temp)
+                    elif field == "headline":
+                        #temp = "[" + issue.key + "] " + issue.fields.summary[:10] 
+                        temp = f"[{issue.key}] {issue.fields.summary[:15]}{'...' if len(issue.fields.summary) > 10 else ''}"
+                        temp += "  Status: " + issue.fields.status.name  
+                        temp += "  Assignee: " + issue.fields.assignee.displayName  if issue.fields.assignee else "   Assignee: unassigned" 
+                        temp += "  Type: " + issue.fields.issuetype.name  
+                        temp += "  Created: " + issue.fields.created[:10] 
+                        headline_list.append(temp)
+                        print(f"headline value: {temp}")
                     elif field == "status":
                         temp = issue.fields.status.name if issue.fields.status else "unknown"
                         status_list.append(temp + " [" + issue.key + "]")
@@ -447,6 +468,14 @@ if jql_ids:
                     assignee_list = move_brackets_to_front(assignee_list)
                     assignee_str = ";".join(assignee_list)
                     value = assignee_str
+                elif field == "headline":
+                    print(f"Headline list: {headline_list}")
+                    headline_list.sort()
+                    headline_str = f"Total Issues: {len(headline_list)}"
+                    count = sum(1 for h in headline_list if "Assignee: unassigned" in h)
+                    headline_str += f"   Unassigned: {count};" 
+                    headline_str += ";".join(headline_list)
+                    value = headline_str
                 elif field == "timestamp":
                     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     value = now_str
