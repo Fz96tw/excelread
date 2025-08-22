@@ -307,7 +307,7 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
             elif field == "key":
                 value = issue.key
             elif field == "url":
-                value = f"{JIRA_URL}/browse/{issue.key}"
+                value = "URL " + getattr(issue, 'key', None)     # set it to the issue key for now. will be converted to hyperlink by update_sharepoint.py
             elif field == "comments":
                 if issue.fields.comment.comments:
                     sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
@@ -479,6 +479,8 @@ if jql_ids:
                 elif field == "timestamp":
                     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     value = now_str
+                elif field == "url":
+                    value = "URL " + jql_id     # set it to the issue key for now. will be converted to hyperlink by update_sharepoint.py
                 elif field == "status":
                     print(f"status list: {status_list}")
                     status_list.sort()

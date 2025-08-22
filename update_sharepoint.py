@@ -80,16 +80,22 @@ def read_jira_url(filename: str) -> str:
 def is_valid_jira_id(value):
     return value.startswith("TES-")
 
+#def is_valid_hyperlink(value):
+#    return value.startswith("http://") or value.startswith("https://")
+
 def is_jql(value):
     return value.strip().upper().startswith("JQL")
 
 def create_hyperlink(value, jira_base_url):
-    if is_valid_jira_id(value):
-        return f"{jira_base_url}/browse/{value}"
-    elif is_jql(value):
-        jql_query = value.replace("JQL", "").strip()
-        return f"{jira_base_url}/issues/?jql={jql_query}"
+    if value.startswith("URL "):
+        value = value.replace("URL", "").strip()  # Remove "URL" prefix if present
+        if is_valid_jira_id(value):
+            return f"{jira_base_url}/browse/{value}"
+        elif is_jql(value):
+            jql_query = value.replace("JQL", "").strip()
+            return f"{jira_base_url}/issues/?jql={jql_query}"
     return None
+
 
 def _excel_escape_quotes(s: str) -> str:
     # Excel doubles double-quotes inside string literals
@@ -142,7 +148,7 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
     resp_patch.raise_for_status()
     print(f"✅ Row {row_num} updated with range {row_range}: {resp_patch.status_code}")
 
-    '''
+    
 # --- 4. Post-process hyperlinks + wrap ---
     for i, col_ascii in enumerate(all_cols):
         col_letter = chr(col_ascii)
@@ -153,13 +159,15 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
 
         hyperlink = create_hyperlink(new_value, jira_base_url)
         if hyperlink:
+            new_value = new_value.replace("URL", "").strip()  # Clean up "URL" prefix
+            new_value = new_value.replace("JQL", "").strip()  # Clean up "JQL" prefix
             code = set_cell_hyperlink(
                 site_id, item_id, worksheet_name, cell_address, new_value, hyperlink, headers
             )
             print(f"   🔗 Hyperlink set for {cell_address}: {code}")
     
 
-        
+    '''        
         url_wrap = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/wrapText"
         payload_wrap = {"wrapText": True}
         resp_wrap = requests.patch(url_wrap, json=payload_wrap, headers=headers)
@@ -187,7 +195,7 @@ def update_row_batch(site_id, item_id, worksheet_name, row_num, cols, headers):
         })
         req_id += 1
 
-        '''# 2. Hyperlink (if applicable)
+        # 2. Hyperlink (if applicable)
         hyperlink = create_hyperlink(new_value)
         if hyperlink:
             requests_list.append({
@@ -199,6 +207,7 @@ def update_row_batch(site_id, item_id, worksheet_name, row_num, cols, headers):
             })
             req_id += 1
 
+        '''
         # 3. Wrap text
         requests_list.append({
             "id": str(req_id),
