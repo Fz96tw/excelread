@@ -17,8 +17,10 @@ from requests.auth import HTTPBasicAuth
 # Cache dictionary to avoid repeated calls
 user_cache = {}
 
+model_name = "llama3.2:1b"  # Default model name
+
 class OllamaSummarizer:
-    def __init__(self, model_name="llama3.2:1b"):
+    def __init__(self, model_name):
         self.model_name = model_name
         print(f"[INFO] Initializing Ollama model: {self.model_name}")
         # Warm up the model by sending a trivial prompt
@@ -42,8 +44,8 @@ class OllamaSummarizer:
         # Safety-aware prompt template
         prompt = (
             "You are a helpful assistant. Summarize the following Jira or internal team comments "
-            "in one or two short sentences. Only summarize the content; do not add extra information. Mention abbreviations but do not expand any abbreviations used here  "
-            "or opinions. Keep it concise and clear.\n\n"
+            "in one or two short sentences. Only summarize the content; do not add extra information. Do not expand any abbreviations used here "
+            "or provide opinions. Keep it concise and clear.\n\n"
             + comments_list
         )
         print(f"Prompt for summarization: {prompt}")
@@ -61,10 +63,10 @@ class OllamaSummarizer:
         # Clean up formatting
         summary = summary.replace("\n", "; ").replace(",", ";")
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        return f"OLLAMA {now_str} --> {summary}"
+        return f"{model_name} --> {summary}"
 
 # Initialize once
-summarizer = OllamaSummarizer(model_name="llama3.2:1b")
+summarizer = OllamaSummarizer(model_name)
 
 
 def get_summarized_comments(comments_list_asc):
@@ -75,8 +77,14 @@ def get_summarized_comments(comments_list_asc):
     if not comments_list_asc:
         return "No comments available."
 
+    # Only join if it's a list or tuple
+    if isinstance(comments_list_asc, (list, tuple)):
+        comments_str = "; ".join(comments_list_asc)
+    else:
+        comments_str = comments_list_asc  # already a string
+    
     # Join comments into a single string separated by semicolons
-    comments_str = "; ".join(comments_list_asc)
+    #comments_str = "; ".join(comments_list_asc)
     '''
     #model_name = "falcon:7b"
     model_name = "llama3.2:1b"
@@ -110,7 +118,7 @@ def get_summarized_comments(comments_list_asc):
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     #print(now_str)
 
-    return "OLLAMA " + now_str + "-->" + full_response
+    return  full_response
 
 
 def get_user_display_name(account_id):
@@ -328,7 +336,7 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                 if issue.fields.comment.comments:
                     sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=False)
                     value = ";".join([
-                        f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
+                        f"{comment.created[:10]} - {comment.author.displayName} wrote: {replace_account_ids_with_names(comment.body)}"
                         for comment in sorted_comments
                     ])
                     print(f"calling get_summarized_comments with: {value}")
@@ -387,6 +395,11 @@ if jql_ids:
                 print(f"Processing field: {field}")
                 generic_fields_list = []
                 headline_list = []
+
+                comments_list = []
+                comments_list_asc = [] # for ascending order for LLM
+                comments_summarized_list = []
+                
                 #TODO?? not sure if this is needed to avoid a latent bug?
                 # values_list = []  # Reset for each field
                 
@@ -405,7 +418,7 @@ if jql_ids:
                         summary_list.append("[" + issue.key + "] " + temp)
                     elif field == "headline":
                         #temp = "[" + issue.key + "] " + issue.fields.summary[:10] 
-                        temp = f"[{issue.key}] {issue.fields.summary[:15]}{'...' if len(issue.fields.summary) > 10 else ''}"
+                        temp = f"▫️ {issue.key} {issue.fields.summary[:15]}{'...' if len(issue.fields.summary) > 10 else ''}"
                         temp += "  Status: " + issue.fields.status.name  
                         temp += "  Assignee: " + issue.fields.assignee.displayName  if issue.fields.assignee else "   Assignee: unassigned" 
                         temp += "  Type: " + issue.fields.issuetype.name  
@@ -419,7 +432,7 @@ if jql_ids:
                         id_list.append(issue.id)
                     elif field == "key":
                         key_list.append(issue.key)
-                    elif field == "comments":
+                    elif field == "comments" or field == "ai" :   # always need to process comments even when only AI is requested in excel sheet
                         if issue.fields.comment.comments:   
                             sorted_comments_asc = sorted(issue.fields.comment.comments, key=lambda c: c.created) # ascending order for LLM   
                             sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
@@ -430,7 +443,7 @@ if jql_ids:
                                 for comment in sorted_comments
                             ]))
                             comments_list_asc.append("; ".join([
-                                f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
+                                f"{comment.created[:10]} - {comment.author.displayName} wrote: {replace_account_ids_with_names(comment.body)}"
                                 for comment in sorted_comments_asc
                             ]))
                             
