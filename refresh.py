@@ -58,11 +58,85 @@ def resync(url: str):
 
         return output_lines
 
+    def process_import_yaml(file_url, input_file):
+
+        csv_files = []
+        from pathlib import Path
+        import shutil
+
+        directory = Path("./")  # replace with your directory
+        destination_dir = Path("./")  # where new files will go
+        #destination_dir.mkdir(parents=True, exist_ok=True)  # create if not exists
+
+        # Find all *.import.jira.csv files
+        for file_path in directory.glob("*.import.jira.csv"):
+            # Remove "import." from filename
+            new_name = file_path.name.replace("import.", "")
+            new_path = destination_dir / new_name
+
+            # Copy file to new path
+            shutil.copy(file_path, new_path)
+            print(f"Copied '{file_path.name}' → '{new_name}'")
+
+            csv_files.append(new_path)
+
+            run_post_import_resync_chain(csv_files,file_url, input_file)
+
+
+    def run_post_import_resync_chain(csv_files,file_url, input_file):
+
+
+        # Sort YAML files by substring between filename and .scope.yaml
+        def extract_substring_from_csv(path):
+            m = re.match(rf"{re.escape(input_file)}\.(.+)\.jira\.csv", os.path.basename(path))
+            return m.group(1) if m else ""
+
+        csv_files.sort(key=extract_substring_from_csv)
+
+        for jira_csv in csv_files:
+
+            # Extract the substring matched by '*' in filename.*.scope.yaml
+            match = re.match(rf"{re.escape(input_file)}\.(.+)\.jira\.csv", os.path.basename(yaml_file))
+            if not match:
+                continue
+            substring = match.group(1)            
+            
+            # Define retry loop for this csv file
+            while True:
+
+                # Update Excel
+                run_and_log(
+                    ["python", "-u", update_excel_script, jira_csv, input_file],
+                    log,
+                    f"update_excel.py {jira_csv} {input_file}"
+                )
+                    
+                # Update SharePoint and capture output
+                output_lines = run_and_log(
+                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt"],
+                    log,
+                    f"update_sharepoint.py {url} {input_file}.{substring}.changes.txt"
+                )
+
+                # Check if "Aborting update" is in output
+                if any("Aborting update" in line for line in output_lines):
+                    wait_msg = f"Aborting update detected for {yaml_file}, waiting 30 seconds before retry...\n"
+                    print(wait_msg, end="")
+                    log.write(wait_msg)
+                    time.sleep(30)
+                    continue  # retry the loop
+                else:
+                    break  # success, move to next yaml_file
+
+
+
+
     def process_yaml(file_url, input_file):
         """
         Given a URL and an input file, run scope.py and then recursively process all generated YAML files.
         """
         # Run scope.py on the input file
+        print(f"refresh.py Running scope.py on {input_file}...")
         run_and_log(
             ["python", "-u", scope_script, input_file, file_url],
             log,
@@ -89,6 +163,7 @@ def resync(url: str):
         
 
         for yaml_file in yaml_files:
+            print(f"refresh.py Processing YAML file: {yaml_file}")
             # Extract the substring matched by '*' in filename.*.scope.yaml
             match = re.match(rf"{re.escape(input_file)}\.(.+)\.scope\.yaml", os.path.basename(yaml_file))
             if not match:
@@ -98,13 +173,16 @@ def resync(url: str):
             # Define retry loop for this YAML file
             while True:
                 # Re-run download.py on the original URL
+                print(f"refresh.py Re-downloading {file_url}...")
                 run_and_log(["python", "-u", download_script, file_url], log, f"download.py {file_url}")
 
                 # Run scope.py on the input file again
+                print(f"refresh.py Re-running scope.py on {input_file}...")
                 run_and_log(["python", "-u", scope_script, input_file, file_url], log, f"scope.py {input_file} {file_url}")
 
                 # Generate CSV file for Jira
                 jira_csv = f"{input_file}.{substring}.jira.csv"
+                print(f"refresh.py Generating Jira CSV: {jira_csv}")
                 run_and_log(
                     ["python", "-u", read_jira_script, yaml_file],
                     log,
@@ -112,6 +190,7 @@ def resync(url: str):
                 )
 
                 # Update Excel
+                print(f"refresh.py Updating Excel with {jira_csv}...")
                 run_and_log(
                     ["python", "-u", update_excel_script, jira_csv, input_file],
                     log,
@@ -119,6 +198,7 @@ def resync(url: str):
                 )
 
                 # Update SharePoint and capture output
+                print(f"refresh.py Updating SharePoint for {url} with changes from {input_file}.{substring}.changes.txt...")    
                 output_lines = run_and_log(
                     ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt"],
                     log,
@@ -143,6 +223,10 @@ def resync(url: str):
 
             # Step 2: initial scope processing
             process_yaml(url, filename)
+
+            # now post-process any import.yaml files that might have been generated
+            # Find all import YAML files generated by scope.py
+            #process_import_yaml(url, filename)
 
         except Exception as e:
             err_msg = f"Error running resync: {e}\n"

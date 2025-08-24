@@ -226,7 +226,15 @@ if not tablename:
     print("No 'table' found in fileinfo. Expecting 'table' key.")
     sys.exit(1)
 
-output_file = basename + "." + tablename + ".jira.csv"
+# Determine if we will be INSERTING rows eventually vs just UPDATING existing rows in Excel/SharePoint
+if "import" in yaml_file.lower():
+    print("Import mode detected based on filename containing 'import'.")
+    # You can set a flag or handle import-specific logic here if needed
+    import_mode = True
+    output_file = basename + "." + tablename + ".import.jira.csv"
+else:
+    import_mode = False
+    output_file = basename + "." + tablename + ".jira.csv"
 
 fields = data.get('fields', [])
 field_values = [field.get('value') for field in fields if 'value' in field]
@@ -281,15 +289,42 @@ except Exception as e:
     print(f"❌ Failed to connect to Jira: {e}")
     sys.exit(1)
 
-if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise the search will throw exception
-    # Try running the search
+issues = []  # global issues list to hold results from both ID and JQL searches
+
+if import_mode:
+    print("Import mode is ON. Will be inserting new rows.")
+    # only 1 JQL applicable when import table is used
+    if len(jql_ids) > 1:
+        print("Error: More than one JQL provided in import mode. Only one JQL is supported in import mode.")
+        sys.exit(1)
+    #TODO convert the jql result into a filtered_ids List so it's processed as list of indivudal jira IDs
     try:
-        issues = jira.search_issues(jira_filter_str, maxResults=10)
-        #print(f"✅ Found {len(issues)} issue(s) matching the filter.")
-        #for i, issue in enumerate(issues, start=1):
-        #    print(f"{i}. {issue.key} — {issue.fields.summary}")
+        jql_query = jql_ids[0].replace("JQL ", "").strip()
+        issues = jira.search_issues(jql_query, maxResults=10)
+        print(f"Found {len(issues)} issues for JQL query '{jql_query}':")
+        if len(issues) == 0:
+            print(f"No issues found for JQL query '{jql_query}'.")
+            sys.exit(1)
+        filtered_ids = [issue.key for issue in issues]
+        print(f"Filtered IDs from JQL: {filtered_ids}")
+        jql_ids = []  # Clear jql_ids to avoid re-processing later below
     except Exception as e:
-        print(f"❌ Failed to search issues: {e}")
+        print(f"❌ Failed to search issues for JQL query '{jql_query}': {e}")
+        sys.exit(1)
+else:
+    print("Import mode is OFF. Will be updating existing rows.")
+
+
+if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise the search will throw exception
+    # Try running the search only if issues is empty (i.e., not already populated by import mode)
+    if issues is None or len(issues) == 0:    
+        try:
+            issues = jira.search_issues(jira_filter_str, maxResults=10)
+            #print(f"✅ Found {len(issues)} issue(s) matching the filter.")
+            #for i, issue in enumerate(issues, start=1):
+            #    print(f"{i}. {issue.key} — {issue.fields.summary}")
+        except Exception as e:
+            print(f"❌ Failed to search issues: {e}")
 
 
     print(f"Found {len(issues)} issues matching the filter:")

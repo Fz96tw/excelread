@@ -12,10 +12,11 @@ def read_excel_rows(filename):
     return df.values.tolist()
 
 
-def set_output_filename(filename, table_name=""):
+def set_output_filename(filename, table_name="", import_found=False):
     base_name = os.path.basename(filename)         # "Book1.xlsx"
     #name, ext = os.path.splitext(base_name)        # name = "Book1", ext = ".xlsx"
     outputfile = f"{base_name}.{table_name}.scope.yaml"
+    outputfile = f"{base_name}.{table_name}.import.scope.yaml" if import_found else outputfile
     return outputfile  
 
 def is_valid_jira_id(jira_id):
@@ -35,6 +36,7 @@ if __name__ == "__main__":
     file_info = []
     fields_found = False
     jira_table_found = False
+    jira_import_found = False
     scope_output_file = ""
 
     #file_info.append({"source":filename, "basename":os.path.basename(filename), "scope file":scope_output_file})
@@ -50,12 +52,13 @@ if __name__ == "__main__":
     for row in rows:
         row_count += 1
         print(f"row count {row_count} is:{row}")
+
         for idx, cell in enumerate(row):
-#            if "JIRA TABLE" in str(cell).upper():
-            cell_str = str(cell).strip().lower()
-            #if cell_str.endswith("<jira>") and len(str(cell_str)) > 6:
+            cell_str = str(cell).replace("\n", " ").replace("\r", " ").strip().lower()
+
             if "<jira>" in cell_str and len(str(cell_str)) > 6:
                 if jira_table_found:
+                
                     print("Found a NEW 'Jira Table'")
 
                     if jira_ids:
@@ -76,17 +79,28 @@ if __name__ == "__main__":
                     jira_ids = []
                     jira_fields = []
                     fields_found = False
+                    jira_import_found = False
                     #cleaned_value = str(cell).strip().replace(" ", "_")
                     cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
                     scope_output_file = set_output_filename(filename,cleaned_value)
                 else:
                     jira_table_found = True
+
                 
                 print(f"Found 'Jira Table' in row {row[0]}")     
                 #cleaned_value = str(cell).replace("Jira", "", 1).strip().replace(" ", "_")
                 #cleaned_value = str(cell).strip().replace(" ", "_")
                 cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
-                scope_output_file = set_output_filename(filename, cleaned_value)
+
+                if "jql" in cell_str:
+                    jira_import_found = True
+                    print("JQL import found in table name: ", cell_str)
+                    import_jql = cell_str.split("jql", 1)[1].strip()
+                    if import_jql:
+                        print(f"Import JQL found and added to jira_ids: {import_jql}")
+                        jira_ids.append("JQL " + import_jql)
+
+                scope_output_file = set_output_filename(filename, cleaned_value,jira_import_found)
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
                 file_info["table"] = cleaned_value

@@ -49,6 +49,14 @@ changes_file = args.changes_file
 access_token = get_app_token()  # Use the function to get the token
 worksheet_name = args.worksheet_name
 
+'''
+if "import" in changes_file.lower():
+    print("Import mode detected based on changes file name.")
+    import_mode = True
+else:
+    import_mode = False
+'''
+import_mode = False
 
 import re
 
@@ -78,7 +86,10 @@ def read_jira_url(filename: str) -> str:
 
 # --- HELPER FUNCTIONS ---
 def is_valid_jira_id(value):
-    return value.startswith("TES-")
+    if not isinstance(value, str):
+        return False
+    # Match PROJECTKEY-123 (PROJECTKEY = at least 2 uppercase letters/numbers)
+    return bool(re.fullmatch(r"[A-Z][A-Z0-9]+-\d+", value))
 
 #def is_valid_hyperlink(value):
 #    return value.startswith("http://") or value.startswith("https://")
@@ -176,7 +187,7 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
     '''
 
 
-def update_row_batch(site_id, item_id, worksheet_name, row_num, cols, headers):
+def insert_row_batch(site_id, item_id, worksheet_name, row_num, cols, headers, import_mode=True):
     batch_url = "https://graph.microsoft.com/v1.0/$batch"
     requests_list = []
     req_id = 1
@@ -185,6 +196,7 @@ def update_row_batch(site_id, item_id, worksheet_name, row_num, cols, headers):
     for col_letter, values in cols.items():
         cell_address = f"{col_letter}{row_num}"
         new_value = values["new"].replace(";", "\n")
+        print(f"Preparing insert for {cell_address} to '{new_value}'")
 
         # 1. Value update
         requests_list.append({
@@ -196,6 +208,7 @@ def update_row_batch(site_id, item_id, worksheet_name, row_num, cols, headers):
         })
         req_id += 1
 
+        '''
         # 2. Hyperlink (if applicable)
         hyperlink = create_hyperlink(new_value)
         if hyperlink:
@@ -208,7 +221,7 @@ def update_row_batch(site_id, item_id, worksheet_name, row_num, cols, headers):
             })
             req_id += 1
 
-        '''
+        
         # 3. Wrap text
         requests_list.append({
             "id": str(req_id),
@@ -247,6 +260,48 @@ def update_row_batch(site_id, item_id, worksheet_name, row_num, cols, headers):
                 print(f"Batch {batch_num}, request {sub_id} succeeded with {status}")
 
 
+import requests
+
+
+# Example usage:
+#values = ["TES-123", "TES-124", "TES-125"]
+#update_column(site_id, item_id, "Sheet1", "A2", values, headers)
+def update_column(site_id, item_id, worksheet_name, start_cell, values, headers):
+    """
+    Update a column in Excel starting at `start_cell` with new values using Microsoft Graph.
+    
+    Args:
+        site_id (str): SharePoint site ID
+        item_id (str): Excel file item ID
+        worksheet_name (str): Worksheet name
+        start_cell (str): Starting cell address, e.g. "A2"
+        values (list): List of values to write
+        headers (dict): Auth headers (with Bearer token)
+    """
+    # Extract column letter and row number
+    col_letter = ''.join([c for c in start_cell if c.isalpha()])
+    start_row = int(''.join([c for c in start_cell if c.isdigit()]))
+
+    # Compute end row
+    end_row = start_row + len(values) - 1
+
+    # Build full range address, e.g. "A2:A5"
+    range_address = f"{col_letter}{start_row}:{col_letter}{end_row}"
+
+    url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{range_address}')"
+
+    # Convert values into 2D list (Graph requires [[row1], [row2], ...])
+    body = {"values": [[v] for v in values]}
+
+    resp = requests.patch(url, headers=headers, json=body)
+    if resp.status_code != 200:
+        print(f"Failed to update column: {resp.status_code} {resp.text}")
+        resp.raise_for_status()
+    else:
+        print(f"Successfully updated {range_address} with {len(values)} rows.")
+
+
+
 jira_base_url = read_jira_url("./.env")
 print(f"Using JIRA base URL: {jira_base_url}")
 
@@ -268,11 +323,18 @@ with open(changes_file, "r") as f:
             new_value, old_value = value_pair, ""
         col_letter = ''.join(filter(str.isalpha, cell))
         row_num = int(''.join(filter(str.isdigit, cell)))
+
+        
+        if import_mode:
+            print("Import mode: removing the INSERT prefix from column letter read from changes file")
+            col_letter = col_letter.upper().replace("INSERT","").strip()
+
         row_values[row_num][col_letter.upper()] = {
             "new": new_value.strip(),
             "old": old_value.strip()  # empty string if no old value
         }
         print(f"Parsed {cell}: new='{new_value.strip()}', old='{old_value.strip()}'")
+
 
 # --- GRAPH API BASE ---
 headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
@@ -323,64 +385,112 @@ if current_etag != saved_etag:
 print("✅ eTag matches. Safe to apply updates.")
 
 # --- ITERATE AND UPDATE SAFELY ---
-for row_num, cols in row_values.items():
-    skip_row = False
-    for col_letter, values in cols.items():
-        cell_address = f"{col_letter}{row_num}"
-        url_get = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')"
-        resp_get = requests.get(url_get, headers=headers)
-        resp_get.raise_for_status()
-        current_value = resp_get.json().get("values", [[None]])[0][0]
-        current_value = "" if current_value is None else str(current_value)
-        current_value = current_value.replace("\n", ";")  # Normalize newlines to semicolons for comparison
+if import_mode:
+    print("Import mode ON")
+    # Get the first row number (smallest key)
+    first_row_num = min(row_values.keys())
 
-        expected_old = values["old"]
-        new_value = values["new"]
-        if expected_old == "":
-            expected_old = ""  # Treat missing old value as blank
+    # Get the dict of column values for that row
+    first_row_data = row_values[first_row_num]
 
+    # Get the only column letter
+    first_col_letter = next(iter(first_row_data.keys()))
+
+    # Access its new/old values
+    first_cell_new = first_row_data[first_col_letter]["new"]
+    first_cell_old = first_row_data[first_col_letter]["old"]
+
+    print(f"First row: {first_row_num}, first column: {first_col_letter}")
+    print(f"New value: {first_cell_new}, Old value: {first_cell_old}")
+
+    start_cell = f"{first_col_letter}{first_row_num}"
+    #start_cell = start_cell.replace("INSERT","").strip()
+    print(f"Import mode: updating column at {start_cell}")
+
+    # Sort row numbers to maintain order
+    all_row_nums = sorted(row_values.keys())
+    # Extract new values from each row
+    new_values_list = [row_values[row_num][next(iter(row_values[row_num].keys()))]["new"]
+                    for row_num in all_row_nums]
+    print("All new values by row:", new_values_list)
+
+
+    # Example usage:
+    #values = ["TES-123", "TES-124", "TES-125"]
+    #update_column(site_id, item_id, "Sheet1", "A2", values, headers)
+    #def update_column(site_id, item_id, worksheet_name, start_cell, values, headers):
+
+    update_column(site_id, item_id, worksheet_name, start_cell, new_values_list, headers)
+
+else:
+    for row_num, cols in row_values.items():
         
-        #if current_value != expected_old:
-        #    print(f"Skipping row {row_num} because {cell_address} has unexpected value '{current_value}' instead of expected '{expected_old}'")
-        #    skip_row = True
-        #    break
-
-        #if old_value == new_value:
-        #    print(f"Skipping row {row_num} because {cell_address} (no change reqd) already has the new value '{new_value}'")
-        #    skip_row = True
-        #    break
+        '''
+        skip_row = False
         
-    if skip_row:
-        continue
+        for col_letter, values in cols.items():
 
-    print(f"Updating row {row_num} with values: {cols}")
-    #update_row_batch(site_id, item_id, worksheet_name, row_num, cols, headers)
-    update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url)
+            if import_mode:
+                col_letter = col_letter.replace("INSERT","").strip()
+                col_letter = col_letter.replace("DELETE","").strip()
 
-    '''# Update all cells in the row
-    for col_letter, values in cols.items():
-        cell_address = f"{col_letter}{row_num}"
-        new_value = values["new"]
-        if ";" in new_value:
-            new_value = new_value.replace(";", "\n")
+            cell_address = f"{col_letter}{row_num}"
+            print("Cell to update:", cell_address)
+            url_get = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')"
+            resp_get = requests.get(url_get, headers=headers)
+            resp_get.raise_for_status()
+            current_value = resp_get.json().get("values", [[None]])[0][0]
+            current_value = "" if current_value is None else str(current_value)
+            current_value = current_value.replace("\n", ";")  # Normalize newlines to semicolons for comparison
 
-        # Update cell value
-        url_patch = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')"
-        payload_value = {"values": [[new_value]]}
-        resp_patch = requests.patch(url_patch, json=payload_value, headers=headers)
-        print(f"Updated {cell_address}: {resp_patch.status_code}")
+            expected_old = values["old"]
+            new_value = values["new"]
+            if expected_old == "":
+                expected_old = ""  # Treat missing old value as blank
 
-        # Add hyperlink if Jira key or JQL
-        hyperlink = create_hyperlink(new_value)
-        if hyperlink:
-            url_hyperlink = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/hyperlink"
-            payload_hyperlink = {"hyperlink": hyperlink}
-            resp_link = requests.patch(url_hyperlink, json=payload_hyperlink, headers=headers)
-            print(f"Hyperlink set for {cell_address}: {resp_link.status_code}")
+            
+            #if current_value != expected_old:
+            #    print(f"Skipping row {row_num} because {cell_address} has unexpected value '{current_value}' instead of expected '{expected_old}'")
+            #    skip_row = True
+            #    break
 
-        # Enable text wrap
-        url_wrap = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/wrapText"
-        payload_wrap = {"wrapText": True}
-        resp_wrap = requests.patch(url_wrap, json=payload_wrap, headers=headers)
-        print(f"Wrap text enabled for {cell_address}: {resp_wrap.status_code}")
-    '''
+            #if old_value == new_value:
+            #    print(f"Skipping row {row_num} because {cell_address} (no change reqd) already has the new value '{new_value}'")
+            #    skip_row = True
+            #    break
+        
+
+        if skip_row:
+            continue
+        '''
+
+        print(f"Updating row {row_num} with values: {cols}")
+        update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url)
+
+        '''# Update all cells in the row
+        for col_letter, values in cols.items():
+            cell_address = f"{col_letter}{row_num}"
+            new_value = values["new"]
+            if ";" in new_value:
+                new_value = new_value.replace(";", "\n")
+
+            # Update cell value
+            url_patch = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')"
+            payload_value = {"values": [[new_value]]}
+            resp_patch = requests.patch(url_patch, json=payload_value, headers=headers)
+            print(f"Updated {cell_address}: {resp_patch.status_code}")
+
+            # Add hyperlink if Jira key or JQL
+            hyperlink = create_hyperlink(new_value)
+            if hyperlink:
+                url_hyperlink = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/hyperlink"
+                payload_hyperlink = {"hyperlink": hyperlink}
+                resp_link = requests.patch(url_hyperlink, json=payload_hyperlink, headers=headers)
+                print(f"Hyperlink set for {cell_address}: {resp_link.status_code}")
+
+            # Enable text wrap
+            url_wrap = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/wrapText"
+            payload_wrap = {"wrapText": True}
+            resp_wrap = requests.patch(url_wrap, json=payload_wrap, headers=headers)
+            print(f"Wrap text enabled for {cell_address}: {resp_wrap.status_code}")
+        '''
