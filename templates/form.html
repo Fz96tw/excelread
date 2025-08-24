@@ -141,16 +141,15 @@
         <ol>
         {% for val in bar_values %}
         <li>
-            📄 {{ val }}
-            <form method="POST" style="display:inline;">
-                <input type="hidden" name="remove_bar" value="{{ val }}">
-                <button type="submit" onclick="return confirm('Remove {{ val}}')">🗑️</button>
-            </form>
             <form method="POST" style="display:inline;">
                 <input type="hidden" name="resync_bar" value="{{ val }}">
                 <button type="submit" onclick="return confirm('Resync {{ val }}?')">🔄</button>
             </form>
-        </li>
+            {{ val }}
+            <form method="POST" style="display:inline;">
+                <input type="hidden" name="remove_bar" value="{{ val }}">
+                <button type="submit" onclick="return confirm('Remove {{ val}}')">🗑️</button>
+            </form>        </li>
         {% endfor %}
         </ol>
     </div>

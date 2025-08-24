@@ -15,7 +15,7 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key")  # Use 
 
 FOO_FILE = '.env'
 BAR_FILE = '.bar'
-BANNER_PATH = '/static/banner2.jpg'  # put banner.jpg in static folder
+BANNER_PATH = '/static/banner3.jpg'  # put banner.jpg in static folder
 
 # -------------------------------
 # TOKEN MANAGEMENT
