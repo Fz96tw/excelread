@@ -34,15 +34,12 @@
         }
 
         .menu-bar {
-            display: flex;
-            padding: 10px 20px;
-            gap: 20px;
-            background-image: url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1350&q=80');
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            position: relative;
-        }
+    display: flex;
+    padding: 10px 20px;
+    gap: 20px;
+    background-color: #ffffff !important;  /* force white */
+    position: relative;
+}
         .menu-bar::before {
             content: "";
             position: absolute;
@@ -81,7 +78,7 @@
 
         img.banner {
             width: 100%;
-            max-height: 200px;
+            max-height: 300px;
             object-fit: cover;
             display: block;
         }
@@ -105,13 +102,18 @@
     <img src="{{ banner_path }}" alt="Banner" class="banner">
 
     <div class="menu-bar">
-        <button id="btn-section1">🔗 Jira Connection Info</button>
-        <button id="btn-section2" class="active">📁 Select Excel Files for JIRA Sync</button>
-        <button id="btn-section3">📝 Log</button>
+        <button id="btn-section1"> <img src="/static/jiraicon.jpg" alt="Jira Icon" style="height:20px; vertical-align:bottom; margin-right:2px;">
+        </button>
+        <button id="btn-section2" class="active">
+        <img src="/static/sharepointicon.jpg" alt="SharePoint Icon" style="height:25px; vertical-align:bottom; margin-right:2px;">
+        </button>
+        <button id="btn-section3">🐞</button>
     </div>
 
     <div id="section1" class="section-content">
-        <h2>🔗 Jira Connection Info</h2>
+        <h2>
+        <img src="/static/jiraicon.jpg" alt="Jira Icon" style="height:32px; vertical-align:bottom; margin-right:2px;">
+        Jira Connection Info</h2>
         <form method="POST">
             <label>Jira Cloud URL:</label>
             <input type="text" name="jira_url" value="{{ foo_values.get('jira_url', '') }}"><br>
@@ -124,11 +126,14 @@
     </div>
 
     <div id="section2" class="section-content active">
-        <h2>📁 Select Excel Files for JIRA Sync</h2>
+
+        <h2>
+        <img src="/static/excelicon.jpg" alt="SharePoint Icon" style="height:32px; vertical-align:bottom; margin-right:2px;">
+        Enter Excel File to connect with Jira</h2>
         <form method="POST">
-            <label>Path/File:</label>
+            <label>Direct Link to File:</label>
             <input type="text" name="bar_value">
-            <button type="submit" name="add_bar">➕ Add to Sync Group</button>
+            <button type="submit" name="add_bar">➕ Connect</button>
         </form>
         {% if logged_in %}
             <button type="button" title="Logged in">✅ Authorized</button>
@@ -136,8 +141,13 @@
             <button type="button" class="login-btn" onclick="openLoginPopup(this)" title="Login">🔐 Login Required</button>
         {% endif %}
 
-        <h3>Sync Group</h3>
-        <p class="sync-desc">Files currently in sync group:</p>
+        <br><br>
+        </p>
+        <h2>
+            <img src="/static/sharepointicon.jpg" alt="SharePoint Icon" style="height:40px; vertical-align:bottom; margin-right:2px;">
+            Sharepoint Connections
+        </h2>
+        <p class="sync-desc">Files currently active:</p>
         <ol>
         {% for val in bar_values %}
         <li>
@@ -156,7 +166,7 @@
 
     <!-- Log Section -->
     <div id="section3" class="section-content">
-        <h3>Logs Explorer</h3>
+        <h3>Debug Logs</h3>
         <ul>
         {% for file in folder_tree %}
             <li>
