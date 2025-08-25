@@ -200,6 +200,23 @@ def get_folder_tree(folder):
             })
     return tree
 
+
+
+def clean_sharepoint_url(url: str) -> str:
+    """
+    Cleans a SharePoint file URL by removing 'Shared Documents' or 'Shared Folders'
+    so it can be used directly with pandas.read_excel/read_csv.
+    """
+    # Replace encoded space with normal space for safety
+    url = url.replace("%20", " ")
+
+    # Remove "Shared Documents" or "Shared Folders" segments
+    url = re.sub(r"/Shared (Documents|Folders)", "", url, flags=re.IGNORECASE)
+
+    # Fix spaces back to %20 for proper HTTP request
+    return url.replace(" ", "%20")
+
+
 @app.route('/logs', methods=['GET', 'POST'])
 def logs():
     log_content = ""
@@ -216,6 +233,11 @@ def logs():
     folder_tree = get_folder_tree(LOG_FOLDER)
     return render_template('logs.html', folder_tree=folder_tree,
                            log_content=log_content, viewed_log=viewed_log)
+
+
+@app.route('/home')
+def home():
+     return render_template('login.html')  # Renders login.html from the templates folder
 
 
 
@@ -237,6 +259,8 @@ def index():
         }
 
     bar_values = read_file_lines(BAR_FILE)
+    
+    bar_values_original = {}
 
     # Synchronize session login status with real token state every request
     print("Checking login status...")
@@ -259,8 +283,9 @@ def index():
         elif 'add_bar' in request.form:
             new_val = request.form.get('bar_value', '').strip()
             if new_val:
-                bar_values.append(new_val)
-                write_file_lines(BAR_FILE, bar_values)
+                if new_val not in bar_values:   
+                    bar_values.append(new_val)
+                    write_file_lines(BAR_FILE, bar_values)
             return redirect(url_for('index'))
 
         elif 'remove_bar' in request.form:
@@ -272,6 +297,7 @@ def index():
         elif 'resync_bar' in request.form:
             print("Resyncing file values...")
             val = request.form["resync_bar"]
+            val = clean_sharepoint_url(val)
             resync(val)  # call your function with the string value
             return redirect(url_for('index'))
         
