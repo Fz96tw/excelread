@@ -6,6 +6,8 @@
         body {
             font-family: Arial, sans-serif;
             margin: 0;
+            padding: 0 0;
+                color: #414040;   /* medium gray text */
            
         }
 
@@ -40,13 +42,13 @@
             display: flex;
             padding: 10px 20px;
             gap: 20px;
-            background-color: rgb(98, 87, 138) !important;  /* force white */
+            background-color: rgb(111, 153, 218) !important;  /* force white */
             position: relative;
             align-items: center;
         }
 
         .menu-bar button img {
-            height: 60px;
+            height: 40px;
             margin-bottom: 5px; /* space between icon and text */
         }
         .menu-bar button span {
@@ -63,15 +65,15 @@
             z-index: 1;
         }
         .menu-bar button {
-    display: flex;
-    flex-direction: column; /* stack icon + text */
-    align-items: center;
-    justify-content: center;
-    border: none;
-    background: none;
-    cursor: pointer;
-    padding: 5px;
-}
+            display: flex;
+            flex-direction: column; /* stack icon + text */
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: none;
+            cursor: pointer;
+            padding: 5px;
+        }
         .menu-bar button:hover {
             background-color: rgba(255, 255, 255, 0.2);
         }
@@ -107,6 +109,35 @@
             font-family: monospace;
             font-size: 14px;
         }
+
+        .left-form {
+            display: flex;
+            flex-direction: column;  /* stack items vertically */
+            align-items: flex-start; /* left-align all elements */
+            gap: 5px;               /* space between label, input, button */
+            margin: 0;
+            width: 60px;            /* adjust form width as needed */
+        }
+
+        .left-form label {
+            display: block;          /* label takes full width above input */
+            font-weight: normal;
+            width: 300px;            /* adjust form width as needed */
+        }
+
+        .left-form input,
+        .left-form button {
+            width: 100%;             /* input and button fill form width */
+            box-sizing: border-box;  /* include padding in width */
+        }
+        .left-form button {
+            margin-top: 0;           /* remove any extra top margin */
+        }
+        .page-content {
+            padding: 0 50px; /* side margins */
+            box-sizing: border-box;
+        }
+
     </style>
 </head>
 <body>
@@ -119,96 +150,102 @@
     </button>
     <button id="btn-section2" class="active">
         <img src="/static/sharepointicontransparent.png" alt="SharePoint Icon">
-        <span>SharePoint</span>
+        <span>Sharepoint</span>
     </button>
     <button id="btn-section3">
         <img src="/static/debuglogs.png" alt="Debug Logs Icon">
         <span>Logs</span>
     </button>
-    <button id="btn-exit" onclick="window.location.href='http://localhost:5050/'">
+    <button id="btn-exit" onclick="window.location.href='/home'">
         <img src="/static/exiticon.png" alt="Exit Icon">
         <span>Logout</span>
     </button>
 </div>
 
-    <div id="section1" class="section-content">
-        <h2>
-        <img src="/static/jiraicon.jpg" alt="Jira Icon" style="height:32px; vertical-align:bottom; margin-right:2px;">
-        Jira Connection Info</h2>
-        <form method="POST">
-            <label>Jira Cloud URL:</label>
-            <input type="text" name="jira_url" value="{{ foo_values.get('jira_url', '') }}"><br>
-            <label>Jira Email:</label>
-            <input type="text" name="jira_user" value="{{ foo_values.get('jira_user', '') }}"><br>
-            <label>Jira API Token:</label>
-            <input type="text" name="jira_token" value="{{ foo_values.get('jira_token', '') }}"><br>
-            <button type="submit" name="save_foo">💾 Save Jira Details</button>
-        </form>
-    </div>
 
-    <div id="section2" class="section-content active">
+    <!-- Content container with side margins -->
+    <div class="page-content">
 
-        <h2>
-        <img src="/static/excelicon.jpg" alt="SharePoint Icon" style="height:32px; vertical-align:bottom; margin-right:2px;">
-        Excel File to connect with Jira</h2>
-        <form method="POST">
-            <label>Direct Link to File:</label>
-            <input type="text" name="bar_value">
-            <button type="submit" name="add_bar">
-                <img src="/static/connect-icon2.png" alt="SharePoint Icon" style="height:20px; vertical-align:middle; margin-right:2px;">
-                Connect</button>
-        </form>
-        {% if logged_in %}
-            <button type="button" title="Logged in">✅ Authorized</button>
-        {% else %}
-            <button type="button" class="login-btn" onclick="openLoginPopup(this)" title="Login">🔐 Login Required</button>
-        {% endif %}
+        <div id="section1" class="section-content">
+            <h2>
+            <img src="/static/jiraicon.jpg" alt="Jira Icon" style="height:32px; vertical-align:bottom; margin-right:2px;">
+            Jira Connection Info</h2>
+            <form method="POST">
+                <label>Jira Cloud URL:</label>
+                <input type="text" name="jira_url" value="{{ foo_values.get('jira_url', '') }}"><br>
+                <label>Jira Email:</label>
+                <input type="text" name="jira_user" value="{{ foo_values.get('jira_user', '') }}"><br>
+                <label>Jira API Token:</label>
+                <input type="text" name="jira_token" value="{{ foo_values.get('jira_token', '') }}"><br>
+                <button type="submit" name="save_foo">💾 Save Jira Details</button>
+            </form>
+        </div>
 
-        <br><br>
-        </p>
-        <h2>
-            <img src="/static/sharepointicon.jpg" alt="SharePoint Icon" style="height:40px; vertical-align:bottom; margin-right:2px;">
-            Sharepoint Connections
-        </h2>
-        <p class="sync-desc">Files currently active:</p>
-        <ol>
-        {% for val in bar_values %}
-        <li>
-            <form method="POST" style="display:inline;">
-                <input type="hidden" name="resync_bar" value="{{ val }}">
-                <button type="submit" onclick="return confirm('Resync {{ val }}?')"
-                    style="border:none; background:none; padding:0; margin:0; cursor:pointer; outline:none;">
-                    <img src="/static/sync-icon.png" alt="Delete" style="height:20px; vertical-align:bottom;">            
+        <div id="section2" class="section-content active">
+
+            
+            {% if logged_in %}
+                <button type="button" title="Logged in">✅ Authorized</button>
+            {% else %}
+                <button type="button" class="login-btn" onclick="openLoginPopup(this)" title="Login">🔐 Login Required</button>
+            {% endif %}
+            
+            <h2>
+            <img src="/static/excelicon.jpg" alt="SharePoint Icon" style="height:30px; vertical-align:bottom; margin-right:2px;">
+            Add Excel file to connect with Jira</h2>
+            <form method="POST" class="left-form">
+                <label for="bar_value">Direct Sharepoint URL path to file:</label>
+                <input type="text" name="bar_value" id="bar_value" placeholder="https://...">
+                <button type="submit" name="add_bar">
+                   <img src="/static/connect-icon2.png" alt="SharePoint Icon" style="height:20px; vertical-align:middle; margin-right:2px;">
+                    Connect
                 </button>
             </form>
-            {{ val }}
-            <form method="POST" style="display:inline;">
-                <input type="hidden" name="remove_bar" value="{{ val }}">
-            <button type="submit" onclick="return confirm('Remove {{ val }}?')" 
-                    style="border:none; background:none; padding:0; margin:0; cursor:pointer; outline:none;">
-                <img src="/static/delete-icon.png" alt="Delete" style="height:20px; vertical-align:bottom;">
-            </button>            </form>
-       </li>
-        {% endfor %}
-        </ol>
-    </div>
-
-    <!-- Log Section -->
-    <div id="section3" class="section-content">
-        <h3>Debug Logs</h3>
-        <ul>
-        {% for file in folder_tree %}
+            <br>
+            </p>
+            <h2>
+                <img src="/static/sharepointicon.jpg" alt="SharePoint Icon" style="height:40px; vertical-align:bottom; margin-right:2px;">
+                Sharepoint Connections
+            </h2>
+            <p class="sync-desc">Files currently active:</p>
+            <ol>
+            {% for val in bar_values %}
             <li>
-                📄 {{ file.name }} — <small>{{ file.modified }}</small>
                 <form method="POST" style="display:inline;">
-                    <input type="hidden" name="view_log" value="{{ file.name }}">
-                    <button type="submit">👁️ View</button>
+                    <input type="hidden" name="resync_bar" value="{{ val }}">
+                    <button type="submit" onclick="return confirm('Resync {{ val }}?')"
+                        style="border:none; background:none; padding:0; margin:0; cursor:pointer; outline:none;">
+                        <img src="/static/sync-icon.png" alt="Delete" style="height:20px; vertical-align:bottom;">            
+                    </button>
                 </form>
-            </li>
-        {% endfor %}
-        </ul>    
-    </div>
+                 <a href="{{ val }}" target="_blank">{{ val }}</a>
+                <form method="POST" style="display:inline;">
+                    <input type="hidden" name="remove_bar" value="{{ val }}">
+                <button type="submit" onclick="return confirm('Remove {{ val }}?')" 
+                        style="border:none; background:none; padding:0; margin:0; cursor:pointer; outline:none;">
+                    <img src="/static/delete-icon.png" alt="Delete" style="height:20px; vertical-align:bottom;">
+                </button>            </form>
+        </li>
+            {% endfor %}
+            </ol>
+        </div>
 
+        <!-- Log Section -->
+        <div id="section3" class="section-content">
+            <h3>Debug Logs</h3>
+            <ul>
+            {% for file in folder_tree %}
+                <li>
+                    📄 {{ file.name }} — <small>{{ file.modified }}</small>
+                    <form method="POST" style="display:inline;">
+                        <input type="hidden" name="view_log" value="{{ file.name }}">
+                        <button type="submit">👁️ View</button>
+                    </form>
+                </li>
+            {% endfor %}
+            </ul>    
+        </div>
+    </div>
     <script>
         const btnSection1 = document.getElementById('btn-section1');
         const btnSection2 = document.getElementById('btn-section2');
