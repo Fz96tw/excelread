@@ -55,8 +55,7 @@ if __name__ == "__main__":
 
         for idx, cell in enumerate(row):
             cell_str = str(cell).replace("\n", " ").replace("\r", " ").strip().lower()
-
-            if "<jira>" in cell_str and len(str(cell_str)) > 6:
+            if "<jira>" in cell_str and len(str(cell_str)) > 6:  # greater than 6 because a table name is expected
                 if jira_table_found:
                 
                     print("Found a NEW 'Jira Table'")
@@ -87,7 +86,7 @@ if __name__ == "__main__":
                     jira_table_found = True
 
                 
-                print(f"Found 'Jira Table' in row {row[0]}")     
+                print(f"Found 'Jira Table' in cell index {idx} {row}")     
                 #cleaned_value = str(cell).replace("Jira", "", 1).strip().replace(" ", "_")
                 #cleaned_value = str(cell).strip().replace(" ", "_")
                 cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
@@ -106,11 +105,14 @@ if __name__ == "__main__":
                 file_info["table"] = cleaned_value
                 with open(scope_output_file, 'w') as f:
                     yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
-                continue
-            else:
-                if not jira_table_found:
-                    print("No 'Jira Table' found in this row. Skipping.")
-                    break
+       
+                break   # break out of for loop and continue with next row
+
+            
+            if not jira_table_found:
+                print(f"No 'Jira Table' found in this cell index {idx} Skipping to next cell.")
+                continue  # continue to next cell in the row
+                
 
             import re
             #cell_str = str(cell).replace("\xa0", " ").lower().strip()
