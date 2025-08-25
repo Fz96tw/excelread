@@ -40,7 +40,7 @@
         }
         .menu-bar {
             display: flex;
-            padding: 10px 20px;
+            padding: 4px 20px;
             gap: 20px;
             background-color: rgb(111, 153, 218) !important;  /* force white */
             position: relative;
@@ -116,7 +116,7 @@
             align-items: flex-start; /* left-align all elements */
             gap: 5px;               /* space between label, input, button */
             margin: 0;
-            width: 60px;            /* adjust form width as needed */
+            width: 80px;            /* adjust form width as needed */
         }
 
         .left-form label {
@@ -170,20 +170,22 @@
             <h2>
             <img src="/static/jiraicon.jpg" alt="Jira Icon" style="height:32px; vertical-align:bottom; margin-right:2px;">
             Jira Connection Info</h2>
-            <form method="POST">
+            <form method="POST" class="left-form">
                 <label>Jira Cloud URL:</label>
                 <input type="text" name="jira_url" value="{{ foo_values.get('jira_url', '') }}"><br>
                 <label>Jira Email:</label>
                 <input type="text" name="jira_user" value="{{ foo_values.get('jira_user', '') }}"><br>
                 <label>Jira API Token:</label>
                 <input type="text" name="jira_token" value="{{ foo_values.get('jira_token', '') }}"><br>
-                <button type="submit" name="save_foo">💾 Save Jira Details</button>
+                <button type="submit" name="save_foo">
+                                       <img src="/static/saveicontransparent.png" alt="SharePoint Icon" style="height:40px; vertical-align:middle; margin-right:2px;">
+                    Save</button>
             </form>
         </div>
 
         <div id="section2" class="section-content active">
 
-            
+            Sharepoint site permissions:
             {% if logged_in %}
                 <button type="button" title="Logged in">✅ Authorized</button>
             {% else %}
@@ -191,19 +193,21 @@
             {% endif %}
             
             <h2>
-            <img src="/static/excelicon.jpg" alt="SharePoint Icon" style="height:30px; vertical-align:bottom; margin-right:2px;">
+            <img src="/static/excelicon.jpg" alt="SharePoint Icon" style="height:28px; vertical-align:bottom; margin-right:2px;">
             Add Excel file to connect with Jira</h2>
             <form method="POST" class="left-form">
                 <label for="bar_value">Direct Sharepoint URL path to file:</label>
                 <input type="text" name="bar_value" id="bar_value" placeholder="https://...">
                 <button type="submit" name="add_bar">
-                   <img src="/static/connect-icon2.png" alt="SharePoint Icon" style="height:20px; vertical-align:middle; margin-right:2px;">
+                   <img src="/static/connect-icon-gears.png" alt="SharePoint Icon" style="height:40px; vertical-align:middle; margin-right:2px;">
                     Connect
                 </button>
             </form>
+
             <br>
-            </p>
             <h2>
+            </p>
+            
                 <img src="/static/sharepointicon.jpg" alt="SharePoint Icon" style="height:40px; vertical-align:bottom; margin-right:2px;">
                 Sharepoint Connections
             </h2>
