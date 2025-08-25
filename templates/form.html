@@ -6,6 +6,7 @@
         body {
             font-family: Arial, sans-serif;
             margin: 0;
+           
         }
 
         h3 {
@@ -32,35 +33,45 @@
         form button {
             margin-top: 10px;
         }
-
+        .menu-bar #btn-exit {
+            margin-left: auto; /* pushes it to the right */
+        }
         .menu-bar {
-    display: flex;
-    padding: 10px 20px;
-    gap: 20px;
-    background-color: #ffffff !important;  /* force white */
-    position: relative;
-}
+            display: flex;
+            padding: 10px 20px;
+            gap: 20px;
+            background-color: rgb(98, 87, 138) !important;  /* force white */
+            position: relative;
+            align-items: center;
+        }
+
+        .menu-bar button img {
+            height: 60px;
+            margin-bottom: 5px; /* space between icon and text */
+        }
+        .menu-bar button span {
+            color: white; /* make text white */
+            font-size: 18px;
+             font-weight: normal;  /* make text bold */
+        }
         .menu-bar::before {
             content: "";
-            position: absolute;
+            position: relative;
             top: 0; left: 0; right: 0; bottom: 0;
             background-color: rgba(0, 0, 0, 0.4);
             pointer-events: none;
-            z-index: 0;
+            z-index: 1;
         }
         .menu-bar button {
-            position: relative;
-            z-index: 1;
-            background: none;
-            border: none;
-            color: white;
-            font-weight: bold;
-            font-size: 1em;
-            cursor: pointer;
-            padding: 8px 16px;
-            border-radius: 4px;
-            transition: background-color 0.3s;
-        }
+    display: flex;
+    flex-direction: column; /* stack icon + text */
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 5px;
+}
         .menu-bar button:hover {
             background-color: rgba(255, 255, 255, 0.2);
         }
@@ -102,13 +113,23 @@
     <img src="{{ banner_path }}" alt="Banner" class="banner">
 
     <div class="menu-bar">
-        <button id="btn-section1"> <img src="/static/jiraicon.jpg" alt="Jira Icon" style="height:20px; vertical-align:bottom; margin-right:2px;">
-        </button>
-        <button id="btn-section2" class="active">
-        <img src="/static/sharepointicon.jpg" alt="SharePoint Icon" style="height:25px; vertical-align:bottom; margin-right:2px;">
-        </button>
-        <button id="btn-section3">🐞</button>
-    </div>
+    <button id="btn-section1">
+        <img src="/static/jiraicon.png" alt="Jira Icon">
+        <span>Jira</span>
+    </button>
+    <button id="btn-section2" class="active">
+        <img src="/static/sharepointicontransparent.png" alt="SharePoint Icon">
+        <span>SharePoint</span>
+    </button>
+    <button id="btn-section3">
+        <img src="/static/debuglogs.png" alt="Debug Logs Icon">
+        <span>Logs</span>
+    </button>
+    <button id="btn-exit" onclick="window.location.href='http://localhost:5050/'">
+        <img src="/static/exiticon.png" alt="Exit Icon">
+        <span>Logout</span>
+    </button>
+</div>
 
     <div id="section1" class="section-content">
         <h2>
@@ -129,11 +150,13 @@
 
         <h2>
         <img src="/static/excelicon.jpg" alt="SharePoint Icon" style="height:32px; vertical-align:bottom; margin-right:2px;">
-        Enter Excel File to connect with Jira</h2>
+        Excel File to connect with Jira</h2>
         <form method="POST">
             <label>Direct Link to File:</label>
             <input type="text" name="bar_value">
-            <button type="submit" name="add_bar">➕ Connect</button>
+            <button type="submit" name="add_bar">
+                <img src="/static/connect-icon2.png" alt="SharePoint Icon" style="height:20px; vertical-align:middle; margin-right:2px;">
+                Connect</button>
         </form>
         {% if logged_in %}
             <button type="button" title="Logged in">✅ Authorized</button>
@@ -153,13 +176,19 @@
         <li>
             <form method="POST" style="display:inline;">
                 <input type="hidden" name="resync_bar" value="{{ val }}">
-                <button type="submit" onclick="return confirm('Resync {{ val }}?')">🔄</button>
+                <button type="submit" onclick="return confirm('Resync {{ val }}?')"
+                    style="border:none; background:none; padding:0; margin:0; cursor:pointer; outline:none;">
+                    <img src="/static/sync-icon.png" alt="Delete" style="height:20px; vertical-align:bottom;">            
+                </button>
             </form>
             {{ val }}
             <form method="POST" style="display:inline;">
                 <input type="hidden" name="remove_bar" value="{{ val }}">
-                <button type="submit" onclick="return confirm('Remove {{ val}}')">🗑️</button>
-            </form>        </li>
+            <button type="submit" onclick="return confirm('Remove {{ val }}?')" 
+                    style="border:none; background:none; padding:0; margin:0; cursor:pointer; outline:none;">
+                <img src="/static/delete-icon.png" alt="Delete" style="height:20px; vertical-align:bottom;">
+            </button>            </form>
+       </li>
         {% endfor %}
         </ol>
     </div>
