@@ -102,7 +102,7 @@ def download_excel_with_meta(site_url, file_path):
 # -------------------------------
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python script.py <sharepoint_file_url>")
+        print("Usage: python download.py <sharepoint_file_url>")
         sys.exit(1)
 
     full_url = sys.argv[1]

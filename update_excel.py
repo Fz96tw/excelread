@@ -187,11 +187,24 @@ def process_jira_table_blocks_2(filename):
                 # not updating the downloaded excel file since we never use it. we are just after the change_list for import mode
                 #print("Finished processing import row.")
                 #break
+            elif is_valid_jira_id(first_cell):
+                print(f"This row already contains valid jira id {first_cell}. Will just update instead of overwriting.")
+
+                # pop the first_cell from jira_ids if it exists
+                if first_cell in jira_data:
+                    print(f"Popping {first_cell} from jira_data for update.")
+                    record = jira_data.pop(first_cell)
+                    print(f"Remaining jira_data items: {len(jira_data)}")
+                    break
+                    # TODO: if there are Jira IDs in the table already it means we need to update them instead of insert
+                    # Also if any jira in the table that aren't in the jql result then we need to delete those.
+                    # These is a more complex scenario that we can handle later
+
+                    # Call update process here. Mark the cell for strikeout if isn't in jira_ids for this JQL result
+
             else:
-                # TODO: if there are Jira IDs in the table already it means we need to update them instead of insert
-                # Also if any jira in the table that aren't in the jql result then we need to delete those.
-                # These is a more complex scenario that we can handle later
-                print("Import mode: No blank 'key' cell found, skipping change_list for this row.")    
+ 
+                print(f"Import mode: first_cell = {first_cell}. No blank 'key' cell found, skipping change_list for this row.")    
     
     # Save updates to the same file
     #print(f"Saving updates to {filename}")
@@ -318,11 +331,41 @@ def process_jira_table_blocks(filename):
             elif not jira_data:
                 print("No more items in jira_data to import, exiting loop.")
                 break
-            else:
+            elif is_valid_jira_id(first_cell):
+                print(f"This row already contains valid jira id {first_cell}. Will just update instead of overwriting.")
+
+                # pop the first_cell from jira_ids if it exists
+                if first_cell in jira_data:
+                    print(f"Popping {first_cell} from jira_data for update.")
+                    record = jira_data.pop(first_cell)
+                    print(f"Remaining jira_data items: {len(jira_data)}")
+                    
+                    # TODO: if there are Jira IDs in the table already it means we need to update them instead of insert
+                    # Also if any jira in the table that aren't in the jql result then we need to delete those.
+                    # These is a more complex scenario that we can handle later
+
+                    # Call update process here. 
+                else:
+                    # Mark the cell for strikeout if isn't in jira_ids for this JQL result
+                    print(f"Strikeout {first_cell} not in jira_data, marking for strikeout.")
+                    index = field_index_map["key"]  # get the index of the "key" field to find the blank cell
+                    print("target index for 'key': ", index)
+
+                    target_cell = ws.cell(row=row[0].row, column=index + 1)
+                    old_value = target_cell.value
+                    old_value = str(old_value).replace("\n", ";") if old_value else None  # Replace newlines with semicolons for comparison
+                    print(f"Old value for {target_cell.coordinate}: {old_value}")
+                    print(f"Setting cell {target_cell.coordinate} = {first_cell} (strikeout)")  # <-- Coordinate logging
+                    target_cell.value = "!! " + first_cell  # add marker to indicate it needs strick out 
+                    target_cell.font = target_cell.font.copy(strike=True)  # Apply strikeout
+                    target_cell.alignment = Alignment(wrapText=True)                 
+                    change_list.append(f"{target_cell.coordinate}={target_cell.value.replace("\n",";")}||{old_value}")
+
+    else:
                 # TODO: if there are Jira IDs in the table already it means we need to update them instead of insert
                 # Also if any jira in the table that aren't in the jql result then we need to delete those.
                 # These is a more complex scenario that we can handle later
-                print("Import mode: No blank 'key' cell found, skipping change_list for this row.")    
+                print(f"Import mode: first_cell = {first_cell}. No blank 'key' cell found, skipping change_list for this row.")    
     
     # Save updates to the same file
     #print(f"Saving updates to {filename}")

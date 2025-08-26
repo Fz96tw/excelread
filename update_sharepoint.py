@@ -141,6 +141,7 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
     resp_get.raise_for_status()
     current_values = resp_get.json().get("values", [[]])[0]
 
+    strikeout = False
     # --- 2. Merge in updates ---
     all_cols = list(range(ord(start_col), ord(end_col) + 1))
     new_values = []
@@ -150,6 +151,9 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
             new_val = cols[col_letter]["new"]
             new_val = new_val.replace(";", "\n") if ";" in new_val else new_val
             new_values.append(new_val)
+            if "!!" in new_val:
+                print(f"   ⚠ Warning: '!!' found in new value for {col_letter}{row_num}. Need to strikeout cell")
+                strikeout = True
         else:
             new_values.append(current_values[i])
 
@@ -159,15 +163,21 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
     resp_patch.raise_for_status()
     print(f"✅ Row {row_num} updated with range {row_range}: {resp_patch.status_code}")
 
-    
-# --- 4. Post-process hyperlinks + wrap ---
+      # --- 4. If strikeout triggered, apply to entire row ---
+    if strikeout:
+        url_strike = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{row_range}')/format/font"
+        strike_payload = {"strikethrough": True}
+        resp_strike = requests.patch(url_strike, json=strike_payload, headers=headers)
+        resp_strike.raise_for_status()
+        print(f"✍️ Applied strikeout to row {row_num}")
+
+    # --- 4. Post-process hyperlinks + wrap ---
     for i, col_ascii in enumerate(all_cols):
         col_letter = chr(col_ascii)
         if col_letter not in cols:
             continue
         cell_address = f"{col_letter}{row_num}"
         new_value = new_values[i]
-
         hyperlink = create_hyperlink(new_value, jira_base_url)
         if hyperlink:
             new_value = new_value.replace("URL", "").strip()  # Clean up "URL" prefix
@@ -177,7 +187,7 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
                 site_id, item_id, worksheet_name, cell_address, new_value, hyperlink, headers
             )
             print(f"   🔗 Hyperlink set for {cell_address}: {code}")
-    
+
 
     '''        
         url_wrap = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/wrapText"
