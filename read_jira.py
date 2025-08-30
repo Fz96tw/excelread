@@ -63,7 +63,7 @@ class OllamaSummarizer:
         # Clean up formatting
         summary = summary.replace("\n", "; ").replace(",", ";")
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        return f"{model_name} --> {summary}"
+        return f"({model_name}) {summary}"
 
 # Initialize once
 summarizer = OllamaSummarizer(model_name)
@@ -112,8 +112,9 @@ def get_summarized_comments(comments_list_asc):
     full_response = summarizer.summarize_comments(comments_str)
     print(f"Full response: {full_response}")
      # Replace all newlines with semicolons
+    full_response.rstrip("\n")
     full_response = full_response.replace("\n", "; ")
-    full_response = full_response.replace(",", ";")
+    full_response = full_response.replace(",", "､")
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     #print(now_str)
@@ -188,7 +189,12 @@ def move_brackets_to_front(lines):
         list[str]: Reformatted strings like "[KEY-1] Task name"
     """
     result = []
-    pattern = re.compile(r'^(.*)\s+(\[[^\]]+\])$')
+    
+#    pattern = re.compile(r'^(.*)\s+(\[[^\]]+\])$')
+    #pattern = re.compile(r'^(.*?)(?:\s+)(▫️\s*\[[^\]]+\]|\[[^\]]+\])$')
+    pattern = re.compile(r'^(.*?)\s+(?:▫️\s*)?(\[[^\]]+\])$')
+
+
 
     for line in lines:
         match = pattern.match(line.strip())
@@ -447,10 +453,10 @@ if jql_ids:
                     value = getattr(issue.fields, field, None)
                     if field == "assignee":
                         temp = (issue.fields.assignee.displayName) if issue.fields.assignee else "unassigned"
-                        assignee_list.append(temp + " [" + issue.key + "]")
+                        assignee_list.append(temp + "▫️ [" + issue.key + "]")
                     elif field == "summary":
                         temp = issue.fields.summary if issue.fields.summary else "No summary"
-                        summary_list.append("[" + issue.key + "] " + temp)
+                        summary_list.append("▫️ [" + issue.key + "] " + temp)
                     elif field == "headline":
                         #temp = "[" + issue.key + "] " + issue.fields.summary[:10] 
                         temp = f"▫️ {issue.key} {issue.fields.summary[:15]}{'...' if len(issue.fields.summary) > 10 else ''}"
@@ -462,17 +468,17 @@ if jql_ids:
                         print(f"headline value: {temp}")
                     elif field == "status":
                         temp = issue.fields.status.name if issue.fields.status else "unknown"
-                        status_list.append(temp + " [" + issue.key + "]")
+                        status_list.append(temp + "▫️ [" + issue.key + "]")
                     elif field == "id":
                         id_list.append(issue.id)
                     elif field == "key":
-                        key_list.append(issue.key)
+                        key_list.append("▫️ " + issue.key)
                     elif field == "comments" or field == "ai" :   # always need to process comments even when only AI is requested in excel sheet
                         if issue.fields.comment.comments:   
                             sorted_comments_asc = sorted(issue.fields.comment.comments, key=lambda c: c.created) # ascending order for LLM   
                             sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
-                            comments_list.append("[" + issue.key +"] ")
-                            comments_list_asc.append("[" + issue.key +"] ")
+                            comments_list.append("▫️ [" + issue.key +"] ")
+                            comments_list_asc.append("▫️ [" + issue.key +"] ")
                             comments_list.append("; ".join([
                                 f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
                                 for comment in sorted_comments
@@ -487,14 +493,14 @@ if jql_ids:
                             #comments_list_asc.append(";")  # Add a semicolon after final comment for this issue
                             ai_summarized = get_summarized_comments(comments_list_asc)
                             print(f"+++++ ai_summarized = {ai_summarized}")
-                            comments_summarized_list.append("[" + issue.key + "] " + ai_summarized + ";")
+                            comments_summarized_list.append("▫️ [" + issue.key + "] " + ai_summarized + ";")
                         
                         else:
-                            comments_list.append("[" + issue.key + "] ")
+                            comments_list.append("▫️ [" + issue.key + "] ")
                             comments_list.append("No comments;")
-                            comments_list_asc.append("[" + issue.key + "] ")
+                            comments_list_asc.append("▫️ [" + issue.key + "] ")
                             comments_list_asc.append("No comments;")
-                            comments_summarized_list.append("[" + issue.key + "]" + " No comments")
+                            comments_summarized_list.append("▫️ [" + issue.key + "]" + " No comments")
                     
                     elif field == "synopsis":
                         value_parts = []
@@ -508,7 +514,7 @@ if jql_ids:
                      
                     else:
                         print(f"Processing generic field: {field} with value: {value}")
-                        generic_fields_list.append("[" + issue.key + "] " + str(value))
+                        generic_fields_list.append("▫️ [" + issue.key + "] " + str(value))
 
                     
 
@@ -573,7 +579,7 @@ if jql_ids:
                     #value = synopsis_list
                 else:
                     print(f"Field {field} is considered generic_field and will be processed as such.")
-                    #value = "NA"
+                    generic_fields_list.sort()
                     value = ";".join(generic_fields_list) if generic_fields_list else "NA"
                 
                 print(f"Final value for field {field}: {value}")
