@@ -212,26 +212,67 @@
                 Sharepoint Connections
             </h2>
             <p class="sync-desc">Files currently active:</p>
-            <ol>
-            {% for val in bar_values %}
-            <li>
-                <form method="POST" style="display:inline;">
-                    <input type="hidden" name="resync_bar" value="{{ val }}">
-                    <button type="submit" onclick="return confirm('Resync {{ val }}?')"
-                        style="border:none; background:none; padding:0; margin:0; cursor:pointer; outline:none;">
-                        <img src="/static/sync-icon.png" alt="Delete" style="height:20px; vertical-align:bottom;">            
-                    </button>
-                </form>
-                 <a href="{{ val }}" target="_blank">{{ val }}</a>
-                <form method="POST" style="display:inline;">
-                    <input type="hidden" name="remove_bar" value="{{ val }}">
-                <button type="submit" onclick="return confirm('Remove {{ val }}?')" 
-                        style="border:none; background:none; padding:0; margin:0; cursor:pointer; outline:none;">
-                    <img src="/static/delete-icon.png" alt="Delete" style="height:20px; vertical-align:bottom;">
-                </button>            </form>
-        </li>
-            {% endfor %}
-            </ol>
+
+            <table style="border-collapse: collapse; width: 100%;">
+                <thead>
+                    <tr>
+                        <th style="text-align:center; padding:6px;">#</th>
+                        <th style="text-align:left; padding:6px;">File</th>
+                        <th style="text-align:center; padding:6px;">Schedule</th>
+                        <th style="text-align:center; padding:6px;">Resync</th>
+                        <th style="text-align:center; padding:6px;">Remove</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for val in bar_values %}
+                    <tr>
+                        <!-- Row number -->
+                        <td style="text-align:center; padding:6px;">
+                            {{ loop.index }}
+                        </td>
+
+                        <!-- File link -->
+                        <td style="padding:6px;">
+                            <a href="{{ val }}" target="_blank">{{ val }}</a>
+                        </td>
+
+                        <!-- Schedule button -->
+                        <td style="text-align:center; padding:6px;">
+                            <form method="POST">
+                                <input type="hidden" name="schedule_bar" value="{{ val }}">
+                                <button type="submit" onclick="return confirm('Schedule {{ val }}?')"
+                                    style="border:none; background:none; cursor:pointer;">
+                                    <img src="/static/schedule-icon.png" alt="Schedule" style="height:20px; vertical-align:middle;">
+                                </button>
+                            </form>
+                        </td>
+
+                        <!-- Resync button -->
+                        <td style="text-align:center; padding:6px;">
+                            <form method="POST">
+                                <input type="hidden" name="resync_bar" value="{{ val }}">
+                                <button type="submit" onclick="return confirm('Resync {{ val }}?')"
+                                    style="border:none; background:none; cursor:pointer;">
+                                    <img src="/static/sync-icon.png" alt="Resync" style="height:20px; vertical-align:middle;">
+                                </button>
+                            </form>
+                        </td>
+
+                        <!-- Remove button -->
+                        <td style="text-align:center; padding:6px;">
+                            <form method="POST">
+                                <input type="hidden" name="remove_bar" value="{{ val }}">
+                                <button type="submit" onclick="return confirm('Remove {{ val }}?')"
+                                    style="border:none; background:none; cursor:pointer;">
+                                    <img src="/static/delete-icon.png" alt="Delete" style="height:20px; vertical-align:middle;">
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
         </div>
 
         <!-- Log Section -->
