@@ -179,7 +179,7 @@ if __name__ == "__main__":
                     print(f"Default value set to '{default}' for field {field_name}")
                     cell_str = default
                 else:
-                    cell_str = str(cell).replace("\n", " ").replace("\r", " ").replace(","," ").strip().lower()
+                    cell_str = str(cell).replace("\n", " ").replace("\r", " ").replace(",","|").strip().lower()
                 
                 this_row += cell_str + ","
 
