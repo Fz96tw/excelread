@@ -57,6 +57,10 @@ if __name__ == "__main__":
         row_count += 1
         print(f"row count {row_count} is:{row}")
 
+        if len(row) < 1:
+            print("skipping blank row")
+            continue
+
         for idx, cell in enumerate(row):
             cell_str = str(cell).replace("\n", " ").replace("\r", " ").strip().lower()
             if "<jira>" in cell_str and len(str(cell_str)) > 6:  # greater than 6 because a table name is expected
@@ -115,11 +119,11 @@ if __name__ == "__main__":
                         print(f"Import JQL found and added to jira_ids: {import_jql}")
                         jira_ids.append("JQL " + import_jql)
 
-                if "create" in cell_str:
+                elif "create" in cell_str:
                     jira_create_found = True
                     print("CREATE found in table name: ", cell_str)
 
-                scope_output_file = set_output_filename(filename, cleaned_value,jira_import_found)
+                scope_output_file = set_output_filename(filename, cleaned_value,jira_import_found, jira_create_found)
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
                 file_info["table"] = cleaned_value
@@ -158,16 +162,20 @@ if __name__ == "__main__":
             fields_found = True
             #base = os.path.splitext(os.path.basename(filename))[0]
             #output_file = f"{base}.scope.yaml"
-            with open(scope_output_file, 'a') as f:
-                yaml.dump({ "fields": jira_fields }, f, default_flow_style=False)
+#            with open(scope_output_file, 'a') as f:
+#                yaml.dump({ "fields": jira_fields }, f, default_flow_style=False)
             continue
 
         if fields_found and jira_create_found:
             print("Create Mode: active") 
+
+            #if len(row) != len(jira_fields)
+            
             this_row = ""
             # TODO: read all the needed jira field values from the sheet and store in jira_create_rows list
             print(f"dumping jira_fields_default_value {jira_fields_default_value}")
             for idx, field in enumerate(jira_fields):
+
                 print(f"idx:{idx}  field:{field}")
                 cell = row[idx]
                 print(f"cell at column index {idx} = {cell}")
@@ -183,6 +191,7 @@ if __name__ == "__main__":
                 
                 this_row += cell_str + ","
 
+            this_row += str(row_count) 
             this_row = this_row.rstrip(",")
             print(f"this_row scan completed: {this_row}")
             jira_create_rows.append(this_row)
@@ -204,6 +213,13 @@ if __name__ == "__main__":
         
     
     print("Finished reading all rows")
+
+
+    if jira_fields and jira_create_rows:
+         jira_fields.append({"value": "row", "index": -1})
+
+    with open(scope_output_file, 'a') as f:
+        yaml.dump({ "fields": jira_fields }, f, default_flow_style=False)
 
     if jira_ids:
         print(f"JIRA IDs found: {jira_ids}")
