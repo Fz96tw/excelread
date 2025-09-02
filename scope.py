@@ -8,7 +8,7 @@ import re
 def read_excel_rows(filename):
     df = pd.read_excel(filename, header=None)  # Treat all rows as data
     # Remove rows where all cells are NaN (i.e., completely blank)
-    df = df.dropna(how='all')
+    #df = df.dropna(how='all')
     return df.values.tolist()
 
 
@@ -68,6 +68,13 @@ if __name__ == "__main__":
                 
                     print("Found a NEW 'Jira Table'")
 
+                    if jira_fields and jira_create_rows:
+                            jira_fields.append({"value": "row", "index": -1})
+
+                    if jira_fields:
+                        with open(scope_output_file, 'a') as f:
+                            yaml.dump({ "fields": jira_fields }, f, default_flow_style=False)
+
                     if jira_ids:
                         print("closing out previous scope file")
                         print(f"JIRA IDs found: {jira_ids}")
@@ -80,6 +87,8 @@ if __name__ == "__main__":
                         f.close()
                     elif jira_create_rows:
                         print("closing out previous scope file")
+
+
                         print(f"JIRA CREATE ROWS found: {jira_create_rows}")
                         with open(scope_output_file, 'a') as f:
                             yaml.dump({"jira_create_rows": jira_create_rows}, f, default_flow_style=False)
@@ -99,17 +108,14 @@ if __name__ == "__main__":
                     fields_found = False
                     jira_import_found = False
                     jira_create_found = False
+                    jira_create_rows = []
                     #cleaned_value = str(cell).strip().replace(" ", "_")
-                    cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
-                    scope_output_file = set_output_filename(filename,cleaned_value)
                 else:
                     jira_table_found = True
 
                 
                 print(f"Found 'Jira Table' in cell index {idx} {row}")     
-                #cleaned_value = str(cell).replace("Jira", "", 1).strip().replace(" ", "_")
-                #cleaned_value = str(cell).strip().replace(" ", "_")
-                cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
+                #cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
 
                 if "jql" in cell_str:
                     jira_import_found = True
@@ -123,6 +129,8 @@ if __name__ == "__main__":
                     jira_create_found = True
                     print("CREATE found in table name: ", cell_str)
 
+                cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
+#                scope_output_file = set_output_filename(filename,cleaned_value)
                 scope_output_file = set_output_filename(filename, cleaned_value,jira_import_found, jira_create_found)
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file

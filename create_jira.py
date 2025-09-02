@@ -328,6 +328,8 @@ issuetype = ""
 labels = []
 assignee = ""
 priority = ""
+epic = ""   # if the jira needs to be child of existing Epic (must exist apriori!)
+epic_name_field = ""    # contains string only if Epic is being created otherwise empty
 
 changes_list = []
 
@@ -355,18 +357,32 @@ for line in jira_create_row:
     for field in record:
         record[field] = record[field].replace("<blank>","")
         if "project" in field:
-            project_val = record.get("project", "").strip()
-            project_key = project_val.upper() if project_val else ""
+            project_key = (record.get("project") or "").strip().upper()
         elif "summary" in field:
             summary = record["summary"]
         elif "description" in field:
-            description = record["description"]
+            description = "Created by AI Connector behalf of requestor:" + record["requestor"] + ". " + record["description"]
+        elif "epic" in field:
+            epic = record["epic"]
+            epic = (record.get("epic") or "").strip().upper()
         elif "issuetype" in field:
-            issuetype = record["issuetype"]
+            #issuetype = record["issuetype"]
+            issuetype = record.get("issuetype", "").strip().capitalize() if record.get("issuetype") else ""
+            '''
+            if "epic" in issuetype.lower()
+                print("Epic issuetype to be created")
+                # Find out the field ID for Epic Name (commonly customfield_10011)
+                # You can inspect jira.fields() to see all fields
+                fields_all = jira.fields()
+                epic_name_field = None
+                for f in fields_all:
+                    if f['name'] == 'Epic Name':
+                        epic_name_field = f['id']
+                        continue
+            '''
+
         elif "priority" in field:
-            priority_val = record.get("priority", "").strip()
-            # Normalize casing (capitalize first letter, rest lower)
-            priority = priority_val.capitalize() if priority_val else ""        
+            priority = record.get("priority", "").strip().capitalize() if record.get("priority") else ""
         elif "assignee" in field:
             assignee = record["assignee"]
         elif "labels" in field:
@@ -397,65 +413,65 @@ for line in jira_create_row:
 
         print(f"constructed issue_field: {issue_fields}")
 
-        jql = f'project = "{project_key}" AND summary ~ "{summary}"'
+        # check if this issue already exists
+        jql = f'project = "{project_key}" AND summary ~ "{summary}" AND issuetype = {issuetype}  '
         issues = jira.search_issues(jql, maxResults=1)
 
-        jql = f'project = "{project_key}" AND summary ~ "{summary}"'
-        issues = jira.search_issues(jql, maxResults=1)
+        issue = ""
 
         if issues:
             issue = issues[0]
-            issue.update(fields=issue_fields)
+            #issue.update(fields=issue_fields)
+            print(f"duplicate JIRA '{issue.key}:{issuetype}:{summary}' already exists, will not create")
+        else:
+            try:
 
-            print(f"JIRA {issue.key} already exists, will not create duplicate")
-            # update changes_list here!
-            if "key" in fields_dict:
-                row_num = record["row"]
-                col_num = fields_dict["key"]
-                # If col_num is 0-based (Python index), add +1
-                coord = f"{get_column_letter(col_num + 1)}{row_num}"
-                #print(f"Excel coordinate = {coord}")
-                print (f"row_num = {row_num}   col_num = {col_num}  excel = {coord}")
-                print (f"Adding to Changes.txt    {coord} = {issue.key} || ")
-                changes_list.append(f"{coord} = URL {issue.key} || ")
+                if "epic" in issuetype.lower() and len(epic_name_field):
+                    print("Epic issuetype to be created")
+                    #issue_fields[epic_name_field] = summary  # or another string for Epic Name
 
-            if "timestamp" in fields_dict:
-                row_num = record["row"]
-                col_num = fields_dict["timestamp"]
-                coord = f"{get_column_letter(col_num + 1)}{row_num}"
-                currtime =  datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                print (f"row_num = {row_num}   col_num = {col_num}  excel = {coord}")
-                print (f"Adding to Changes.txt    {coord} = {currtime} || ")
-                changes_list.append(f"{coord} = {currtime} || ")
+                if len(epic):
+                    print(f"Jira is to have a parent Epic {epic}")
+                    issue_fields["parent"] = {"key": epic}  # Replace with your Epic key
 
-            continue
+                print(f"About to call ijra.create_issue ")
+                issue = jira.create_issue(fields=issue_fields)
+                print(f"✅ Created issue: {new_issue.key}")
+                    
+            except Exception as e:
+                print(f"❌ Failed to create issue: {e}")
 
-        try:
-            new_issue = jira.create_issue(fields=issue_fields)
-            print(f"✅ Created issue: {new_issue.key}")
+                    # update changes_list here!
+        if "key" in fields_dict:
+            print("Found <key> field so will write to changes.txt file")
+            row_num = record["row"]
+            col_num = fields_dict["key"]
+            # If col_num is 0-based (Python index), add +1
+            coord = f"{get_column_letter(col_num + 1)}{row_num}"
+            print (f"row_num = {row_num}   col_num = {col_num}")
+            print (f"Adding to Changes.txt    {coord} = {issue.key} || ")
+            changes_list.append(f"{coord} = {issue.key} || ")
 
-            # update changes_list here!
-            if "key" in fields_dict:
-                print("Found <key> field so will write to changes.txt file")
-                row_num = record["row"]
-                col_num = fields_dict["key"]
-                # If col_num is 0-based (Python index), add +1
-                coord = f"{get_column_letter(col_num + 1)}{row_num}"
-                print (f"row_num = {row_num}   col_num = {col_num}")
-                print (f"Adding to Changes.txt    {coord} = {new_issue.key} || ")
-                changes_list.append(f"{coord} = {new_issue.key} || ")
+        if "url" in fields_dict:
+            print("Found <key> field so will write to changes.txt file")
+            row_num = record["row"]
+            col_num = fields_dict["url"]
+            # If col_num is 0-based (Python index), add +1
+            coord = f"{get_column_letter(col_num + 1)}{row_num}"
+            print (f"row_num = {row_num}   col_num = {col_num}")
+            print (f"Adding to Changes.txt    {coord} = {issue.key} || ")
+            changes_list.append(f"{coord} = URL {issue.key} || ")
 
-            if "timestamp" in fields_dict:
-                row_num = record["row"]
-                col_num = fields_dict["timestamp"]
-                coord = f"{get_column_letter(col_num + 1)}{row_num}"
-                currtime =  datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                print (f"row_num = {row_num}   col_num = {col_num}  excel = {coord}")
-                print (f"Adding to Changes.txt    {coord} = {currtime} || ")
-                changes_list.append(f"{coord} = {currtime} || ")
 
-        except Exception as e:
-            print(f"❌ Failed to create issue: {e}")
+        if "timestamp" in fields_dict:
+            row_num = record["row"]
+            col_num = fields_dict["timestamp"]
+            coord = f"{get_column_letter(col_num + 1)}{row_num}"
+            currtime =  datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print (f"row_num = {row_num}   col_num = {col_num}  excel = {coord}")
+            print (f"Adding to Changes.txt    {coord} = {currtime} || ")
+            changes_list.append(f"{coord} = {currtime} || ")
+
 
 
 if not changes_list:
