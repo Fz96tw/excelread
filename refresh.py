@@ -26,6 +26,7 @@ def resync(url: str):
     download_script = os.path.join(base_dir, "download.py")
     scope_script = os.path.join(base_dir, "scope.py")
     read_jira_script = os.path.join(base_dir, "read_jira.py")
+    create_jira_script = os.path.join(base_dir, "create_jira.py")
     update_excel_script = os.path.join(base_dir, "update_excel.py")
     update_sharepoint_script = os.path.join(base_dir, "update_sharepoint.py")
 
@@ -180,22 +181,30 @@ def resync(url: str):
                 print(f"refresh.py Re-running scope.py on {input_file}...")
                 run_and_log(["python", "-u", scope_script, input_file, file_url], log, f"scope.py {input_file} {file_url}")
 
-                # Generate CSV file for Jira
-                jira_csv = f"{input_file}.{substring}.jira.csv"
-                print(f"refresh.py Generating Jira CSV: {jira_csv}")
-                run_and_log(
-                    ["python", "-u", read_jira_script, yaml_file],
-                    log,
-                    f"read_jira.py {yaml_file}"
-                )
+                if "create" in yaml_file:
+                    print(f"refresh.py Found CREATE jira file {yaml_file}")
+                    run_and_log(
+                        ["python", "-u", create_jira_script, yaml_file, filename],
+                        log,
+                        f"create_jira.py {yaml_file} {filename}"
+                    )
+                else:
+                    # Generate CSV file for Jira
+                    jira_csv = f"{input_file}.{substring}.jira.csv"
+                    print(f"refresh.py Generating Jira CSV: {jira_csv}")
+                    run_and_log(
+                        ["python", "-u", read_jira_script, yaml_file],
+                        log,
+                        f"read_jira.py {yaml_file}"
+                    )
 
-                # Update Excel
-                print(f"refresh.py Updating Excel with {jira_csv}...")
-                run_and_log(
-                    ["python", "-u", update_excel_script, jira_csv, input_file],
-                    log,
-                    f"update_excel.py {jira_csv} {input_file}"
-                )
+                    # Update Excel
+                    print(f"refresh.py Updating Excel with {jira_csv}...")
+                    run_and_log(
+                        ["python", "-u", update_excel_script, jira_csv, input_file],
+                        log,
+                        f"update_excel.py {jira_csv} {input_file}"
+                    )
 
                 # Update SharePoint and capture output
                 print(f"refresh.py Updating SharePoint for {url} with changes from {input_file}.{substring}.changes.txt...")    
