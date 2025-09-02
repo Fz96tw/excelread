@@ -177,8 +177,9 @@ if __name__ == "__main__":
             for idx, field in enumerate(jira_fields):
 
                 print(f"idx:{idx}  field:{field}")
-                cell = row[idx]
-                print(f"cell at column index {idx} = {cell}")
+                cell_index = field.get("index")
+                cell = row[cell_index]
+                print(f"cell at column index {cell_index} = {cell}")
 
                 if pd.isna(cell):
                     field_name = field.get("value")
