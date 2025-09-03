@@ -421,10 +421,14 @@ for line in jira_create_row:
 
         # check if this issue already exists
         jql = f'project = "{project_key}" AND summary ~ "{summary}" AND issuetype = {issuetype}'
+        print(f"jql = {jql}")
         issues = jira.search_issues(jql, maxResults=10)
         print(f"jira search for duplicate returned {len(issues)} records.")
         exact_matches = [i for i in issues if i.fields.summary == summary and len(i.fields.summary) == len(summary)]
         print(f"Potential exact_matches {len(exact_matches)}.")
+        for i in exact_matches:
+            print(f"       possibly match: {i}")
+
 
     
 
