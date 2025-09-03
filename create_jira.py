@@ -391,6 +391,12 @@ for line in jira_create_row:
         else:
             print(f"unable to process this field '{field}' no matching if condition")
 
+    print(f"project_key = {project_key}")
+    print(f"summary = {summary}")
+    print(f"description = {description}")
+    print(f"issuetype = {issuetype}")
+    print(f"priority = {priority}")
+
     # make sure we have minimum fields need to create jira
     if all([project_key, summary, description, issuetype, priority]):
         issue_fields = {
@@ -414,15 +420,20 @@ for line in jira_create_row:
         print(f"constructed issue_field: {issue_fields}")
 
         # check if this issue already exists
-        jql = f'project = "{project_key}" AND summary ~ "{summary}" AND issuetype = {issuetype}  '
-        issues = jira.search_issues(jql, maxResults=1)
+        jql = f'project = "{project_key}" AND summary ~ "{summary}" AND issuetype = {issuetype}'
+        issues = jira.search_issues(jql, maxResults=10)
+        print(f"jira search for duplicate returned {len(issues)} records.")
+        exact_matches = [i for i in issues if i.fields.summary == summary and len(i.fields.summary) == len(summary)]
+        print(f"Potential exact_matches {len(exact_matches)}.")
 
-        issue = ""
+    
 
-        if issues:
-            issue = issues[0]
+        print(f"checking if duplicate exists for '{project_key}:{issuetype}:{summary}")
+        if exact_matches:
+            issue = exact_matches[0]
+            #issue = exact_matches[0]
             #issue.update(fields=issue_fields)
-            print(f"duplicate JIRA '{issue.key}:{issuetype}:{summary}' already exists, will not create")
+            print(f"duplicate JIRA found '{issue.key}:{issue.fields.issuetype.name}:{issue.fields.summary}' already exists, will not create.")
         else:
             try:
 
@@ -434,12 +445,19 @@ for line in jira_create_row:
                     print(f"Jira is to have a parent Epic {epic}")
                     issue_fields["parent"] = {"key": epic}  # Replace with your Epic key
 
-                print(f"About to call ijra.create_issue ")
+                print(f"About to call jira.create_issue ")
                 issue = jira.create_issue(fields=issue_fields)
-                print(f"✅ Created issue: {new_issue.key}")
+                print(f"✅ Created issue: {issue.key}")
                     
             except Exception as e:
                 print(f"❌ Failed to create issue: {e}")
+                # pass on the error in the key field
+                # create a dummy object to hold the error
+                class DummyIssue:
+                    def __init__(self, error):
+                        self.key = f"ERROR: {error}"
+                issue = DummyIssue(e)
+
 
                     # update changes_list here!
         if "key" in fields_dict:
@@ -471,6 +489,8 @@ for line in jira_create_row:
             print (f"row_num = {row_num}   col_num = {col_num}  excel = {coord}")
             print (f"Adding to Changes.txt    {coord} = {currtime} || ")
             changes_list.append(f"{coord} = {currtime} || ")
+    else:
+        print("Skipping Jira creation, required field(s) is missing")
 
 
 
