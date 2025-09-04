@@ -42,7 +42,7 @@
             display: flex;
             padding: 4px 20px;
             gap: 20px;
-            background-color: rgb(111, 153, 218) !important;  /* force white */
+            background-color: rgb(11, 48, 104) !important;  /* force white */
             position: relative;
             align-items: center;
         }
@@ -138,6 +138,26 @@
             box-sizing: border-box;
         }
 
+
+        .table-btn {
+            border: 1px solid #ccc;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            transition: background-color 0.2s, box-shadow 0.2s;
+        }
+
+        .table-btn:hover {
+            background-color: #e0e0e0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .table-btn img {
+            height: 20px;
+            vertical-align: middle;
+        }
+
     </style>
 </head>
 <body>
@@ -218,8 +238,8 @@
                     <tr>
                         <th style="text-align:center; padding:6px;">#</th>
                         <th style="text-align:left; padding:6px;">File</th>
+                        <th style="text-align:center; padding:6px;">Run</th>
                         <th style="text-align:center; padding:6px;">Schedule</th>
-                        <th style="text-align:center; padding:6px;">Resync</th>
                         <th style="text-align:center; padding:6px;">Remove</th>
                     </tr>
                 </thead>
@@ -236,24 +256,22 @@
                             <a href="{{ val }}" target="_blank">{{ val }}</a>
                         </td>
 
-                        <!-- Schedule button -->
-                        <td style="text-align:center; padding:6px;">
-                            <form method="POST">
-                                <input type="hidden" name="schedule_bar" value="{{ val }}">
-                                <button type="submit" onclick="return confirm('Schedule {{ val }}?')"
-                                    style="border:none; background:none; cursor:pointer;">
-                                    <img src="/static/schedule-icon.png" alt="Schedule" style="height:20px; vertical-align:middle;">
-                                </button>
-                            </form>
-                        </td>
-
                         <!-- Resync button -->
                         <td style="text-align:center; padding:6px;">
                             <form method="POST">
                                 <input type="hidden" name="resync_bar" value="{{ val }}">
-                                <button type="submit" onclick="return confirm('Resync {{ val }}?')"
-                                    style="border:none; background:none; cursor:pointer;">
-                                    <img src="/static/sync-icon.png" alt="Resync" style="height:20px; vertical-align:middle;">
+                                <button type="submit" class="table-btn" onclick="return confirm('Resync {{ val }}?')">
+                                    <img src="/static/sync-icon.png" alt="Resync">
+                                </button>
+                            </form>
+                        </td>
+
+                        <!-- Schedule button -->
+                        <td style="text-align:center; padding:6px;">
+                            <form method="POST">
+                                <input type="hidden" name="schedule_bar" value="{{ val }}">
+                                <button type="submit" class="table-btn" onclick="return confirm('Schedule {{ val }}?')">
+                                    <img src="/static/schedule-icon.png" alt="Schedule" >
                                 </button>
                             </form>
                         </td>
@@ -262,9 +280,9 @@
                         <td style="text-align:center; padding:6px;">
                             <form method="POST">
                                 <input type="hidden" name="remove_bar" value="{{ val }}">
-                                <button type="submit" onclick="return confirm('Remove {{ val }}?')"
-                                    style="border:none; background:none; cursor:pointer;">
-                                    <img src="/static/delete-icon.png" alt="Delete" style="height:20px; vertical-align:middle;">
+                                <button type="submit" class="table-btn" onclick="return confirm('Remove {{ val }}?')"
+                                   >
+                                    <img src="/static/delete-icon.png" alt="Delete" >
                                 </button>
                             </form>
                         </td>
