@@ -23,6 +23,15 @@ def resync(url: str):
 
     log_file = os.path.join(logs_dir, f"{basename}_{timestamp}.log")
 
+    # Persistent rolling resync.log
+    resync_log = os.path.join(logs_dir, "resync.log")
+
+    # Append entry to resync.log
+    with open(resync_log, "a", encoding="utf-8") as f:
+        f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
+                f"Resync called on URL={url}, file={filename}\n")
+
+
     download_script = os.path.join(base_dir, "download.py")
     scope_script = os.path.join(base_dir, "scope.py")
     read_jira_script = os.path.join(base_dir, "read_jira.py")

@@ -3,11 +3,22 @@ from openpyxl.styles import Alignment
 
 import re
 
-def is_valid_jira_id(jira_id):
-    return re.match(r'^[A-Z][A-Z0-9]+-\d+$', jira_id) is not None or "JQL" not in jira_id
+#def is_valid_jira_id(jira_id):
+#    return re.match(r'^[A-Z][A-Z0-9]+-\d+$', jira_id) is not None or "JQL" not in jira_id
 
 def is_JQL(jira_id):
-    return "JQL" in jira_id
+    return "jql" in jira_id.lower()
+
+def is_valid_jira_id(jira_id: str) -> bool:
+    # Case 1: valid Jira issue key (case-insensitive)
+    if re.match(r'^[A-Z][A-Z0-9]+-\d+$', jira_id, re.IGNORECASE):
+        return True
+    
+    # Case 2: JQL query (case-insensitive)
+    if jira_id.strip().lower().startswith("jql "):
+        return True
+    
+    return False
 
 field_index_map = {}
 jira_data = {}
@@ -76,140 +87,6 @@ def load_jira_file(filename):
 
 from openpyxl import load_workbook
 
-def process_jira_table_blocks_2(filename):
-    wb = load_workbook(filename)
-    ws = wb.active
-
-    printing = False  # Flag to track when we're in a Jira Table block
-    printing_import_mode = False # flag to track when we're in a jira table block in import mode
-
-    for row in ws.iter_rows():
-        #print(f"Processing row {row[0].row}: {[cell.value for cell in row]}")
-
-        # skip just 1 more row because it contains the table header. I know it's a hack but it works for now
-        #if printing and import_mode: 
-        #    print("Skipping header row in import mode")
-        #    continue
-
-        for cell in row:
-            #print(f"Processing cell {cell.coordinate}: {cell.value}")
-            cleaned_value = str(cell.value).strip().replace(" ", "_")
-            #print(f"Cleaned cell value: {cleaned_value}" + f" | file_info['table']: {file_info['table']}")
-            #if file_info["table"] in str(cell).strip().replace(" ", "_"):
-            if file_info["table"] in cleaned_value:
-                print(f"Found table header '{file_info['table']}' in cell {cell.coordinate}")
-                printing = True
-                break
-            
-        print(f"Printing flag is {'ON' if printing else 'OFF'} for row {row[0].row}")
-        print(f"Import mode is {'ON' if import_mode else 'OFF'}")
-
-        if printing and not import_mode:
-            print("About to process update row.")
-            first_cell = row[field_index_map["key"]].value
-            #print(first_cell)
-            if (jira_data and first_cell in jira_data):
-                print(f"Updating row {row[field_index_map["key"]].row} with data for {first_cell}")
-                record = jira_data[first_cell]
-                for field, index in field_index_map.items():
-                    print(f"Checking field {field} at index {index}")
-                    if field in record:
-                        print(f"Updating field {field} at index {index} with value {record[field]}")
-                        cell_value = record[field]
-                        print(f"Cell value for {field}: {cell_value}")
-                        if cell_value is not None:
-                            #print(f"Setting cell value: {cell_value}")
-                            #ws.cell(row=row[0].row, column=index + 1, value=cell_value)
-                            target_cell = ws.cell(row=row[0].row, column=index + 1)
-                            old_value = target_cell.value
-                            old_value = str(old_value).replace("\n", ";") if old_value else None  # Replace newlines with semicolons for comparison
-                            print(f"Old value for {target_cell.coordinate}: {old_value}")
-                            print(f"Setting cell {target_cell.coordinate} = {cell_value}")  # <-- Coordinate logging
-                            target_cell.value = cell_value.replace(";", "\n")  # Replace ; with newline
-                                                    
-                            # Enable text wrapping to show newlines
-                            target_cell.alignment = Alignment(wrapText=True)
-
-                            if field == "key" and is_valid_jira_id(cell_value):
-                                target_cell.hyperlink = "https://fz96tw.atlassian.net/browse/" + cell_value  # The actual link
-                                target_cell.style = "Hyperlink"  # Optional: makes it blue and underlined
-                            elif field == "key" and is_JQL(cell_value):
-                                target_cell.hyperlink = "https://fz96tw.atlassian.net/issues/?jql=" + cell_value.replace("JQL", "")  # The actual link
-                                target_cell.style = "Hyperlink"
-                            
-                            # Save coordinate + value to list
-                            change_list.append(f"{target_cell.coordinate}={cell_value.replace("\n",";")}||{old_value}")
-            else:
-                print(f"No data found for {first_cell} in jira_data.")
-        
-        elif printing and not printing_import_mode:
-                print("Hunting for starting cell for import mode")
-                first_cell = row[field_index_map["key"]].value
-                if "<key>" in str(first_cell).lower():
-                    print("Found <key> header row, let's skip to next row")
-                    printing_import_mode = True
-                    continue
-                else:
-                    print("need to keep looking...")
-                    
-            
-        elif printing and import_mode and printing_import_mode:
-            print(f"About to process import row - checking column {field_index_map['key']}")
-            first_cell = row[field_index_map["key"]].value
-            print(f"First cell in import row: {first_cell}")
-            #if (jira_data and first_cell is None):     # make sure it's a blank cell (will skip headers as good side effect)
-            if jira_data and (first_cell is None or first_cell == ""):
-                print("First cell is blank")
-                print(f"Import mode: Adding new row for {first_cell}")
-                index = field_index_map["key"]  # get the index of the "key" field to find the blank cell
-                print("target index for 'key': ", index)
-                target_cell = ws.cell(row=row[0].row, column=index + 1)
-                # for loop through the key in jira_data
-                #for key, record in jira_data.items():
-                    #change_list.append(f"insert {target_cell.coordinate}={key}||{first_cell}")
-                key_index = field_index_map["key"]
-
-                if jira_data:
-                    k, v = jira_data.popitem()
-                    print(f"jira_data.popitem = {k}, {v}")
-                    print(f"remaining jira_data items: {len(jira_data)}")
-            
-            
-                print(f"{target_cell.coordinate}={k}||{first_cell}")
-                change_list.append(f"{target_cell.coordinate}={k}||{first_cell}")
-
-                if not jira_data:
-                    print("Dictionary is empty, nothing to pop so exiting loop")
-                    break
-            
-
-                # we just added all the row changes, so break out of the for loop. we're done with this table
-                # not updating the downloaded excel file since we never use it. we are just after the change_list for import mode
-                #print("Finished processing import row.")
-                #break
-            elif is_valid_jira_id(first_cell):
-                print(f"This row already contains valid jira id {first_cell}. Will just update instead of overwriting.")
-
-                # pop the first_cell from jira_ids if it exists
-                if first_cell in jira_data:
-                    print(f"Popping {first_cell} from jira_data for update.")
-                    record = jira_data.pop(first_cell)
-                    print(f"Remaining jira_data items: {len(jira_data)}")
-                    break
-                    # TODO: if there are Jira IDs in the table already it means we need to update them instead of insert
-                    # Also if any jira in the table that aren't in the jql result then we need to delete those.
-                    # These is a more complex scenario that we can handle later
-
-                    # Call update process here. Mark the cell for strikeout if isn't in jira_ids for this JQL result
-
-            else:
- 
-                print(f"Import mode: first_cell = {first_cell}. No blank 'key' cell found, skipping change_list for this row.")    
-    
-    # Save updates to the same file
-    #print(f"Saving updates to {filename}")
-    #wb.save(filename)                
-
 
 def process_jira_table_blocks(filename):
     wb = load_workbook(filename)
@@ -236,12 +113,18 @@ def process_jira_table_blocks(filename):
                 printing = True
                 break
             
-        print(f"Printing flag is {'ON' if printing else 'OFF'} for row {row[0].row}")
-        print(f"Import mode is {'ON' if import_mode else 'OFF'}")
+        #print(f"Printing flag is {'ON' if printing else 'OFF'} for row {row[0].row}")
+        #print(f"Import mode is {'ON' if import_mode else 'OFF'}")
 
         if printing and not import_mode:
             print("About to process update row.")
             first_cell = row[field_index_map["key"]].value
+   
+            if first_cell is not None:
+                first_cell = str(first_cell).lower()
+            else:
+                first_cell = ""
+
             #print(first_cell)
             if (jira_data and first_cell in jira_data):
                 print(f"Updating row {row[field_index_map["key"]].row} with data for {first_cell}")
@@ -269,7 +152,7 @@ def process_jira_table_blocks(filename):
                                 target_cell.hyperlink = "https://fz96tw.atlassian.net/browse/" + cell_value  # The actual link
                                 target_cell.style = "Hyperlink"  # Optional: makes it blue and underlined
                             elif field == "key" and is_JQL(cell_value):
-                                target_cell.hyperlink = "https://fz96tw.atlassian.net/issues/?jql=" + cell_value.replace("JQL", "")  # The actual link
+                                target_cell.hyperlink = "https://fz96tw.atlassian.net/issues/?jql=" + cell_value.lower().replace("jql", "")  # The actual link
                                 target_cell.style = "Hyperlink"
                             
                             # Save coordinate + value to list
@@ -280,6 +163,11 @@ def process_jira_table_blocks(filename):
         elif printing and not printing_import_mode:
                 print("Hunting for starting cell for import mode")
                 first_cell = row[field_index_map["key"]].value
+                if first_cell is not None:
+                    first_cell = str(first_cell).lower()
+                else:
+                    first_cell = ""
+
                 if "<key>" in str(first_cell).lower():
                     print("Found <key> header row, let's skip to next row")
                     printing_import_mode = True
@@ -291,14 +179,19 @@ def process_jira_table_blocks(filename):
         elif printing and import_mode and printing_import_mode:
             print(f"About to process import row - checking column {field_index_map['key']}")
             first_cell = row[field_index_map["key"]].value
+            
+            # do not case normalize in this case because the sheet cell and jira.csv entries (jira_data) are same case already
+            #if first_cell is not None:
+            #    first_cell = str(first_cell).lower()
+            #else:
+            #    first_cell = ""
             print(f"First cell in import row: {first_cell}")
-            #if (jira_data and first_cell is None):     # make sure it's a blank cell (will skip headers as good side effect)
+
             if jira_data and (first_cell is None or first_cell == ""):
                 print("First cell is blank")
                 print(f"Import mode: Adding new row for {first_cell}")
    
                 print(f"Updating row {row[field_index_map["key"]].row} with data for {first_cell}")
-                #record = jira_data[first_cell]
                 k, record = jira_data.popitem()
                 for field, index in field_index_map.items():
                     print(f"Checking field {field} at index {index}")
@@ -307,8 +200,6 @@ def process_jira_table_blocks(filename):
                         cell_value = record[field]
                         print(f"Cell value for {field}: {cell_value}")
                         if cell_value is not None:
-                            #print(f"Setting cell value: {cell_value}")
-                            #ws.cell(row=row[0].row, column=index + 1, value=cell_value)
                             target_cell = ws.cell(row=row[0].row, column=index + 1)
                             old_value = target_cell.value
                             old_value = str(old_value).replace("\n", ";") if old_value else None  # Replace newlines with semicolons for comparison
@@ -323,31 +214,22 @@ def process_jira_table_blocks(filename):
                                 target_cell.hyperlink = "https://fz96tw.atlassian.net/browse/" + cell_value  # The actual link
                                 target_cell.style = "Hyperlink"  # Optional: makes it blue and underlined
                             elif field == "key" and is_JQL(cell_value):
-                                target_cell.hyperlink = "https://fz96tw.atlassian.net/issues/?jql=" + cell_value.replace("JQL", "")  # The actual link
+                                target_cell.hyperlink = "https://fz96tw.atlassian.net/issues/?jql=" + cell_value.lower().replace("jql", "")  # The actual link
                                 target_cell.style = "Hyperlink"
                             
                             # Save coordinate + value to list
                             change_list.append(f"{target_cell.coordinate}={cell_value.replace("\n",";")}||{old_value}")
-            elif not jira_data:
-                print("No more items in jira_data to import, exiting loop.")
-                break
-            elif is_valid_jira_id(first_cell):
-                print(f"This row already contains valid jira id {first_cell}. Will just update instead of overwriting.")
+            
+            elif not jira_data and first_cell is not None:
+                if first_cell is not None: #and is_valid_jira_id(first_cell)
+                    print(f"No more items in jira_data but first_cell '{first_cell} has text so let's keep going down until blank cell")
+                    # cannot exit loop yet because there may be rows below current row that
+                    # were populated previously because they were in the jql result.
+                    # And now they're not in current result set and must be STRIKEOUT
+                    #break
 
-                # pop the first_cell from jira_ids if it exists
-                if first_cell in jira_data:
-                    print(f"Popping {first_cell} from jira_data for update.")
-                    record = jira_data.pop(first_cell)
-                    print(f"Remaining jira_data items: {len(jira_data)}")
-                    
-                    # TODO: if there are Jira IDs in the table already it means we need to update them instead of insert
-                    # Also if any jira in the table that aren't in the jql result then we need to delete those.
-                    # These is a more complex scenario that we can handle later
-
-                    # Call update process here. 
-                else:
                     # Mark the cell for strikeout if isn't in jira_ids for this JQL result
-                    print(f"Strikeout {first_cell} not in jira_data, marking for strikeout.")
+                    print(f"About to STRIKEOUT {first_cell} not in jira_data, marking for strikeout.")
                     index = field_index_map["key"]  # get the index of the "key" field to find the blank cell
                     print("target index for 'key': ", index)
 
@@ -355,17 +237,104 @@ def process_jira_table_blocks(filename):
                     old_value = target_cell.value
                     old_value = str(old_value).replace("\n", ";") if old_value else None  # Replace newlines with semicolons for comparison
                     print(f"Old value for {target_cell.coordinate}: {old_value}")
-                    print(f"Setting cell {target_cell.coordinate} = {first_cell} (strikeout)")  # <-- Coordinate logging
-                    target_cell.value = "!! " + first_cell  # add marker to indicate it needs strick out 
-                    target_cell.font = target_cell.font.copy(strike=True)  # Apply strikeout
-                    target_cell.alignment = Alignment(wrapText=True)                 
-                    change_list.append(f"{target_cell.coordinate}={target_cell.value.replace("\n",";")}||{old_value}")
+                    print(f"Setting cell {target_cell.coordinate} = STRIKEOUT {first_cell}")  # <-- Coordinate logging
+                    
+                    if "STRIKEOUT" in target_cell.value:
+                        print(f"target_cell '{target_cell.value}' already has STRIKEOUT prefix. Do nothing")
+                    else:
+                        target_cell.value = "STRIKEOUT " + first_cell  # add marker to indicate it needs strick out 
+                        print(f"STRIKEOUT added to target_cell '{target_cell}'")
+                        target_cell.font = target_cell.font.copy(strike=True)  # Apply strikeout
+                        target_cell.alignment = Alignment(wrapText=True)                 
+                        change_list.append(f"{target_cell.coordinate}={target_cell.value.replace("\n",";")}||{old_value}")
+                else:
+                    # now we can exit loop since not more jira_data and no more keys in key column              
+                    break
 
-    else:
+
+            #elif is_valid_jira_id(first_cell):
+            elif jira_data and first_cell is not None:
+                #print(f"This row already contains valid jira id {first_cell}. Will just update instead of overwriting.")
+                print("This rows contains some text already")
+                # if the text in cell matches the Jira id we are looking for then
+                # pop the first_cell from jira_ids if it exists 
+                # and update all the field cells applicable in this row
+
+                # if previously had strikeout then remove it
+                if "STRIKEOUT" in first_cell:
+                    print(f"Already contains STRIKEOUT removing it from first_cell '{first_cell}'")
+                    first_cell = first_cell.replace("STRIKEOUT ","")
+                    print(f"STRIKEOUT removed, first_cell is no '{first_cell}'")
+
+                # was this jira previously in the cell? 
+                # if yes then update all the fields columns and remove strikeout
+                # we want to preserve this row incawe there were user notes in this row as well
+                if first_cell in jira_data:
+                    print("This first_cell is still part of the jira_data result set")
+                    print(f"Popping {first_cell} from jira_data for update.")
+                    record = jira_data.pop(first_cell)
+                    print(f"Remaining jira_data items: {len(jira_data)}")
+                    
+                    # if there are Jira IDs in the table already it means we need to update them instead of insert
+                    # Call update process here. 
+                    print(f"Updating row {row[field_index_map["key"]].row} with data for {first_cell}")
+                    #k, record = jira_data.popitem()
+                    for field, index in field_index_map.items():
+                        print(f"Checking field {field} at index {index}")
+                        if field in record:
+                            print(f"Updating field {field} at index {index} with value {record[field]}")
+                            cell_value = record[field]
+                            print(f"Cell value for {field}: {cell_value}")
+                            if cell_value is not None:
+                                target_cell = ws.cell(row=row[0].row, column=index + 1)
+                                old_value = target_cell.value
+                                old_value = str(old_value).replace("\n", ";") if old_value else None  # Replace newlines with semicolons for comparison
+                                print(f"Old value for {target_cell.coordinate}: {old_value}")
+                                print(f"Setting cell {target_cell.coordinate} = {cell_value}")  # <-- Coordinate logging
+                                target_cell.value = cell_value.replace(";", "\n")  # Replace ; with newline
+                                                        
+                                # Enable text wrapping to show newlines
+                                target_cell.alignment = Alignment(wrapText=True)
+
+                                if field == "key" and is_valid_jira_id(cell_value):
+                                    target_cell.hyperlink = "https://fz96tw.atlassian.net/browse/" + cell_value  # The actual link
+                                    target_cell.style = "Hyperlink"  # Optional: makes it blue and underlined
+                                elif field == "key" and is_JQL(cell_value):
+                                    target_cell.hyperlink = "https://fz96tw.atlassian.net/issues/?jql=" + cell_value.lower().replace("jql", "")  # The actual link
+                                    target_cell.style = "Hyperlink"
+                                
+                                # Save coordinate + value to list
+                                change_list.append(f"{target_cell.coordinate}={cell_value.replace("\n",";")}||{old_value}")
+
+                else:
+                    # Mark the cell for strikeout if isn't in jira_ids for this JQL result
+                    print(f"About to STRIKEOUT {first_cell} not in jira_data, marking for strikeout.")
+                    index = field_index_map["key"]  # get the index of the "key" field to find the blank cell
+                    print("target index for 'key': ", index)
+
+                    target_cell = ws.cell(row=row[0].row, column=index + 1)
+                    old_value = target_cell.value
+                    old_value = str(old_value).replace("\n", ";") if old_value else None  # Replace newlines with semicolons for comparison
+                    print(f"Old value for {target_cell.coordinate}: {old_value}")
+                    print(f"Setting cell {target_cell.coordinate} = STRIKEOUT {first_cell}")  # <-- Coordinate logging
+                    
+                    if "STRIKEOUT" in target_cell.value:
+                        print(f"target_cell '{target_cell.value}' already has STRIKEOUT prefix. Do nothing")
+                    else:
+                        target_cell.value = "STRIKEOUT " + first_cell  # add marker to indicate it needs strick out 
+                        print(f"STRIKEOUT added to target_cell '{target_cell}'")
+                        target_cell.font = target_cell.font.copy(strike=True)  # Apply strikeout
+                        target_cell.alignment = Alignment(wrapText=True)                 
+                        change_list.append(f"{target_cell.coordinate}={target_cell.value.replace("\n",";")}||{old_value}")
+            elif not jira_data and first_cell is None:
+                # reached row with first_cell is None. Will Exit Loop"
+                print(f"Reached row with None first_cell = {first_cell} so will break out of row scan loop")
+                break
+   # else:
                 # TODO: if there are Jira IDs in the table already it means we need to update them instead of insert
                 # Also if any jira in the table that aren't in the jql result then we need to delete those.
                 # These is a more complex scenario that we can handle later
-                print(f"Import mode: first_cell = {first_cell}. No blank 'key' cell found, skipping change_list for this row.")    
+    #            print(f"Import mode: first_cell = {first_cell}. No blank 'key' cell found, skipping change_list for this row.")    
     
     # Save updates to the same file
     #print(f"Saving updates to {filename}")

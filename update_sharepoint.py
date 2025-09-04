@@ -170,6 +170,8 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
         resp_strike = requests.patch(url_strike, json=strike_payload, headers=headers)
         resp_strike.raise_for_status()
         print(f"✍️ Applied strikeout to row {row_num}")
+        print(f"✍️ Applied strikeout to row_range {row_range}")
+
 
     # --- 4. Post-process hyperlinks + wrap ---
     for i, col_ascii in enumerate(all_cols):

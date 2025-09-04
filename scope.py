@@ -20,9 +20,16 @@ def set_output_filename(filename, table_name="", import_found=False, jira_create
     outputfile = f"{base_name}.{table_name}.create.scope.yaml" if jira_create_found else outputfile
     return outputfile  
 
-def is_valid_jira_id(jira_id):
-    return re.match(r'^[A-Z][A-Z0-9]+-\d+$', jira_id) is not None or "JQL" in jira_id
-
+def is_valid_jira_id(jira_id: str) -> bool:
+    # Case 1: valid Jira issue key (case-insensitive)
+    if re.match(r'^[A-Z][A-Z0-9]+-\d+$', jira_id, re.IGNORECASE):
+        return True
+    
+    # Case 2: JQL query (case-insensitive)
+    if jira_id.strip().lower().startswith("jql "):
+        return True
+    
+    return False
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -151,7 +158,7 @@ if __name__ == "__main__":
             cell_str = str(cell).replace("\xa0", " ").replace("\n", " ").replace("\r", " ").lower().strip()
 
             match = re.search(r'<(.*?)>', cell_str)    
-            if match:
+            if match and not fields_found:  # ignore <..> is found in other rows after we have already found the fields for the jira table
                 value = match.group(1).strip()
                 jira_fields.append({"value": value, "index": idx})
 

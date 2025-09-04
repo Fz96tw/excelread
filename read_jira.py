@@ -17,6 +17,10 @@ from requests.auth import HTTPBasicAuth
 # Cache dictionary to avoid repeated calls
 user_cache = {}
 
+# custom prompt appended to system prompt from sheet <ai...> tag
+user_prompt = ""
+JIRA_MAX_RESULTS = 50
+
 model_name = "llama3.2:1b"  # Default model name
 
 class OllamaSummarizer:
@@ -43,10 +47,10 @@ class OllamaSummarizer:
         #comments_str = "; ".join(comments_list)
         # Safety-aware prompt template
         prompt = (
-            "You are a helpful assistant. Summarize the following Jira or internal team comments "
+            "You are a helpful assistant. Summarize the following comments "
             "in one or two short sentences. Only summarize the content; do not add extra information. Do not expand any abbreviations used here "
-            "or provide opinions. Keep it concise and clear.\n\n"
-            + comments_list
+            "or provide opinions. Keep it concise and clear. "
+            + user_prompt + "\nThe following is the content you need to summarize:\n" + comments_list
         )
         print(f"Prompt for summarization: {prompt}")
         try:
@@ -267,10 +271,10 @@ with open(output_file, "w") as outfile:
 jira_ids = data.get('jira_ids', [])
 
 # IDs without JQL
-filtered_ids = [jid for jid in jira_ids if 'JQL' not in jid]
+filtered_ids = [jid for jid in jira_ids if 'jql' not in jid.lower()]
 
 # IDs with "JQL"
-jql_ids = [jid for jid in jira_ids if 'JQL' in jid]
+jql_ids = [jid for jid in jira_ids if 'jql' in jid.lower()]
 jira_filter_str = "id in (" + ','.join(filtered_ids) + ")" 
 print(jira_filter_str)
 
@@ -305,8 +309,9 @@ if import_mode:
         sys.exit(1)
     #TODO convert the jql result into a filtered_ids List so it's processed as list of indivudal jira IDs
     try:
-        jql_query = jql_ids[0].replace("JQL ", "").strip()
-        issues = jira.search_issues(jql_query, maxResults=10)
+        jql_query = jql_ids[0]
+        jql_query = jql_query.lower().replace("jql ", "").strip()
+        issues = jira.search_issues(jql_query, maxResults = JIRA_MAX_RESULTS)
         print(f"Found {len(issues)} issues for JQL query '{jql_query}':")
         if len(issues) == 0:
             print(f"No issues found for JQL query '{jql_query}'.")
@@ -325,7 +330,7 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
     # Try running the search only if issues is empty (i.e., not already populated by import mode)
     if issues is None or len(issues) == 0:    
         try:
-            issues = jira.search_issues(jira_filter_str, maxResults=10)
+            issues = jira.search_issues(jira_filter_str, maxResults=JIRA_MAX_RESULTS)
             #print(f"✅ Found {len(issues)} issue(s) matching the filter.")
             #for i, issue in enumerate(issues, start=1):
             #    print(f"{i}. {issue.key} — {issue.fields.summary}")
@@ -373,7 +378,9 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                     value = "As of " + now_str + ";" + value
                 else:
                     value = "No comments"
-            elif field == "ai":
+            #elif field == "ai":
+            elif field.lower().startswith("ai"):
+                user_prompt = field.replace("ai ","") # just extract the user prompt after the ai tag
                 if issue.fields.comment.comments:
                     sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=False)
                     value = ";".join([
@@ -411,10 +418,18 @@ if jql_ids:
     print("Processing JQL queries:")    
     
     for jql_id in jql_ids:
-        jql_query = jql_id.replace("JQL ", "").strip()
+        jql_id = jql_id.lower()
+        jql_query = jql_id.replace("jql ", "").strip()
+
+        # Normalize to lowercase only for the JQL prefix
+        #if jql_id.strip().lower().startswith("jql "):
+        #    jql_query = jql_id.strip()[4:].strip()
+        #else:
+        #    jql_query = jql_id.strip()
+
         print(f"Running JQL query: {jql_query}")
         try:
-            issues = jira.search_issues(jql_query, maxResults=10)
+            issues = jira.search_issues(jql_query, maxResults=JIRA_MAX_RESULTS)
             print(f"Found {len(issues)} issues for JQL query '{jql_query}':")
             if len(issues) == 0:
                 print(f"No issues found for JQL query '{jql_query}'.")
