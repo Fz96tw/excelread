@@ -118,6 +118,25 @@ cache = load_cache()
 cca = build_msal_app(cache)
 
 
+def load_schedules():
+    if os.path.exists(SCHEDULE_FILE):
+        with open(SCHEDULE_FILE, "r") as f:
+            return json.load(f)
+    return []
+
+def clear_schedule_file(filename):
+    if not filename:
+        return jsonify({"success": False, "message": "Filename missing"}), 400
+    # Load existing schedules
+    schedules = load_schedules()
+    # Remove the schedule for this filename if it exists
+    new_schedules = [s for s in schedules if s["filename"] != filename]
+    # Save back to file
+    with open(SCHEDULE_FILE, "w") as f:
+        json.dump(new_schedules, f, indent=4)
+    #return jsonify({"success": True, "message": f"Schedule for '{filename}' cleared."})
+
+
 @app.route("/login")
 def login():
     cache = load_cache()
@@ -246,7 +265,10 @@ def index():
     # Load saved values
     foo_values = {}
     foo_lines = read_file_lines(FOO_FILE)
+    schedules = load_schedules()
 
+    # Create a dictionary for quick lookup
+    schedule_dict = {s["filename"]: s for s in schedules}
     
     # Extract text between the first pair of double quotes in each line
     foo_lines = [re.search(r'"(.*?)"', line).group(1) if re.search(r'"(.*?)"', line) else "" for line in foo_lines]
@@ -293,6 +315,9 @@ def index():
             if to_remove in bar_values:
                 bar_values.remove(to_remove)
                 write_file_lines(BAR_FILE, bar_values)
+                # if file was scheduled for resync then remove from schedule.json 
+                clear_schedule_file(to_remove) 
+                
             return redirect(url_for('index'))
         elif 'resync_bar' in request.form:
             print("Resyncing file values...")
@@ -325,7 +350,83 @@ def index():
                             foo_values=foo_values,
                             bar_values=bar_values,
                             logged_in=logged_in,
-                            folder_tree=folder_tree) 
+                            folder_tree=folder_tree,
+                            schedule_dict=schedule_dict) 
+
+
+
+# File to store schedules
+SCHEDULE_FILE = "schedules.json"
+
+# Ensure file exists
+if not os.path.exists(SCHEDULE_FILE):
+    with open(SCHEDULE_FILE, "w") as f:
+        json.dump([], f)
+
+@app.route("/schedule", methods=["POST"])
+def schedule_file():
+    filename = request.form.get("filename")
+    time = request.form.get("time")
+    interval = request.form.get("interval")
+
+    # Validate input
+    if not filename:
+        return "Filename missing", 400
+
+    # Only one of time or interval should be filled
+    if (time and interval) or (not time and not interval):
+        return "Enter either time OR interval, not both", 400
+
+    # Prepare schedule data
+    schedule_entry = {
+        "filename": filename,
+        "time": time if time else None,
+        "interval": int(interval) if interval else None
+    }
+
+    # Load existing schedules
+    with open(SCHEDULE_FILE, "r") as f:
+        schedules = json.load(f)
+
+    # Check if this file already exists in schedules
+    existing = next((s for s in schedules if s["filename"] == filename), None)
+    if existing:
+        # Update existing
+        existing["time"] = schedule_entry["time"]
+        existing["interval"] = schedule_entry["interval"]
+    else:
+        schedules.append(schedule_entry)
+
+    # Save back to file
+    with open(SCHEDULE_FILE, "w") as f:
+        json.dump(schedules, f, indent=4)
+
+    return jsonify({"success": True, "message": "Schedule saved successfully"})
+
+@app.route("/schedule/clear", methods=["POST"])
+def clear_schedule():
+    data = request.get_json()
+    filename = data.get("filename")
+
+    if not filename:
+        return jsonify({"success": False, "message": "Filename missing"}), 400
+
+    # Load existing schedules
+    schedules = []
+    if os.path.exists(SCHEDULE_FILE):
+        with open(SCHEDULE_FILE, "r") as f:
+            schedules = json.load(f)
+
+    # Remove the schedule for this file
+    schedules = [s for s in schedules if s["filename"] != filename]
+
+    # Save back
+    with open(SCHEDULE_FILE, "w") as f:
+        json.dump(schedules, f, indent=4)
+
+    return jsonify({"success": True})
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)

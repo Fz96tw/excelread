@@ -4,4 +4,5 @@ rm *.jira.csv
 rm ./logs/*.log
 rm *.xlsx
 rm *.meta.json
+rm ./logs/temp/*
 

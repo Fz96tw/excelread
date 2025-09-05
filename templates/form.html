@@ -7,55 +7,28 @@
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0 0;
-                color: #414040;   /* medium gray text */
-           
+            color: #414040;
         }
 
-        h3 {
-            margin-bottom: 4px;
-        }
-        ol {
-            margin-top: 4px;
-        }
-        .sync-desc {
-            margin: 0 0 4px 0;
-        }     
+        h3 { margin-bottom: 4px; }
+        ol { margin-top: 4px; }
+        .sync-desc { margin: 0 0 4px 0; }     
 
-        form label {
-            display: inline-block;
-            width: 150px;
-            vertical-align: middle;
-        }
-        form input[type="text"] {
-            display: inline-block;
-            vertical-align: middle;
-            width: 300px;
-            margin-bottom: 10px;
-        }
-        form button {
-            margin-top: 10px;
-        }
-        .menu-bar #btn-exit {
-            margin-left: auto; /* pushes it to the right */
-        }
+        form label { display: inline-block; width: 150px; vertical-align: middle; }
+        form input[type="text"] { display: inline-block; vertical-align: middle; width: 300px; margin-bottom: 10px; }
+        form button { margin-top: 10px; }
+
+        .menu-bar #btn-exit { margin-left: auto; }
         .menu-bar {
             display: flex;
             padding: 4px 20px;
             gap: 20px;
-            background-color: rgb(11, 48, 104) !important;  /* force white */
+            background-color: rgb(11, 48, 104) !important;
             position: relative;
             align-items: center;
         }
-
-        .menu-bar button img {
-            height: 40px;
-            margin-bottom: 5px; /* space between icon and text */
-        }
-        .menu-bar button span {
-            color: white; /* make text white */
-            font-size: 18px;
-             font-weight: normal;  /* make text bold */
-        }
+        .menu-bar button img { height: 40px; margin-bottom: 5px; }
+        .menu-bar button span { color: white; font-size: 18px; font-weight: normal; }
         .menu-bar::before {
             content: "";
             position: relative;
@@ -66,7 +39,7 @@
         }
         .menu-bar button {
             display: flex;
-            flex-direction: column; /* stack icon + text */
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             border: none;
@@ -74,70 +47,26 @@
             cursor: pointer;
             padding: 5px;
         }
-        .menu-bar button:hover {
-            background-color: rgba(255, 255, 255, 0.2);
-        }
-        .menu-bar button.active {
-            background-color: rgba(255, 255, 255, 0.4);
-        }
+        .menu-bar button:hover { background-color: rgba(255, 255, 255, 0.2); }
+        .menu-bar button.active { background-color: rgba(255, 255, 255, 0.4); }
 
-        .section-content {
-            display: none;
-            padding: 20px;
-        }
-        .section-content.active {
-            display: block;
-        }
+        .section-content { display: none; padding: 20px; }
+        .section-content.active { display: block; }
 
-        img.banner {
-            width: 100%;
-            max-height: 300px;
-            object-fit: cover;
-            display: block;
-        }
-
-        h1 {
-            margin: 20px;
-        }
-
-        /* Log textarea */
-        #log-textarea {
-            width: 100%;
-            height: 300px;
-            resize: none;
-            padding: 10px;
-            font-family: monospace;
-            font-size: 14px;
-        }
+        img.banner { width: 100%; max-height: 300px; object-fit: cover; display: block; }
 
         .left-form {
             display: flex;
-            flex-direction: column;  /* stack items vertically */
-            align-items: flex-start; /* left-align all elements */
-            gap: 5px;               /* space between label, input, button */
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
             margin: 0;
-            width: 80px;            /* adjust form width as needed */
+            width: 80px; /* will override for schedule modal */
         }
-
-        .left-form label {
-            display: block;          /* label takes full width above input */
-            font-weight: normal;
-            width: 300px;            /* adjust form width as needed */
-        }
-
-        .left-form input,
-        .left-form button {
-            width: 100%;             /* input and button fill form width */
-            box-sizing: border-box;  /* include padding in width */
-        }
-        .left-form button {
-            margin-top: 0;           /* remove any extra top margin */
-        }
-        .page-content {
-            padding: 0 50px; /* side margins */
-            box-sizing: border-box;
-        }
-
+        .left-form label { display: block; font-weight: normal; width: 300px; }
+        .left-form input, .left-form button { width: 100%; box-sizing: border-box; }
+        .left-form button { margin-top: 0; }
+        .page-content { padding: 0 50px; box-sizing: border-box; }
 
         .table-btn {
             border: 1px solid #ccc;
@@ -147,64 +76,76 @@
             cursor: pointer;
             transition: background-color 0.2s, box-shadow 0.2s;
         }
+        .table-btn:hover { background-color: #e0e0e0; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        .table-btn img { height: 20px; vertical-align: middle; }
 
-        .table-btn:hover {
-            background-color: #e0e0e0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        /* === Modal === */
+        .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
+        .modal-content {
+            background: #fff;
+            margin: 5% auto;
+            padding: 20px 30px;
+            width: 500px;
+            max-width: 90%;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            font-family: Arial, sans-serif;
+            color: #414040;
+        }
+        .close { float: right; font-size: 22px; font-weight: bold; cursor: pointer; color: #888; }
+        .close:hover { color: #000; }
+
+        #scheduleForm label { display: block; font-weight: normal; margin-top: 10px; margin-bottom: 4px; }
+        #scheduleForm input, #scheduleForm textarea {
+            padding: 6px; margin-bottom: 8px; border-radius: 4px; font-family: Arial, sans-serif; font-size: 14px; box-sizing: border-box;
         }
 
-        .table-btn img {
-            height: 20px;
-            vertical-align: middle;
+        /* Toast styling */
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #4CAF50;
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            padding: 14px;
+            position: fixed;
+            z-index: 1000;
+            right: 20px; top: 20px;
+            font-size: 16px;
+            opacity: 0;
+            transition: opacity 0.5s, top 0.5s;
         }
-
+        #toast.show { visibility: visible; opacity: 1; top: 40px; }
     </style>
 </head>
 <body>
     <img src="{{ banner_path }}" alt="Banner" class="banner">
 
     <div class="menu-bar">
-    <button id="btn-section1">
-        <img src="/static/jiraicon.png" alt="Jira Icon">
-        <span>Jira</span>
-    </button>
-    <button id="btn-section2" class="active">
-        <img src="/static/sharepointicontransparent.png" alt="SharePoint Icon">
-        <span>Sharepoint</span>
-    </button>
-    <button id="btn-section3">
-        <img src="/static/debuglogs.png" alt="Debug Logs Icon">
-        <span>Logs</span>
-    </button>
-    <button id="btn-exit" onclick="window.location.href='/home'">
-        <img src="/static/exiticon.png" alt="Exit Icon">
-        <span>Logout</span>
-    </button>
-</div>
+        <button id="btn-section1"><img src="/static/jiraicon.png" alt="Jira Icon"><span>Jira</span></button>
+        <button id="btn-section2" class="active"><img src="/static/sharepointicontransparent.png" alt="SharePoint Icon"><span>Sharepoint</span></button>
+        <button id="btn-section3"><img src="/static/debuglogs.png" alt="Debug Logs Icon"><span>Logs</span></button>
+        <button id="btn-exit" onclick="window.location.href='/home'"><img src="/static/exiticon.png" alt="Exit Icon"><span>Logout</span></button>
+    </div>
 
-
-    <!-- Content container with side margins -->
     <div class="page-content">
-
+        <!-- Section 1: Jira -->
         <div id="section1" class="section-content">
-            <h2>
-            <img src="/static/jiraicon.jpg" alt="Jira Icon" style="height:32px; vertical-align:bottom; margin-right:2px;">
-            Jira Connection Info</h2>
+            <h2><img src="/static/jiraicon.jpg" alt="Jira Icon" style="height:32px; vertical-align:bottom; margin-right:2px;">Jira Connection Info</h2>
             <form method="POST" class="left-form">
                 <label>Jira Cloud URL:</label>
-                <input type="text" name="jira_url" value="{{ foo_values.get('jira_url', '') }}"><br>
+                <input type="text" name="jira_url" value="{{ foo_values.get('jira_url', '') }}">
                 <label>Jira Email:</label>
-                <input type="text" name="jira_user" value="{{ foo_values.get('jira_user', '') }}"><br>
+                <input type="text" name="jira_user" value="{{ foo_values.get('jira_user', '') }}">
                 <label>Jira API Token:</label>
-                <input type="text" name="jira_token" value="{{ foo_values.get('jira_token', '') }}"><br>
-                <button type="submit" name="save_foo">
-                                       <img src="/static/saveicontransparent.png" alt="SharePoint Icon" style="height:40px; vertical-align:middle; margin-right:2px;">
-                    Save</button>
+                <input type="text" name="jira_token" value="{{ foo_values.get('jira_token', '') }}">
+                <button type="submit" name="save_foo"><img src="/static/saveicontransparent.png" style="height:40px; vertical-align:middle; margin-right:2px;">Save</button>
             </form>
         </div>
 
+        <!-- Section 2: Sharepoint -->
         <div id="section2" class="section-content active">
-
             Sharepoint site permissions:
             {% if logged_in %}
                 <button type="button" title="Logged in">✅ Authorized</button>
@@ -212,25 +153,14 @@
                 <button type="button" class="login-btn" onclick="openLoginPopup(this)" title="Login">🔐 Login Required</button>
             {% endif %}
             
-            <h2>
-            <img src="/static/excelicon.jpg" alt="SharePoint Icon" style="height:28px; vertical-align:bottom; margin-right:2px;">
-            Add Excel file to connect with Jira</h2>
+            <h2><img src="/static/excelicon.jpg" style="height:28px; vertical-align:bottom; margin-right:2px;">Add Excel file to connect with Jira</h2>
             <form method="POST" class="left-form">
                 <label for="bar_value">Direct Sharepoint URL path to file:</label>
                 <input type="text" name="bar_value" id="bar_value" placeholder="https://...">
-                <button type="submit" name="add_bar">
-                   <img src="/static/connect-icon-gears.png" alt="SharePoint Icon" style="height:40px; vertical-align:middle; margin-right:2px;">
-                    Connect
-                </button>
+                <button type="submit" name="add_bar"><img src="/static/connect-icon-gears.png" style="height:40px; vertical-align:middle; margin-right:2px;">Connect</button>
             </form>
 
-            <br>
-            <h2>
-            </p>
-            
-                <img src="/static/sharepointicon.jpg" alt="SharePoint Icon" style="height:40px; vertical-align:bottom; margin-right:2px;">
-                Sharepoint Connections
-            </h2>
+            <h2><img src="/static/sharepointicon.jpg" style="height:40px; vertical-align:bottom; margin-right:2px;">Sharepoint Connections</h2>
             <p class="sync-desc">Files currently active:</p>
 
             <table style="border-collapse: collapse; width: 100%;">
@@ -238,115 +168,121 @@
                     <tr>
                         <th style="text-align:center; padding:6px;">#</th>
                         <th style="text-align:left; padding:6px;">File</th>
+                        <th style="text-align:left; padding:6px;">Schedule</th>
                         <th style="text-align:center; padding:6px;">Run</th>
-                        <th style="text-align:center; padding:6px;">Schedule</th>
                         <th style="text-align:center; padding:6px;">Remove</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for val in bar_values %}
                     <tr>
-                        <!-- Row number -->
-                        <td style="text-align:center; padding:6px;">
-                            {{ loop.index }}
-                        </td>
+                        <td style="text-align:left; padding:6px;">{{ loop.index }}</td>
+                        <td style="padding:6px;"><a href="{{ val }}" target="_blank">{{ val }}</a></td>
+                        
+                        <td style="text-align:left; padding:6px;">
+                            <button type="button" class="table-btn" onclick="openSchedule('{{ val }}')">
+                                <img src="/static/schedule-icon.png" alt="Schedule">
+                            </button>
+                            {% set sched = schedule_dict.get(val) %}
+                            {% if sched %}
+                                {% if sched.time %}
+                                    <span style="font-size:12px; margin-left:6px;">Daily at {{ sched.time }}</span>
+                                {% elif sched.interval %}
+                                    <span style="font-size:12px; margin-left:6px;">Every {{ sched.interval }} min</span>
+                                {% endif %}
+                            {% else %}
+                                <span style="font-size:12px; margin-left:6px;">Not Scheduled</span>
+                            {% endif %}
 
-                        <!-- File link -->
-                        <td style="padding:6px;">
-                            <a href="{{ val }}" target="_blank">{{ val }}</a>
-                        </td>
-
-                        <!-- Resync button -->
-                        <td style="text-align:center; padding:6px;">
+                        
+                        
+                        
+                        <td style="text-align:left; padding:6px;">
                             <form method="POST">
                                 <input type="hidden" name="resync_bar" value="{{ val }}">
-                                <button type="submit" class="table-btn" onclick="return confirm('Resync {{ val }}?')">
-                                    <img src="/static/sync-icon.png" alt="Resync">
-                                </button>
+                                <button type="submit" class="table-btn" onclick="return confirm('Resync {{ val }}?')"><img src="/static/sync-icon.png" alt="Resync"></button>
                             </form>
                         </td>
-
-                        <!-- Schedule button -->
-                        <td style="text-align:center; padding:6px;">
-                            <form method="POST">
-                                <input type="hidden" name="schedule_bar" value="{{ val }}">
-                                <button type="submit" class="table-btn" onclick="return confirm('Schedule {{ val }}?')">
-                                    <img src="/static/schedule-icon.png" alt="Schedule" >
-                                </button>
-                            </form>
-                        </td>
-
-                        <!-- Remove button -->
-                        <td style="text-align:center; padding:6px;">
+                        <td style="text-align:left; padding:6px;">
                             <form method="POST">
                                 <input type="hidden" name="remove_bar" value="{{ val }}">
-                                <button type="submit" class="table-btn" onclick="return confirm('Remove {{ val }}?')"
-                                   >
-                                    <img src="/static/delete-icon.png" alt="Delete" >
-                                </button>
+                                <button type="submit" class="table-btn" onclick="return confirm('Remove {{ val }}?')"><img src="/static/delete-icon.png" alt="Delete"></button>
                             </form>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
-
         </div>
 
-        <!-- Log Section -->
+        <!-- Section 3: Logs -->
         <div id="section3" class="section-content">
             <h3>Debug Logs</h3>
             <ul>
             {% for file in folder_tree %}
-                <li>
-                    📄 {{ file.name }} — <small>{{ file.modified }}</small>
+                <li>📄 {{ file.name }} — <small>{{ file.modified }}</small>
                     <form method="POST" style="display:inline;">
                         <input type="hidden" name="view_log" value="{{ file.name }}">
                         <button type="submit">👁️ View</button>
                     </form>
                 </li>
             {% endfor %}
-            </ul>    
+            </ul>
         </div>
     </div>
+
+    <!-- Schedule Modal -->
+    <div id="scheduleModal" class="modal">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2><img src="/static/schedule-icon.png" style="height:28px; vertical-align:middle; margin-right:6px;">Schedule File</h2>
+
+        <form id="scheduleForm" method="POST" action="/schedule" class="left-form" style="width:100%;">
+          <label>File:</label>
+          <textarea id="scheduleFilename" name="filename" readonly rows="4" style="width:100%; resize:vertical; word-wrap:break-word; white-space:pre-wrap; font-size:14px; border:none; background-color:#f9f9f9;"></textarea>
+
+          <label>Time (HH:MM):</label>
+          <input type="time" id="scheduleTime" name="time" style="width:120px;">
+
+          <label>Interval (minutes):</label>
+          <input type="number" id="scheduleInterval" name="interval" min="5" style="width:120px;">
+
+          <button type="submit" id="scheduleSubmit" class="table-btn" style="width:120px;" disabled>
+            <img src="/static/saveicontransparent.png" style="height:20px; vertical-align:middle; margin-right:4px;">Save Schedule
+          </button>
+            <button type="button" id="clearScheduleBtn" class="table-btn" style="background:#d9534f; color:white; width:120px;">
+            Clear Schedule
+            </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast"></div>
+
     <script>
         const btnSection1 = document.getElementById('btn-section1');
         const btnSection2 = document.getElementById('btn-section2');
         const btnSection3 = document.getElementById('btn-section3');
-
         const section1 = document.getElementById('section1');
         const section2 = document.getElementById('section2');
         const section3 = document.getElementById('section3');
 
         function showSection(sectionToShow) {
-            section1.classList.remove('active');
-            section2.classList.remove('active');
-            section3.classList.remove('active');
-            btnSection1.classList.remove('active');
-            btnSection2.classList.remove('active');
-            btnSection3.classList.remove('active');
+            section1.classList.remove('active'); section2.classList.remove('active'); section3.classList.remove('active');
+            btnSection1.classList.remove('active'); btnSection2.classList.remove('active'); btnSection3.classList.remove('active');
 
-            if (sectionToShow === 'section1') {
-                section1.classList.add('active');
-                btnSection1.classList.add('active');
-            } else if (sectionToShow === 'section2') {
-                section2.classList.add('active');
-                btnSection2.classList.add('active');
-            } else {
-                section3.classList.add('active');
-                btnSection3.classList.add('active');
-            }
+            if (sectionToShow === 'section1') { section1.classList.add('active'); btnSection1.classList.add('active'); }
+            else if (sectionToShow === 'section2') { section2.classList.add('active'); btnSection2.classList.add('active'); }
+            else { section3.classList.add('active'); btnSection3.classList.add('active'); }
         }
 
         btnSection1.addEventListener('click', () => showSection('section1'));
         btnSection2.addEventListener('click', () => showSection('section2'));
         btnSection3.addEventListener('click', () => showSection('section3'));
-
-        // Default to section 2
         showSection('section2');
 
         let lastLoginBtn = null;
-
         function openLoginPopup(btn) {
             lastLoginBtn = btn;
             const popup = window.open("/login", "LoginWindow", "width=600,height=700");
@@ -354,18 +290,123 @@
         }
 
         window.addEventListener("message", function(e) {
-            if (e.data === "login-success") {
-                if (lastLoginBtn) {
-                    lastLoginBtn.textContent = "✅ Authorized";
-                    lastLoginBtn.title = "Logged in";
-                }
-            } else if (e.data === "login-failed") {
-                if (lastLoginBtn) {
-                    lastLoginBtn.textContent = "❌ Authorization Failed";
-                    lastLoginBtn.title = "Login failed";
-                }
+            if (e.data === "login-success" && lastLoginBtn) {
+                lastLoginBtn.textContent = "✅ Authorized"; lastLoginBtn.title = "Logged in";
+            } else if (e.data === "login-failed" && lastLoginBtn) {
+                lastLoginBtn.textContent = "❌ Authorization Failed"; lastLoginBtn.title = "Login failed";
             }
         });
+
+        // === Schedule Modal & Mutual Exclusivity ===
+        const scheduleTime = document.getElementById("scheduleTime");
+        const scheduleInterval = document.getElementById("scheduleInterval");
+
+        function enforceMutualExclusivity() {
+            const timeVal = scheduleTime.value.trim();
+            const intervalVal = scheduleInterval.value.trim();
+            scheduleTime.disabled = !!intervalVal;
+            scheduleInterval.disabled = !!timeVal;
+            document.getElementById("scheduleSubmit").disabled = !(timeVal || intervalVal);
+        }
+
+        scheduleTime.addEventListener("input", enforceMutualExclusivity);
+        scheduleInterval.addEventListener("input", enforceMutualExclusivity);
+
+        function openSchedule(filename) {
+            document.getElementById("scheduleFilename").value = filename;
+
+            // Pre-fill time/interval if scheduled
+            const schedules = {{ schedule_dict | tojson }};
+            const sched = schedules[filename];
+            if (sched) {
+                scheduleTime.value = sched.time || "";
+                scheduleInterval.value = sched.interval || "";
+            } else {
+                scheduleTime.value = "";
+                scheduleInterval.value = "";
+            }
+
+            scheduleTime.disabled = !!scheduleInterval.value;
+            scheduleInterval.disabled = !!scheduleTime.value;
+            document.getElementById("scheduleSubmit").disabled = !(scheduleTime.value || scheduleInterval.value);
+
+            document.getElementById("scheduleModal").style.display = "block";
+        }
+
+        document.querySelector(".close").onclick = function() {
+            document.getElementById("scheduleModal").style.display = "none";
+        };
+        window.onclick = function(event) {
+            if (event.target === document.getElementById("scheduleModal")) {
+                document.getElementById("scheduleModal").style.display = "none";
+            }
+        };
+
+        function showToast(message, success=true) {
+            const toast = document.getElementById("toast");
+            toast.textContent = message;
+            toast.style.backgroundColor = success ? "#4CAF50" : "#d9534f";
+            toast.className = "show";
+            setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
+        }
+
+        document.getElementById("scheduleForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+            const time = scheduleTime.value.trim();
+            const interval = scheduleInterval.value.trim();
+            if (!time && !interval) { showToast("❌ Enter time or interval", false); return; }
+
+            const formData = new FormData(this);
+            fetch(this.action, { method: "POST", body: formData })
+            .then(response => {
+                if (response.ok) { 
+                    showToast("✅ Schedule saved successfully"); 
+                    document.getElementById("scheduleModal").style.display = "none"; 
+                    // Reload the main page to show updated schedules
+                    location.reload();
+                }
+                else { showToast("❌ Failed to save schedule", false); }
+            })
+            .catch(() => showToast("❌ Error connecting to server", false));
+        });
+
+
+        const clearScheduleBtn = document.getElementById("clearScheduleBtn");
+
+        clearScheduleBtn.addEventListener("click", function() {
+            const filename = document.getElementById("scheduleFilename").value;
+            if (!filename) return;
+
+            if (!confirm(`Clear schedule for ${filename}?`)) return;
+
+            fetch('/schedule/clear', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast("✅ Schedule cleared");
+                    // Clear inputs in the modal
+                    scheduleTime.value = "";
+                    scheduleInterval.value = "";
+                    scheduleTime.disabled = false;
+                    scheduleInterval.disabled = false;
+                    document.getElementById("scheduleSubmit").disabled = true;
+                    // Close modal if desired
+                    document.getElementById("scheduleModal").style.display = "none";
+                    // Reload the main page to show updated schedules
+                    location.reload();
+                } else {
+                    showToast("❌ Failed to clear schedule", false);
+                }
+            })
+            .catch(() => showToast("❌ Error connecting to server", false));
+        });
+
+
+
     </script>
 </body>
 </html>
