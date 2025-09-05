@@ -38,6 +38,8 @@ def get_app_token():
 parser = argparse.ArgumentParser(description="Update Excel file on SharePoint with changes from a file")
 parser.add_argument("file_url", help="Full URL to the Excel file in SharePoint")
 parser.add_argument("changes_file", help="Path to the local changes file")
+parser.add_argument("timestamp", help="string tag (timestamp) for local output temp files")
+
 #parser.add_argument("--access_token", required=True, help="Application-level access token for Graph API")
 parser.add_argument("--worksheet_name", default="Sheet1", help="Worksheet name to update (default: Sheet1)")
 args = parser.parse_args()
@@ -45,6 +47,7 @@ args = parser.parse_args()
 
 file_url = args.file_url
 changes_file = args.changes_file
+timestamp = args.timestamp
 #access_token = args.access_token
 access_token = get_app_token()  # Use the function to get the token
 worksheet_name = args.worksheet_name
@@ -362,7 +365,7 @@ site_path = f"/{path_parts[0]}/{path_parts[1]}"
 file_path = "/" + path_parts[2]
 
 # Build meta filename from file_path
-meta_filename = file_path.strip("/").replace("/", "_") + ".meta.json"
+meta_filename = file_path.strip("/").replace("/", "_") + "." + timestamp + ".meta.json"
 if not os.path.exists(meta_filename):
     raise FileNotFoundError(f"Metadata file {meta_filename} not found. Run download script first.")
 

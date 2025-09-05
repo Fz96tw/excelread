@@ -90,7 +90,7 @@ def download_excel_with_meta(site_url, file_path):
     print(f"✅ File saved locally as {filename}")
 
     # 4. Save metadata sidecar JSON
-    meta_filename = filename + ".meta.json"
+    meta_filename = filename + "." + timestamp + ".meta.json"
     with open(meta_filename, "w") as f:
         json.dump({"etag": etag, "lastModified": last_modified}, f, indent=2)
     print(f"✅ Metadata saved as {meta_filename}")
@@ -101,11 +101,12 @@ def download_excel_with_meta(site_url, file_path):
 # Example usage
 # -------------------------------
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python download.py <sharepoint_file_url>")
+    if len(sys.argv) < 3:
+        print("Usage: python download.py <sharepoint_file_url> <timestamp>")
         sys.exit(1)
 
     full_url = sys.argv[1]
+    timestamp = sys.argv[2]
     parsed_url = urlparse(full_url)
 
     path_parts = parsed_url.path.strip("/").split("/")

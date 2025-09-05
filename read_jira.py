@@ -210,11 +210,12 @@ def move_brackets_to_front(lines):
     return result
 
 
-if len(sys.argv) != 2:
+if len(sys.argv) != 3:
     print("Usage: python read_jira.py <yaml_file>")
     sys.exit(1)
 
 yaml_file = sys.argv[1]
+timestamp = sys.argv[2]
 
 with open(yaml_file, 'r') as f:
     data = yaml.safe_load(f)
@@ -241,10 +242,10 @@ if "import" in yaml_file.lower():
     print("Import mode detected based on filename containing 'import'.")
     # You can set a flag or handle import-specific logic here if needed
     import_mode = True
-    output_file = basename + "." + tablename + ".import.jira.csv"
+    output_file = basename + "." + tablename + "." + timestamp + ".import.jira.csv"
 else:
     import_mode = False
-    output_file = basename + "." + tablename + ".jira.csv"
+    output_file = basename + "." + tablename + "." + timestamp + ".jira.csv"
 
 fields = data.get('fields', [])
 field_values = [field.get('value') for field in fields if 'value' in field]

@@ -233,12 +233,13 @@ def get_account_id(jira_client, username_or_email):
 
     return None
 
-if len(sys.argv) < 3:
+if len(sys.argv) < 4:
     print("Usage: python create_jira.py <yaml_file> <xlsx file>")
     sys.exit(1)
 
 yaml_file = sys.argv[1]
 filename = sys.argv[2]
+timestamp = sys.argv[3]
 
 with open(yaml_file, 'r') as f:
     data = yaml.safe_load(f)
@@ -265,10 +266,10 @@ if "create" in yaml_file.lower():
     print(f"CREATE mode detected based on filename: {yaml_file}.")
     # You can set a flag or handle import-specific logic here if needed
     create_mode = True
-    output_file = basename + "." + tablename + ".create.jira.csv"
+    output_file = basename + "." + tablename + timestamp + ".create.jira.csv"
 else:
     create_mode = False
-    output_file = basename + "." + tablename + ".create.jira.csv"
+    output_file = basename + "." + tablename + timestamp + ".create.jira.csv"
 
 fields = data.get('fields', [])
 # Convert list of dicts into a dictionary

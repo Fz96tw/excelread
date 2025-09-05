@@ -5,6 +5,7 @@ import os
 import yaml
 import re
 
+
 def read_excel_rows(filename):
     df = pd.read_excel(filename, header=None)  # Treat all rows as data
     # Remove rows where all cells are NaN (i.e., completely blank)
@@ -12,12 +13,13 @@ def read_excel_rows(filename):
     return df.values.tolist()
 
 
-def set_output_filename(filename, table_name="", import_found=False, jira_create_found=False):
+def set_output_filename(filename, table_name, timestamp, import_found=False, jira_create_found=False):
+    print(f"set_output_filename called, timestamp = {timestamp}")
     base_name = os.path.basename(filename)         # "Book1.xlsx"
     #name, ext = os.path.splitext(base_name)        # name = "Book1", ext = ".xlsx"
-    outputfile = f"{base_name}.{table_name}.scope.yaml"
-    outputfile = f"{base_name}.{table_name}.import.scope.yaml" if import_found else outputfile
-    outputfile = f"{base_name}.{table_name}.create.scope.yaml" if jira_create_found else outputfile
+    outputfile = f"{base_name}.{table_name}.{timestamp}.scope.yaml"
+    outputfile = f"{base_name}.{table_name}.{timestamp}.import.scope.yaml" if import_found else outputfile
+    outputfile = f"{base_name}.{table_name}.{timestamp}.create.scope.yaml" if jira_create_found else outputfile
     return outputfile  
 
 def is_valid_jira_id(jira_id: str) -> bool:
@@ -32,11 +34,14 @@ def is_valid_jira_id(jira_id: str) -> bool:
     return False
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python scope.py <filename>")
+    if len(sys.argv) < 3:
+        print("Usage: python scope.py <filename> <timestamp>")
         sys.exit(1)
+
     filename = sys.argv[1]
-    
+    timestamp = sys.argv[2]
+
+    print(f"argv filename={filename}  timestamp={timestamp}")    
     rows = read_excel_rows(filename)
     
     jira_ids = []
@@ -138,7 +143,7 @@ if __name__ == "__main__":
 
                 cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
 #                scope_output_file = set_output_filename(filename,cleaned_value)
-                scope_output_file = set_output_filename(filename, cleaned_value,jira_import_found, jira_create_found)
+                scope_output_file = set_output_filename(filename, cleaned_value, timestamp, jira_import_found, jira_create_found)
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
                 file_info["table"] = cleaned_value
