@@ -359,21 +359,26 @@ if __name__ == "__main__":
     else:
         import_mode = False
 
-    field_index_map, jira_data = load_jira_file(jiracsv)
+    field_index_map, jira_data_in = load_jira_file(jiracsv)
     print(f"Loaded {len(jira_data)} records from {jiracsv}")
     
     for key, index in field_index_map.items():
         print(f"{key}: {index}")
-    
-    for key, record in jira_data.items():
-        print(f"{key}: {record}")
 
+    jira_data = {k.lower(): v for k, v in jira_data_in.items()}
+
+    for key, record in jira_data.items():
+        print(f"lowercased {key}: {record}")
+
+    
     process_jira_table_blocks(xlfile)
     print("Finished processing Jira Table blocks.")
 
             
     if not change_list:
         print("No changes made.")
+        # delete any eisting  changes.txt file from previous runs so sharepoint_udpate.py doesn't get confused
+        
     else:
         #changes_file = xlfile.replace(".xlsx", ".changes.txt")
 
