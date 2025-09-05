@@ -191,19 +191,19 @@
                                     <span style="font-size:12px; margin-left:6px;">Every {{ sched.interval }} min</span>
                                 {% endif %}
                             {% else %}
-                                <span style="font-size:12px; margin-left:6px;">Not Scheduled</span>
+                                <span style="font-size:12px; margin-left:6px;">None</span>
                             {% endif %}
 
                         
                         
                         
-                        <td style="text-align:left; padding:6px;">
+                        <td style="text-align:center; padding:6px;">
                             <form method="POST">
                                 <input type="hidden" name="resync_bar" value="{{ val }}">
                                 <button type="submit" class="table-btn" onclick="return confirm('Resync {{ val }}?')"><img src="/static/sync-icon.png" alt="Resync"></button>
                             </form>
                         </td>
-                        <td style="text-align:left; padding:6px;">
+                        <td style="text-align:center; padding:6px;">
                             <form method="POST">
                                 <input type="hidden" name="remove_bar" value="{{ val }}">
                                 <button type="submit" class="table-btn" onclick="return confirm('Remove {{ val }}?')"><img src="/static/delete-icon.png" alt="Delete"></button>
