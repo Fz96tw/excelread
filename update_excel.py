@@ -87,6 +87,13 @@ def load_jira_file(filename):
 
 from openpyxl import load_workbook
 
+from openpyxl.utils import get_column_letter
+def convert_row_col_to_excel_coordinate(row, col):
+    col_letter = get_column_letter(col)  # 1 → A, 2 → B, 27 → AA, etc.
+    print(f"converted row={row} col={col} to sheet coordinate {col_letter}{row}")
+    return f"{col_letter}{row}"
+
+
 
 def process_jira_table_blocks(filename):
     wb = load_workbook(filename)
@@ -95,6 +102,8 @@ def process_jira_table_blocks(filename):
     printing = False  # Flag to track when we're in a Jira Table block
     printing_import_mode = False # flag to track when we're in a jira table block in import mode
 
+    last_known_row_num = 0
+
     for row in ws.iter_rows():
         #print(f"Processing row {row[0].row}: {[cell.value for cell in row]}")
 
@@ -102,6 +111,8 @@ def process_jira_table_blocks(filename):
         #if printing and import_mode: 
         #    print("Skipping header row in import mode")
         #    continue
+
+        last_known_row_num = row[0].row  # save this incase we run out of rows but need to keep updating cells to finish inserting all the jira_id in the sheet
 
         for cell in row:
             #print(f"Processing cell {cell.coordinate}: {cell.value}")
@@ -330,12 +341,42 @@ def process_jira_table_blocks(filename):
                 # reached row with first_cell is None. Will Exit Loop"
                 print(f"Reached row with None first_cell = {first_cell} so will break out of row scan loop")
                 break
-   # else:
-                # TODO: if there are Jira IDs in the table already it means we need to update them instead of insert
-                # Also if any jira in the table that aren't in the jql result then we need to delete those.
-                # These is a more complex scenario that we can handle later
-    #            print(f"Import mode: first_cell = {first_cell}. No blank 'key' cell found, skipping change_list for this row.")    
+
+    # if there are jira_id still remaining but we ran out of rows then keep going if we were in IMPORT mode
+    if printing and import_mode and printing_import_mode:
+        print(f"Row count ended row = {last_known_row_num} but will continue with import_mode inserts into sheet")
+        #first_cell = row[field_index_map["key"]].value
+        #print(f"First cell in import row: {first_cell}")
     
+        #while jira_data and (first_cell is None or first_cell == ""):
+        while jira_data:
+            last_known_row_num += 1
+            print(f"Updating row {row[field_index_map["key"]].row}")
+            k, record = jira_data.popitem()
+            for field, index in field_index_map.items():
+                print(f"Checking field {field} at index {index}")
+                if field in record:
+                    print(f"Updating field {field} at index {index} with value {record[field]}")
+                    cell_value = record[field]
+                    print(f"Cell value for {field}: {cell_value}")
+                    if cell_value is not None:
+                        #target_cell = ws.cell(row=row[0].row, column=index + 1)
+                        target_cell_coordinate = convert_row_col_to_excel_coordinate(last_known_row_num, index+1)
+                        old_value = ""
+                        #old_value = target_cell.value
+                        #old_value = str(old_value).replace("\n", ";") if old_value else None  # Replace newlines with semicolons for comparison
+                        print(f"Old value for {target_cell_coordinate}: {old_value}")
+                        print(f"Setting cell {target_cell_coordinate} = {cell_value}")  # <-- Coordinate logging
+                        #target_cell.value = cell_value.replace(";", "\n")  # Replace ; with newline
+                                                
+                        # Enable text wrapping to show newlines
+                        #target_cell.alignment = Alignment(wrapText=True)
+                        
+                        # Save coordinate + value to list
+                        change_list.append(f"{target_cell_coordinate}={cell_value.replace("\n",";")}||{old_value}")
+
+
+
     # Save updates to the same file
     #print(f"Saving updates to {filename}")
     #wb.save(filename)                
