@@ -63,11 +63,11 @@ def load_jira_file(filename):
         line = line.strip()
         if not line:
             continue  # skip blank lines
-        parts = [p.strip() for p in line.split(',')]
+        parts = [p.strip() for p in line.split('|')]
         print(f"Processing line: {line}")
 
         if len(parts) != len(field_names):
-            print(f"Warning: Mismatched field count in {filename}. Make sure number of values provided matches number of fields.")
+            print(f"Warning: Mismatched field count in {filename}. Make sure number of values ({len(parts)}) provided matches number of fields ({len(field_names)}).")
             continue
 
         # dictionary that maps field names to their corresponding values that we just read from the line
@@ -280,6 +280,11 @@ def process_jira_table_blocks(filename):
                 # was this jira previously in the cell? 
                 # if yes then update all the fields columns and remove strikeout
                 # we want to preserve this row incawe there were user notes in this row as well
+                if first_cell is not None:
+                    first_cell = str(first_cell).lower()
+                else:
+                    first_cell = ""
+
                 if first_cell in jira_data:
                     print("This first_cell is still part of the jira_data result set")
                     print(f"Popping {first_cell} from jira_data for update.")

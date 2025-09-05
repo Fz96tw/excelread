@@ -65,7 +65,7 @@ class OllamaSummarizer:
             return f"[ERROR] Ollama chat failed: {e}"
 
         # Clean up formatting
-        summary = summary.replace("\n", "; ").replace(",", ";")
+        summary = summary.replace("\n", "; ").replace("|", "/")
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return f"({model_name}) {summary}"
 
@@ -118,7 +118,7 @@ def get_summarized_comments(comments_list_asc):
      # Replace all newlines with semicolons
     full_response.rstrip("\n")
     full_response = full_response.replace("\n", "; ")
-    full_response = full_response.replace(",", "､")
+    full_response = full_response.replace("|", "/")
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     #print(now_str)
@@ -412,7 +412,7 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
 
         print(','.join(values))
         with open(output_file, "a") as outfile:
-            outfile.write(','.join(values) + "\n")  
+            outfile.write('|'.join(values) + "\n")  
 
 # Now process the JQL queries
 if jql_ids:
@@ -606,9 +606,9 @@ if jql_ids:
                 
                 
                 
-            print(','.join(values))
+            print('|'.join(values))
             with open(output_file, "a") as outfile:
-                outfile.write(','.join(values) + "\n")
+                outfile.write('|'.join(values) + "\n")
         except Exception as e:
             print(f"❌ Failed to run JQL query '{jql_id}': {e}")
             
@@ -620,7 +620,7 @@ if jql_ids:
             values.append(str(value))            
             print(','.join(values))
             with open(output_file, "a") as outfile:
-                outfile.write(','.join(values) + "\n")
+                outfile.write('|'.join(values) + "\n")
 
 
 print(f"Data written to {output_file}")
