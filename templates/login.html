@@ -53,12 +53,45 @@
 </head>
 <body>
   <div class="login-container">
-    <img src="static/banner3.jpg" alt="Banner" class="banner">
-    <form action="http://localhost:5000/" method="get">
+    <!-- Login form -->
+    <form method="POST" action="{{ url_for('home') }}">
       <input type="text" name="username" placeholder="Username" required>
       <input type="password" name="password" placeholder="Password" required>
       <button type="submit">Login</button>
     </form>
+
+    <p>New here? <a href="{{ url_for('register') }}">Register</a></p>
   </div>
+
+  <!-- Toast container -->
+  <div id="toast" style="
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      background: #f44336;
+      color: white;
+      border-radius: 5px;
+      display: none;
+      z-index: 1000;">
+  </div>
+
+  <!-- Flash message JS -->
+  <script>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        var toast = document.getElementById('toast');
+        {% for category, message in messages %}
+          toast.innerText = "{{ message }}";
+          toast.style.display = 'block';
+          // Keep visible for 5 seconds
+          setTimeout(function(){
+            toast.style.display = 'none';
+          }, 5000);
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </script>
 </body>
+
 </html>

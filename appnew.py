@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 from dotenv import load_dotenv
 from refresh import *
+from flask import flash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key")  # Use a real secret in production
@@ -118,6 +119,61 @@ cache = load_cache()
 cca = build_msal_app(cache)
 
 
+import json
+import os
+from datetime import datetime
+from flask import Flask, render_template, request, redirect, url_for
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+
+#app = Flask(__name__)
+#app.secret_key = "supersecretkey"
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+
+from filelock import FileLock
+import json
+import os
+from datetime import datetime
+
+USERS_FILE = "users.json"
+LOCK_FILE = USERS_FILE + ".lock"
+
+def load_users():
+    lock = FileLock(LOCK_FILE)
+    with lock:  # Only one process at a time
+        if not os.path.exists(USERS_FILE):
+            return []
+        with open(USERS_FILE, "r") as f:
+            return json.load(f)
+
+def save_users(users):
+    lock = FileLock(LOCK_FILE)
+    with lock:
+        with open(USERS_FILE, "w") as f:
+            json.dump(users, f, indent=4)
+
+
+class User(UserMixin):
+    def __init__(self, id, username, password, first_name, last_name, date_registered):
+        self.id = id
+        self.username = username
+        self.password = password  # NOTE: hash in real life
+        self.first_name = first_name
+        self.last_name = last_name
+        self.date_registered = date_registered
+
+@login_manager.user_loader
+def load_user(user_id):
+    users = load_users()
+    for u in users:
+        if u["id"] == user_id:
+            return User(**u)
+    return None
+
+
+
 def load_schedules():
     if os.path.exists(SCHEDULE_FILE):
         with open(SCHEDULE_FILE, "r") as f:
@@ -136,7 +192,50 @@ def clear_schedule_file(filename):
         json.dump(new_schedules, f, indent=4)
     #return jsonify({"success": True, "message": f"Schedule for '{filename}' cleared."})
 
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        users = load_users()
 
+        first_name = request.form["first_name"]
+        last_name = request.form["last_name"]
+        username = request.form["username"]
+        password = request.form["password"]
+
+        # check if username already exists
+        if any(u["username"] == username for u in users):
+            return "Username already taken!", 400
+
+        new_user = {
+            "id": str(len(users) + 1),
+            "username": username,
+            "password": password,  # hash this in production
+            "first_name": first_name,
+            "last_name": last_name,
+            "date_registered": datetime.utcnow().isoformat()
+        }
+
+        users.append(new_user)
+        save_users(users)
+
+        print(f"✅ Registered {first_name} {last_name} ({username})")
+
+        return redirect(url_for("index"))
+
+    return render_template("register.html")
+
+
+from flask_login import logout_user, login_required
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()          # Clears current_user
+    session.clear()        # Optional: clear session data
+    return redirect(url_for("home"))  # Redirect to login page
+
+
+# DONT GET CONFUSED.  this route is for sharepoint authorization. Not user login to IAConnector (see /home route)
 @app.route("/login")
 def login():
     cache = load_cache()
@@ -254,15 +353,46 @@ def logs():
                            log_content=log_content, viewed_log=viewed_log)
 
 
-@app.route('/home')
+
+#@app.route('/home')
+#def home():
+@app.route("/home", methods=["GET", "POST"])
 def home():
-     return render_template('login.html')  # Renders login.html from the templates folder
+
+    if current_user.is_authenticated:
+        print(f"current_user.is_authenticated TRUE")
+        return redirect(url_for("index"))
+
+    if request.method == "POST":
+        users = load_users()
+        username = request.form["username"]
+        password = request.form["password"]
+        print(f"Searching for user in users.json. username={username}")
+        for u in users:
+            if u["username"] == username and u["password"] == password:
+                print("found {username} {password} in users.json")
+                user = User(**u)
+                login_user(user)
+                return redirect(url_for("index"))
+    
+        print(f"Invalid creds provided for {username} {password} in users.json")
+        # ❌ Invalid credentials → flash message
+        flash("Invalid username or password", "error")  # 'error' is the category
+        return redirect(url_for("home"))    
+    
+    return render_template('login.html')  # Renders login.html from the templates folder
 
 
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    # Load saved values
+
+      # Redirect anonymous users to login
+    if not current_user.is_authenticated:
+        flash("Please log in first.", "warning")
+        return redirect(url_for("home"))
+    
+    # Load saved value
     foo_values = {}
     foo_lines = read_file_lines(FOO_FILE)
     schedules = load_schedules()
@@ -343,15 +473,24 @@ def index():
         return redirect(url_for('index'))
 
     
-    print(f"Logged in status: {logged_in}")
+    print(f"Sharepoint Authorization status: {logged_in}")
+
+    # ✅ Only use username if authenticated
+    userlogin = None
+    if current_user.is_authenticated:
+        userlogin = current_user.username
+        print(f"User logged in: {userlogin}")
+    else:
+        print("Anonymous user — not logged in")
 
     return render_template('form.html',
-                            banner_path=BANNER_PATH,
-                            foo_values=foo_values,
-                            bar_values=bar_values,
-                            logged_in=logged_in,
-                            folder_tree=folder_tree,
-                            schedule_dict=schedule_dict) 
+                           banner_path=BANNER_PATH,
+                           foo_values=foo_values,
+                           bar_values=bar_values,
+                           logged_in=logged_in,
+                           folder_tree=folder_tree,
+                           schedule_dict=schedule_dict,
+                           username=userlogin)
 
 
 
