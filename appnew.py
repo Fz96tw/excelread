@@ -387,11 +387,16 @@ def home():
 @app.route('/', methods=['GET', 'POST'])
 def index():
 
-      # Redirect anonymous users to login
-    if not current_user.is_authenticated:
-        flash("Please log in first.", "warning")
+
+    # Make sure user is logged into AI Connector before showing main page
+    userlogin = None
+    if current_user.is_authenticated:
+        userlogin = current_user.username
+        print(f"User logged in: {userlogin}")
+    else:
+        print("Not logged so redirecting to home for login")
         return redirect(url_for("home"))
-    
+
     # Load saved value
     foo_values = {}
     foo_lines = read_file_lines(FOO_FILE)
@@ -453,7 +458,7 @@ def index():
             print("Resyncing file values...")
             val = request.form["resync_bar"]
             val = clean_sharepoint_url(val)
-            resync(val)  # call your function with the string value
+            resync(val,userlogin)  # call your function with the string value file URL and userlogin (used for working folder for script)
             return redirect(url_for('index'))
         
         elif 'login_bar':
@@ -474,14 +479,6 @@ def index():
 
     
     print(f"Sharepoint Authorization status: {logged_in}")
-
-    # ✅ Only use username if authenticated
-    userlogin = None
-    if current_user.is_authenticated:
-        userlogin = current_user.username
-        print(f"User logged in: {userlogin}")
-    else:
-        print("Anonymous user — not logged in")
 
     return render_template('form.html',
                            banner_path=BANNER_PATH,

@@ -24,7 +24,7 @@ def move_temp_files():
             shutil.move(file_path, dest)
 
 
-def resync(url: str):
+def resync(url: str, userlogin):
     """
     Full resync process with recursive handling of YAML files.
     """
@@ -55,7 +55,7 @@ def resync(url: str):
 
     # Create a unique run directory under logs/tmp
     run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
-    work_dir = os.path.join(base_dir, "logs", "runs", run_id)
+    work_dir = os.path.join(base_dir, "logs", userlogin, run_id)
     os.makedirs(work_dir, exist_ok=True)
 
 
