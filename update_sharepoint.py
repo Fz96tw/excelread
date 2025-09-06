@@ -317,7 +317,7 @@ def update_column(site_id, item_id, worksheet_name, start_cell, values, headers)
 
 
 
-jira_base_url = read_jira_url("./.env")
+jira_base_url = read_jira_url("../../../.env")
 print(f"Using JIRA base URL: {jira_base_url}")
 
 # --- PARSE CHANGES FILE ---

@@ -368,7 +368,9 @@ def schedule_file():
     filename = request.form.get("filename")
     time = request.form.get("time")
     interval = request.form.get("interval")
+    mode = request.form.get("mode")  # <-- this will be "hourly", "daily", or "weekly", or None if not selected
 
+    print(f"Schedule called filename={filename} time={time} mode={mode} interval={interval}")
     # Validate input
     if not filename:
         return "Filename missing", 400
@@ -381,6 +383,7 @@ def schedule_file():
     schedule_entry = {
         "filename": filename,
         "time": time if time else None,
+        "mode": mode if time else None,
         "interval": int(interval) if interval else None
     }
 

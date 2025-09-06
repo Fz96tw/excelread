@@ -237,23 +237,50 @@
         <span class="close">&times;</span>
         <h2><img src="/static/schedule-icon.png" style="height:28px; vertical-align:middle; margin-right:6px;">Schedule File</h2>
 
-        <form id="scheduleForm" method="POST" action="/schedule" class="left-form" style="width:100%;">
-          <label>File:</label>
-          <textarea id="scheduleFilename" name="filename" readonly rows="4" style="width:100%; resize:vertical; word-wrap:break-word; white-space:pre-wrap; font-size:14px; border:none; background-color:#f9f9f9;"></textarea>
+<form id="scheduleForm" method="POST" action="/schedule"  style="width:100%;">
+  <label>File:</label>
+    <textarea id="scheduleFilename" name="filename" readonly rows="4"
+        style="width:100%; height:60px; border:none; background-color:#f9f9f9; font-size:14px; resize:none; overflow:auto; word-wrap:break-word; white-space:pre-wrap;"></textarea>
 
-          <label>Time (HH:MM):</label>
-          <input type="time" id="scheduleTime" name="time" style="width:120px;">
+  <table style="width:100%; margin-top:10px; border-collapse:collapse;">
+  <tr>
+    <!-- Column 1: Time & Interval -->
+    <td style="vertical-align:top; text-align:left; padding-right:20px; width:50%;">
+      <label style="display:block; margin-bottom:4px;">Time (HH:MM):</label>
+      <input type="time" id="scheduleTime" name="time" style="width:120px; margin-bottom:10px;">
 
-          <label>Interval (minutes):</label>
-          <input type="number" id="scheduleInterval" name="interval" min="5" style="width:120px;">
+      <label style="display:flex; align-items:left; gap:4px; margin-bottom:4px; font-weight:normal;">
+        <input type="radio" class="scheduleMode" name="mode" value="hourly" style="margin:0; padding:0;"> Hourly
+      </label>
 
-          <button type="submit" id="scheduleSubmit" class="table-btn" style="width:120px;" disabled>
-            <img src="/static/saveicontransparent.png" style="height:20px; vertical-align:middle; margin-right:4px;">Save Schedule
-          </button>
-            <button type="button" id="clearScheduleBtn" class="table-btn" style="background:#d9534f; color:white; width:120px;">
-            Clear Schedule
-            </button>
-        </form>
+      <label style="display:flex; align-items:left; gap:4px; margin-bottom:4px; font-weight:normal;">
+        <input type="radio" class="scheduleMode" name="mode" value="daily" style="margin:0; padding:0;"> Daily
+      </label>
+
+      <label style="display:flex; align-items:left; gap:4px; margin-bottom:4px; font-weight:normal;">
+        <input type="radio" class="scheduleMode" name="mode" value="weekly" style="margin:0; padding:0;"> Weekly
+      </label>
+    </td>
+
+    <!-- Column 2: Mode Radios -->
+    <td style="vertical-align:top; text-align:left; width:50%;">
+      <label style="display:block; margin-bottom:4px;">Interval (minutes):</label>
+      <input type="number" id="scheduleInterval" name="interval" min="5" style="width:120px;">
+    </td>
+  </tr>
+</table>
+
+
+  <div style="margin-top:15px; display:flex; gap:10px;">
+    <button type="submit" id="scheduleSubmit" class="table-btn" style="width:120px;">
+      <img src="/static/saveicontransparent.png" style="height:20px; vertical-align:middle; margin-right:4px;">Save Schedule
+    </button>
+    <button type="button" id="clearScheduleBtn" class="table-btn" style="background:#d9534f; color:white; width:120px;">
+      Clear Schedule
+    </button>
+  </div>
+</form>
+
       </div>
     </div>
 
@@ -304,10 +331,18 @@
         function enforceMutualExclusivity() {
             const timeVal = scheduleTime.value.trim();
             const intervalVal = scheduleInterval.value.trim();
+
+            // Disable inputs mutually
             scheduleTime.disabled = !!intervalVal;
             scheduleInterval.disabled = !!timeVal;
+
+            // Disable mode radios if interval is used
+            modeCheckboxes.forEach(cb => cb.disabled = !!intervalVal);
+
+            // Enable submit button only if at least one input has value
             document.getElementById("scheduleSubmit").disabled = !(timeVal || intervalVal);
         }
+
 
         scheduleTime.addEventListener("input", enforceMutualExclusivity);
         scheduleInterval.addEventListener("input", enforceMutualExclusivity);
@@ -357,6 +392,14 @@
             if (!time && !interval) { showToast("❌ Enter time or interval", false); return; }
 
             const formData = new FormData(this);
+        
+            // Find selected mode
+            let selectedMode = "";
+            modeCheckboxes.forEach(cb => {
+                if (cb.checked) selectedMode = cb.value;
+            });
+            formData.append("mode", selectedMode);
+
             fetch(this.action, { method: "POST", body: formData })
             .then(response => {
                 if (response.ok) { 
@@ -405,6 +448,17 @@
             .catch(() => showToast("❌ Error connecting to server", false));
         });
 
+                // Ensure only one checkbox can be selected
+        const modeCheckboxes = document.querySelectorAll(".scheduleMode");
+        modeCheckboxes.forEach(cb => {
+            cb.addEventListener("change", function() {
+                if (this.checked) {
+                    modeCheckboxes.forEach(other => {
+                        if (other !== this) other.checked = false;
+                    });
+                }
+            });
+        });
 
 
     </script>
