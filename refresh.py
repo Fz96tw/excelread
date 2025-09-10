@@ -127,6 +127,18 @@ def resync(url: str, userlogin):
                 else:
                     break
 
+    def process_exec_summary(file_url, input_file, timestamp):
+        yaml_pattern = os.path.join(work_dir, f"{input_file}.ExecSummary.{timestamp}.*scope.yaml")
+        yaml_files = glob.glob(yaml_pattern)
+        if not yaml_files:
+            msg = f"No ExecSummary YAML files found matching pattern {yaml_pattern}"
+            logger.warning(msg)
+            log.write(msg + "\n")
+            return
+        
+
+
+
     def process_yaml(file_url, input_file, timestamp):
         logger.info(f"Running scope.py on {input_file} timestamp={timestamp}...")
         run_and_log(["python", "-u", scope_script, input_file, timestamp], log, f"scope.py {input_file} {timestamp}")
@@ -145,6 +157,7 @@ def resync(url: str, userlogin):
 
         yaml_files.sort(key=extract_substring)
 
+        exec_summary_yaml_file = ""
         for yaml_file in yaml_files:
             logger.info(f"Processing YAML file: {yaml_file}")
             match = re.match(rf"{re.escape(input_file)}\.(.+)\.scope\.yaml", os.path.basename(yaml_file))
@@ -162,6 +175,10 @@ def resync(url: str, userlogin):
                 if "create" in yaml_file:
                     logger.info(f"Found CREATE jira file {yaml_file}")
                     run_and_log(["python", "-u", create_jira_script, yaml_file, filename, timestamp], log, f"create_jira.py {yaml_file} {filename} {timestamp}")
+                
+                #elif "ExecSummary" in yaml_file:
+                #    logger.info("skipping ExecSummary yaml - will process at the end of yaml chain")
+                #    exec_summary_yaml_file = yaml_file
                 else:
                     jira_csv = f"{input_file}.{substring}.jira.csv"
                     logger.info(f"Generating Jira CSV: {jira_csv}")
@@ -185,12 +202,19 @@ def resync(url: str, userlogin):
                     time.sleep(30)
                     continue
                 else:
+                    
+                    # now process exec_summary yaml file if one was present
+                    #if (exec_summary_yaml_file):
+                       #print(f"About to process exec summary file = {exec_summary_yaml_file}")    
+                    
+                    # all files are process now so end the loop
                     break
 
     with open(log_file, "a", encoding="utf-8") as log:
         try:
             run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
             process_yaml(url, filename, timestamp)
+            process_exec_summary(url, filename, timestamp)
         except Exception as e:
             err_msg = f"Error running resync: {e}"
             logger.exception(err_msg)

@@ -54,6 +54,10 @@ if __name__ == "__main__":
     jira_import_found = False
     jira_create_found = False
     scope_output_file = ""
+    exec_summary_found = False  
+    jira_id_exec_summary = []
+    jira_fields_exec_summary = []
+    exec_summary_cell = ""  # location of cell where the summary contents need to be placed
 
     #file_info.append({"source":filename, "basename":os.path.basename(filename), "scope file":scope_output_file})
     #with open(scope_output_file, 'w') as f:
@@ -75,7 +79,13 @@ if __name__ == "__main__":
 
         for idx, cell in enumerate(row):
             cell_str = str(cell).replace("\n", " ").replace("\r", " ").strip().lower()
-            if "<jira>" in cell_str and len(str(cell_str)) > 6:  # greater than 6 because a table name is expected
+
+            if "<exec summary>" in cell_str:
+                print(f"<exec summary> found in cell_str={cell_str}")
+                exec_summary_found = True;
+                exec_summary_cell = "";
+            
+            elif "<jira>" in cell_str and len(str(cell_str)) > 6:  # greater than 6 because a table name is expected
                 if jira_table_found:
                 
                     print("Found a NEW 'Jira Table'")
@@ -218,13 +228,14 @@ if __name__ == "__main__":
             jira_create_rows.append(this_row)
                 
         elif fields_found:
-            # lookup the index of the field "ID"
+            # lookup the index of the field "key"
             index_of_id = next((field['index'] for field in jira_fields if field['value'] == "key"), None)
             if index_of_id is not None:
                 cell_value = row[index_of_id]
                 #if pd.notna(cell_value) and str(cell_value).strip():
                 if is_valid_jira_id(str(cell_value).strip()):
                     jira_ids.append(cell_value)
+                    jira_id_exec_summary.append(cell_value)
                 else:
                     print(f"Ignoring Invalid JIRA ID found: {cell_value} in row {row[0]}")
             else:
@@ -260,3 +271,50 @@ if __name__ == "__main__":
     # close the file
     f.close()
     print("Scope file created successfully:", scope_output_file)
+
+    # now process the <exec summary> if one was found in the sheet
+    if (exec_summary_found):
+        # step 1 hunt for jira id in all rows and build a list
+        # step 2 hunt for jql in all the rows and get list of jira id and add to list from #1
+        # step 3 Create a new exec summary scope yaml file with all the Jira found in #1 #2
+        # step 4 read_jira will process this yaml downstream
+        print("ExecSumamry processing now")
+        cleaned_value = "ExecSummary"
+        scope_output_file = set_output_filename(filename, cleaned_value, timestamp)
+
+        file_info["scope file"] = scope_output_file
+        file_info["table"] = cleaned_value
+
+        with open(scope_output_file, 'w') as f:
+            yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
+       
+        jira_fields = []
+        '''
+        idx = 0
+        for f in jira_fields_exec_summary:
+            print(f"jira_fields.append({f},{idx})")
+            jira_fields.append({"value": f, "index": idx})
+            idx += 1
+        '''
+
+        jira_fields.append({"value": "key", "index": 0})
+        jira_fields.append({"value": "summary", "index": 0})
+        jira_fields.append({"value": "description", "index": 0})
+        jira_fields.append({"value": "status", "index": 0})
+        jira_fields.append({"value": "issuetype", "index": 0})
+        jira_fields.append({"value": "priority", "index": 0})
+        jira_fields.append({"value": "assignee", "index": 0})
+        jira_fields.append({"value": "status", "index": 0})
+
+
+        with open(scope_output_file, 'a') as f:
+            yaml.dump({ "fields": jira_fields }, f, default_flow_style=False)
+
+        if jira_id_exec_summary:
+            print(f"JIRA IDs found: {jira_ids}")
+            with open(scope_output_file, 'a') as f:
+                yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
+
+        f.close()
+        print("ExecSummary yaml file created successfully:", scope_output_file)
+

@@ -23,6 +23,7 @@ JIRA_MAX_RESULTS = 50
 
 model_name = "llama3.2:1b"  # Default model name
 
+
 class OllamaSummarizer:
     def __init__(self, model_name):
         self.model_name = model_name
@@ -70,7 +71,7 @@ class OllamaSummarizer:
         return f"({model_name}) {summary}"
 
 # Initialize once
-summarizer = OllamaSummarizer(model_name)
+#summarizer = OllamaSummarizer(model_name)
 
 
 def get_summarized_comments(comments_list_asc):
@@ -113,7 +114,21 @@ def get_summarized_comments(comments_list_asc):
             print(chunk['message']['content'], end="", flush=True)
         print()  # Final newline        
     '''
-    full_response = summarizer.summarize_comments(comments_str)
+    #full_response = summarizer.summarize_comments(comments_str)
+    
+
+    # comments_str was a single string before, but the service expects a list[str].
+    # If you only have one string, wrap it in a list.
+    comments = [comments_str]
+
+    resp = requests.post("http://localhost:8000/summarize", json=comments)
+
+    if resp.status_code == 200:
+        full_response = resp.json()["summary"]
+    else:
+        full_response = f"[ERROR] Service call failed: {resp.text}"    
+    
+    
     print(f"Full response: {full_response}")
      # Replace all newlines with semicolons
     full_response.rstrip("\n")
@@ -356,7 +371,7 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                 value = now_str
             elif field == "headline":
                 #value = "[" + issue.key + "] " + issue.fields.summary[:10] | "..."
-                value = f"[{issue.key}] {issue.fields.summary[:15]}{'...' if len(issue.fields.summary) > 10 else ''}" 
+                value = f"[{issue.key}] {issue.fields.summary[:25]}{'...' if len(issue.fields.summary) > 10 else ''}" 
                 value += "  Status: " + issue.fields.status.name  
                 value += "  Assignee: " + issue.fields.assignee.displayName  if issue.fields.assignee else "   Assignee: unassigned" 
                 value += "  Type: " + issue.fields.issuetype.name  
@@ -408,7 +423,8 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
             #    if value is None: # don't want to set this to None, so make it blank
             #        value = ""
 
-            values.append(str(value))
+            value_str =str(value).replace("\n","")
+            values.append(value_str)
 
         print(','.join(values))
         with open(output_file, "a") as outfile:
@@ -529,8 +545,9 @@ if jql_ids:
                         synopsis_list = "|".join(value_parts) if value_parts else ""
                      
                     else:
-                        print(f"Processing generic field: {field} with value: {value}")
-                        generic_fields_list.append("▫️ [" + issue.key + "] " + str(value))
+                        value_str = str(value).replace("\n","")
+                        print(f"Processing generic field: {field} with value: {value_str}")
+                        generic_fields_list.append("▫️ [" + issue.key + "] " + value_str)
 
                     
 
@@ -617,6 +634,7 @@ if jql_ids:
                     value = jql_id
                 else:
                     value = "Bad JQL query"
+            
             values.append(str(value))            
             print(','.join(values))
             with open(output_file, "a") as outfile:
@@ -625,3 +643,7 @@ if jql_ids:
 
 print(f"Data written to {output_file}")
 print(f"CSV_CREATED:{output_file}")
+
+# process Exec Summary now
+if "ExecSummary" in yaml_file:
+    print(f"This is an ExecSummary yaml file = {yaml_file} ")
