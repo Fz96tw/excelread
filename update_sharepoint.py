@@ -152,7 +152,17 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
         col_letter = chr(col_ascii)
         if col_letter in cols:
             new_val = cols[col_letter]["new"]
-            new_val = new_val.replace(";", "\n") if ";" in new_val else new_val
+
+            hyperlink = create_hyperlink(new_val, jira_base_url)
+            if hyperlink:
+                print(f"new value is hyperlink = {hyperlink}")
+                new_val = new_val.replace("URL", "").strip()  # Clean up "URL" prefix
+                new_val = new_val.replace("JQL", "").strip()  # Clean up "JQL" prefix
+                #new_value = "🔗" 
+                new_val = _make_hyperlink_formula(hyperlink, new_val)
+            else:   
+                new_val = new_val.replace(";", "\n") if ";" in new_val else new_val
+            
             new_values.append(new_val)
             if "!!" in new_val:
                 print(f"   ⚠ Warning: '!!' found in new value for {col_letter}{row_num}. Need to strikeout cell")
@@ -167,7 +177,7 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
     print(f"✅ Row {row_num} updated with range {row_range}: {resp_patch.status_code}")
 
       # --- 4. If strikeout triggered, apply to entire row ---
-    if strikeout:
+    '''if strikeout:
         url_strike = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{row_range}')/format/font"
         strike_payload = {"strikethrough": True}
         resp_strike = requests.patch(url_strike, json=strike_payload, headers=headers)
@@ -194,7 +204,7 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
             print(f"   🔗 Hyperlink set for {cell_address}: {code}")
 
 
-    '''        
+            
         url_wrap = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/wrapText"
         payload_wrap = {"wrapText": True}
         resp_wrap = requests.patch(url_wrap, json=payload_wrap, headers=headers)

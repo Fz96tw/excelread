@@ -138,8 +138,9 @@ def process_jira_table_blocks(filename):
 
             #print(first_cell)
             if (jira_data and first_cell in jira_data):
-                print(f"Updating row {row[field_index_map["key"]].row} with data for {first_cell}")
-                record = jira_data[first_cell]
+                print(f"Updating row {row[field_index_map['key']].row} with data for {first_cell}")
+                #record = jira_data[first_cell]
+                record = jira_data.pop(first_cell)
                 for field, index in field_index_map.items():
                     print(f"Checking field {field} at index {index}")
                     if field in record:
@@ -157,7 +158,7 @@ def process_jira_table_blocks(filename):
                             target_cell.value = cell_value.replace(";", "\n")  # Replace ; with newline
                                                     
                             # Enable text wrapping to show newlines
-                            target_cell.alignment = Alignment(wrapText=True)
+                            '''target_cell.alignment = Alignment(wrapText=True)
 
                             if field == "key" and is_valid_jira_id(cell_value):
                                 target_cell.hyperlink = "https://fz96tw.atlassian.net/browse/" + cell_value  # The actual link
@@ -165,7 +166,7 @@ def process_jira_table_blocks(filename):
                             elif field == "key" and is_JQL(cell_value):
                                 target_cell.hyperlink = "https://fz96tw.atlassian.net/issues/?jql=" + cell_value.lower().replace("jql", "")  # The actual link
                                 target_cell.style = "Hyperlink"
-                            
+                            '''
                             # Save coordinate + value to list
                             change_list.append(f"{target_cell.coordinate}={cell_value.replace("\n",";")}||{old_value}")
             else:

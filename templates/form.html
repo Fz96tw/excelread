@@ -119,7 +119,12 @@
         #toast.show { visibility: visible; opacity: 1; top: 40px; }
 
     </style>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
 </head>
+
 <body>
     <img src="{{ banner_path }}" alt="Banner" class="banner">
 
@@ -158,22 +163,24 @@
             {% endif %}
     
     
-
+<br><br>
             <h2><img src="/static/excelicon.jpg" style="height:28px; vertical-align:bottom; margin-right:2px;">Add Excel file to connect with Jira</h2>
             <form method="POST" class="left-form">
                 <label for="bar_value">Direct Sharepoint URL path to file:</label>
                 <input type="text" name="bar_value" id="bar_value" placeholder="https://...">
                 <button type="submit" name="add_bar"><img src="/static/connect-icon-gears.png" style="height:40px; vertical-align:middle; margin-right:2px;">Connect</button>
             </form>
-
-            <h2><img src="/static/sharepointicon.jpg" style="height:40px; vertical-align:bottom; margin-right:2px;">Sharepoint Connections</h2>
-            <p class="sync-desc">Files currently active:</p>
-
+<br><br>
+            <h2><img src="/static/sharepointicon.jpg" style="height:40px; vertical-align:bottom; margin-right:2px;">
+                Active Sharepoint Connections
+            </h2>
+            <!--p class="sync-desc">Active ShareConnections currently active:</p>
+        -->
             <table style="border-collapse: collapse; width: 100%;">
                 <thead>
                     <tr>
-                        <th style="text-align:center; padding:6px;">#</th>
-                        <th style="text-align:left; padding:6px;">File</th>
+                        <th style="text-align:center; padding:6px;"> </th>
+                        <th style="text-align:left; padding:6px;"> </th>
                         <th style="text-align:left; padding:6px;">Schedule</th>
                         <th style="text-align:center; padding:6px;">Run</th>
                         <th style="text-align:center; padding:6px;">Remove</th>
@@ -192,7 +199,7 @@
                             {% set sched = schedule_dict.get(val) %}
                             {% if sched %}
                                 {% if sched.time %}
-                                    <span style="font-size:12px; margin-left:6px;">Daily at {{ sched.time }}</span>
+                                    <span style="font-size:12px; margin-left:6px;">{{sched.mode}} at {{ sched.time }}</span>
                                 {% elif sched.interval %}
                                     <span style="font-size:12px; margin-left:6px;">Every {{ sched.interval }} min</span>
                                 {% endif %}
@@ -253,25 +260,42 @@
     <!-- Column 1: Time & Interval -->
     <td style="vertical-align:top; text-align:left; padding-right:20px; width:50%;">
       <label style="display:block; margin-bottom:4px;">Time (HH:MM):</label>
-      <input type="time" id="scheduleTime" name="time" style="width:120px; margin-bottom:10px;">
+      <!--input type="time" id="scheduleTime" name="time" style="width:120px; margin-bottom:10px;">
+    -->
 
+        <input type="text" id="scheduleTime" name="time"
+        style="width:120px; margin-bottom:10px;"
+        placeholder="HH:MM">
+
+      <!----
       <label style="display:flex; align-items:left; gap:4px; margin-bottom:4px; font-weight:normal;">
-        <input type="radio" class="scheduleMode" name="mode" value="hourly" style="margin:0; padding:0;"> Hourly
+        <input type="radio" class="scheduleMode" name="mode" value="Hourly" style="margin:0; padding:0;"> Hourly
+      </label>
+      --->
+      <label style="display:flex; align-items:left; gap:4px; margin-bottom:4px; font-weight:normal;">
+        <input type="radio" class="scheduleMode" name="mode" value="Daily" style="margin:0; padding:0;"> Daily
       </label>
 
       <label style="display:flex; align-items:left; gap:4px; margin-bottom:4px; font-weight:normal;">
-        <input type="radio" class="scheduleMode" name="mode" value="daily" style="margin:0; padding:0;"> Daily
+        <input type="radio" class="scheduleMode" name="mode" value="Weekly" style="margin:0; padding:0;"> Weekly
       </label>
 
-      <label style="display:flex; align-items:left; gap:4px; margin-bottom:4px; font-weight:normal;">
-        <input type="radio" class="scheduleMode" name="mode" value="weekly" style="margin:0; padding:0;"> Weekly
-      </label>
+      <div id="weeklyDays" style="margin-top:10px; display:none;">
+        <label><input type="checkbox" name="days" value="mon"> Mon</label>
+        <label><input type="checkbox" name="days" value="tue"> Tue</label>
+        <label><input type="checkbox" name="days" value="wed"> Wed</label>
+        <label><input type="checkbox" name="days" value="thu"> Thu</label>
+        <label><input type="checkbox" name="days" value="fri"> Fri</label>
+        <label><input type="checkbox" name="days" value="sat"> Sat</label>
+        <label><input type="checkbox" name="days" value="sun"> Sun</label>
+    </div>
+
     </td>
 
     <!-- Column 2: Mode Radios -->
     <td style="vertical-align:top; text-align:left; width:50%;">
       <label style="display:block; margin-bottom:4px;">Interval (minutes):</label>
-      <input type="number" id="scheduleInterval" name="interval" min="5" style="width:120px;">
+      <input type="number" id="scheduleInterval" name="interval" min="1" style="width:120px;">
     </td>
   </tr>
 </table>
@@ -354,25 +378,42 @@
         scheduleInterval.addEventListener("input", enforceMutualExclusivity);
 
         function openSchedule(filename) {
-            document.getElementById("scheduleFilename").value = filename;
+            // Load data from schedule_dict (passed into template)
+            const sched = scheduleData[filename];  // <-- ensure you inject schedule_dict into JS as scheduleData
 
-            // Pre-fill time/interval if scheduled
-            const schedules = {{ schedule_dict | tojson }};
-            const sched = schedules[filename];
-            if (sched) {
-                scheduleTime.value = sched.time || "";
-                scheduleInterval.value = sched.interval || "";
-            } else {
-                scheduleTime.value = "";
-                scheduleInterval.value = "";
+            document.getElementById("scheduleFilename").value = filename;
+            document.getElementById("scheduleTime").value = sched && sched.time ? sched.time : "";
+            document.getElementById("scheduleInterval").value = sched && sched.interval ? sched.interval : "";
+
+            // Clear all mode radios
+            document.querySelectorAll("input[name='mode']").forEach(r => r.checked = false);
+
+            if (sched && sched.mode) {
+                // Select correct mode
+                document.querySelector(`input[name='mode'][value='${sched.mode}']`).checked = true;
+
+                // Show/hide weekly days
+                if (sched.mode.toLowerCase() === "weekly") {
+                    document.getElementById("weeklyDays").style.display = "block";
+                } else {
+                    document.getElementById("weeklyDays").style.display = "none";
+                }
             }
 
-            scheduleTime.disabled = !!scheduleInterval.value;
-            scheduleInterval.disabled = !!scheduleTime.value;
-            document.getElementById("scheduleSubmit").disabled = !(scheduleTime.value || scheduleInterval.value);
+            // Clear all weekly checkboxes
+            document.querySelectorAll("#weeklyDays input[type=checkbox]").forEach(cb => cb.checked = false);
+
+            // Re-check saved days
+            if (sched && sched.days) {
+                sched.days.forEach(day => {
+                    const cb = document.querySelector(`#weeklyDays input[value='${day}']`);
+                    if (cb) cb.checked = true;
+                });
+            }
 
             document.getElementById("scheduleModal").style.display = "block";
         }
+
 
         document.querySelector(".close").onclick = function() {
             document.getElementById("scheduleModal").style.display = "none";
@@ -440,6 +481,13 @@
                     // Clear inputs in the modal
                     scheduleTime.value = "";
                     scheduleInterval.value = "";
+                    // Clear weekly day checkboxes
+                    document.querySelectorAll("#weeklyDays input[type=checkbox]").forEach(cb => cb.checked = false);
+
+                    // Hide the weeklyDays section
+                    document.getElementById("weeklyDays").style.display = "none";
+
+
                     scheduleTime.disabled = false;
                     scheduleInterval.disabled = false;
                     document.getElementById("scheduleSubmit").disabled = true;
@@ -466,6 +514,27 @@
             });
         });
 
+
+        flatpickr("#scheduleTime", {
+            enableTime: true,
+            noCalendar: true,
+            dateFormat: "H:i",   // 24-hour format
+            time_24hr: true
+        });
+
+
+        document.querySelectorAll("input[name='mode']").forEach(radio => {
+            radio.addEventListener("change", function() {
+                const weeklyDaysDiv = document.getElementById("weeklyDays");
+                if (this.value.toLowerCase() === "weekly") {
+                    weeklyDaysDiv.style.display = "block";
+                } else {
+                    weeklyDaysDiv.style.display = "none";
+                }
+            });
+        });
+
+    const scheduleData = {{ schedule_dict | tojson }};
 
     </script>
 </body>

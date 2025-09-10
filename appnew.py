@@ -7,8 +7,14 @@ import msal
 import uuid
 from pathlib import Path
 from dotenv import load_dotenv
-from refresh import *
 from flask import flash
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR 
+
+# my modules
+from refresh import *
+from my_scheduler import *
+from my_utils import *
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key")  # Use a real secret in production
@@ -32,6 +38,7 @@ REDIRECT_PATH = "/getAToken"
 REDIRECT_URI = f"http://localhost:5000{REDIRECT_PATH}"
 
 TOKEN_CACHE_FILE = "token_cache.json"
+
 
 
 def load_cache():
@@ -174,22 +181,39 @@ def load_user(user_id):
 
 
 
-def load_schedules():
-    if os.path.exists(SCHEDULE_FILE):
-        with open(SCHEDULE_FILE, "r") as f:
-            return json.load(f)
+def load_schedules(sched_file, userlogin=None):
+    if os.path.exists(sched_file):
+        with open(sched_file, "r") as f:
+            print(f"loading schedule file = {sched_file}")
+            schedules = json.load(f)
+            # Only return schedules belonging to this user
+            if (userlogin is not None):
+                return [s for s in schedules if s.get("userlogin") == userlogin]
+            else:
+                return schedules
     return []
 
-def clear_schedule_file(filename):
+
+def clear_schedule_file(sched_file, filename, userlogin):
     if not filename:
         return jsonify({"success": False, "message": "Filename missing"}), 400
     # Load existing schedules
-    schedules = load_schedules()
+    schedules = load_schedules(sched_file)
     # Remove the schedule for this filename if it exists
-    new_schedules = [s for s in schedules if s["filename"] != filename]
+    new_schedules = [s for s in schedules if s["filename"] != filename or s["userlogin"] != userlogin]
+    
+    '''
+    new_schedules = {}
+    for s in schedules:
+        if s["filename"] != filename or s["userlogin"] != userlogin:
+            new_schedules.append(s)
+    '''
+
     # Save back to file
-    with open(SCHEDULE_FILE, "w") as f:
+    with open(sched_file, "w") as f:
         json.dump(new_schedules, f, indent=4)
+        print(f"cleared schedule file = {sched_file}, removed {filename} replaced by {new_schedules}")
+
     #return jsonify({"success": True, "message": f"Schedule for '{filename}' cleared."})
 
 @app.route("/register", methods=["GET", "POST"])
@@ -320,7 +344,9 @@ def get_folder_tree(folder):
 
 
 
-def clean_sharepoint_url(url: str) -> str:
+'''
+def 
+point_url(url: str) -> str:
     """
     Cleans a SharePoint file URL by removing 'Shared Documents' or 'Shared Folders'
     so it can be used directly with pandas.read_excel/read_csv.
@@ -333,7 +359,7 @@ def clean_sharepoint_url(url: str) -> str:
 
     # Fix spaces back to %20 for proper HTTP request
     return url.replace(" ", "%20")
-
+'''
 
 @app.route('/logs', methods=['GET', 'POST'])
 def logs():
@@ -382,6 +408,60 @@ def home():
     
     return render_template('login.html')  # Renders login.html from the templates folder
 
+userlogin = None
+
+
+# File to store schedules
+SCHEDULE_FILE = "schedules.json"
+
+# Ensure file exists
+if not os.path.exists(SCHEDULE_FILE):
+    with open(SCHEDULE_FILE, "w") as f:
+        print(f"creating schedule file = {SCHEDULE_FILE}")
+        json.dump([], f)
+else:
+    print(f"Schedule file already exists {SCHEDULE_FILE}")
+
+
+# -----------------------------------------------------------------------------
+# Global scheduler
+# -----------------------------------------------------------------------------
+# solves the multiple instances of scheduler in flask debug
+import os
+
+
+
+def job_listener(event):
+    if event.exception:
+        logger.error(f"Job {event.job_id} failed: {event.exception}")
+    else:
+        runtime = event.scheduled_run_time
+        actual = event.scheduled_run_time + (event.scheduled_run_time - event.scheduled_run_time)
+        logger.info(
+            f"(listener)Job {event.job_id} executed successfully. "
+            f"(listener) Scheduled: {event.scheduled_run_time}, "
+            f"(listener) Duration: {event.retval if hasattr(event, 'retval') else 'N/A'}"
+        )
+
+
+if __name__ != "__main__" or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+    scheduler = BackgroundScheduler()
+    if not scheduler.running:
+        scheduler.start()
+        scheduler.add_job(
+            dump_job_status, 
+            "interval", 
+            minutes=5, 
+            args=[scheduler], 
+            id="__status_dumper__", 
+            replace_existing = True,
+            misfire_grace_time=300,  # 5 minutes to prevent skipping of jobs when delays occur)
+            max_instances=1 )  # don't start new one if previous still running
+        scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
+        # Setup all the schedules since app is starting up
+        schedule_jobs(scheduler,SCHEDULE_FILE)
+
+
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -389,22 +469,42 @@ def index():
 
 
     # Make sure user is logged into AI Connector before showing main page
-    userlogin = None
+    #userlogin = None
     if current_user.is_authenticated:
+        global userlogin
         userlogin = current_user.username
         print(f"User logged in: {userlogin}")
     else:
         print("Not logged so redirecting to home for login")
+        userlogin = None
         return redirect(url_for("home"))
+
+
+    user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
+    # Ensure file exists
+    if not os.path.exists(user_sched_file):
+        with open(user_sched_file, "w") as f:
+            print(f"creating schedule file = {user_sched_file}")
+            json.dump([], f)
+    else:
+        print(f"Schedule file already exists {user_sched_file}")
+
 
     # Load saved value
     foo_values = {}
     foo_lines = read_file_lines(FOO_FILE)
-    schedules = load_schedules()
+    schedules = load_schedules(user_sched_file,userlogin)
 
     # Create a dictionary for quick lookup
-    schedule_dict = {s["filename"]: s for s in schedules}
+    #schedule_dict = {s["filename"]: s for s in schedules}
     
+    schedule_dict = {}
+    for s in schedules:  # schedules = load_schedules(user_sched_file, current_user.username)
+        if s.get("userlogin") == current_user.username:
+            schedule_dict[s["filename"]] = s
+
+    #schedule_jobs(user_sched_file)   #schedule ALL the jobs in the schedules.json since we are starting up
+
     # Extract text between the first pair of double quotes in each line
     foo_lines = [re.search(r'"(.*?)"', line).group(1) if re.search(r'"(.*?)"', line) else "" for line in foo_lines]
 
@@ -451,9 +551,10 @@ def index():
                 bar_values.remove(to_remove)
                 write_file_lines(BAR_FILE, bar_values)
                 # if file was scheduled for resync then remove from schedule.json 
-                clear_schedule_file(to_remove) 
-                
+                clear_schedule_file(user_sched_file, to_remove, userlogin) 
+                schedule_job_clear(user_sched_file, to_remove, userlogin)           
             return redirect(url_for('index'))
+        
         elif 'resync_bar' in request.form:
             print("Resyncing file values...")
             val = request.form["resync_bar"]
@@ -491,13 +592,7 @@ def index():
 
 
 
-# File to store schedules
-SCHEDULE_FILE = "schedules.json"
 
-# Ensure file exists
-if not os.path.exists(SCHEDULE_FILE):
-    with open(SCHEDULE_FILE, "w") as f:
-        json.dump([], f)
 
 @app.route("/schedule", methods=["POST"])
 def schedule_file():
@@ -505,6 +600,7 @@ def schedule_file():
     time = request.form.get("time")
     interval = request.form.get("interval")
     mode = request.form.get("mode")  # <-- this will be "hourly", "daily", or "weekly", or None if not selected
+    days = request.form.getlist("days")  # ["mon", "wed", "fri"]
 
     print(f"Schedule called filename={filename} time={time} mode={mode} interval={interval}")
     # Validate input
@@ -517,30 +613,58 @@ def schedule_file():
 
     # Prepare schedule data
     schedule_entry = {
+        "userlogin": userlogin,
         "filename": filename,
         "time": time if time else None,
-        "mode": mode if time else None,
-        "interval": int(interval) if interval else None
+        "mode": mode if mode else None,
+        "interval": int(interval) if interval else None,
+        "days": days if days else None
     }
 
+
     # Load existing schedules
-    with open(SCHEDULE_FILE, "r") as f:
-        schedules = json.load(f)
+    user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
+    
+    #with open(user_sched_file, "r") as f:
+    #    print(f"loading schedule file = {user_sched_file}")
+    #    schedules = json.load(f)
+
+    schedules = load_schedules(user_sched_file) #we want to load for ALL users here
 
     # Check if this file already exists in schedules
-    existing = next((s for s in schedules if s["filename"] == filename), None)
+    #existing = next((s for s in schedules if s["filename"] == filename and s.get("userlogin") == userlogin), None)
+    existing = None
+    for s in schedules:
+        if s["filename"] == filename and s["userlogin"] == userlogin:
+            existing = s
+
     if existing:
         # Update existing
+        print(f"Updating existing schedule entry existing={existing}")
         existing["time"] = schedule_entry["time"]
         existing["interval"] = schedule_entry["interval"]
+        existing["mode"] = schedule_entry["mode"]
+
+        # reset days if this entry previously was set for weekly runs
+        # The frontend passes the daya to this call to just alway reset days if Daily
+        if existing["mode"] == "Daily":
+            existing["days"] = []
+
     else:
+        print(f"Appending new schedule_entry = {schedule_entry}")
         schedules.append(schedule_entry)
 
     # Save back to file
-    with open(SCHEDULE_FILE, "w") as f:
+    with open(user_sched_file, "w") as f:
+        print(f"saving to schedule file = {user_sched_file}")
         json.dump(schedules, f, indent=4)
 
+    # update the scheduled jobs
+    schedule_jobs(scheduler, user_sched_file, filename, userlogin)
+
     return jsonify({"success": True, "message": "Schedule saved successfully"})
+
+
 
 @app.route("/schedule/clear", methods=["POST"])
 def clear_schedule():
@@ -551,17 +675,25 @@ def clear_schedule():
         return jsonify({"success": False, "message": "Filename missing"}), 400
 
     # Load existing schedules
+    user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
     schedules = []
-    if os.path.exists(SCHEDULE_FILE):
-        with open(SCHEDULE_FILE, "r") as f:
+    schedules = load_schedules(user_sched_file)  # must load for all userlogins
+    '''
+    if os.path.exists(user_sched_file):
+        with open(user_sched_file, "r") as f:
+            print(f"loading schedule file = {user_sched_file}")
             schedules = json.load(f)
-
+    '''
     # Remove the schedule for this file
-    schedules = [s for s in schedules if s["filename"] != filename]
+    schedules = [s for s in schedules if s["filename"] != filename or s["userlogin"] != userlogin]
 
     # Save back
-    with open(SCHEDULE_FILE, "w") as f:
+    with open(user_sched_file, "w") as f:
+        print(f"saving schedule file = {user_sched_file}")
         json.dump(schedules, f, indent=4)
+
+    #update scheduled jobs
+    schedule_job_clear(scheduler, user_sched_file,filename,userlogin)
 
     return jsonify({"success": True})
 
