@@ -119,7 +119,7 @@ def process_jira_table_blocks(filename):
             cleaned_value = str(cell.value).strip().replace(" ", "_")
             #print(f"Cleaned cell value: {cleaned_value}" + f" | file_info['table']: {file_info['table']}")
             #if file_info["table"] in str(cell).strip().replace(" ", "_"):
-            if file_info["table"] in cleaned_value:
+            if file_info["table"] in cleaned_value and "<jira>" in cleaned_value:
                 print(f"Found table header '{file_info['table']}' in cell {cell.coordinate}")
                 printing = True
                 break
@@ -127,7 +127,10 @@ def process_jira_table_blocks(filename):
         #print(f"Printing flag is {'ON' if printing else 'OFF'} for row {row[0].row}")
         #print(f"Import mode is {'ON' if import_mode else 'OFF'}")
 
-        if printing and not import_mode:
+        if printing and execsummary_mode:
+            print("This is ExecSummary table")
+
+        elif printing and not import_mode:
             print("About to process update row.")
             first_cell = row[field_index_map["key"]].value
    
@@ -406,6 +409,12 @@ if __name__ == "__main__":
     else:
         import_mode = False
 
+    if "aisummary" in jiracsv.lower():
+        print("This file is ExecSummary")
+        execsummary_mode = True
+    else:
+        execsummary_mode = False
+
     field_index_map, jira_data_in = load_jira_file(jiracsv)
     print(f"Loaded {len(jira_data)} records from {jiracsv}")
     
@@ -417,8 +426,13 @@ if __name__ == "__main__":
     for key, record in jira_data.items():
         print(f"lowercased {key}: {record}")
 
+    if (execsummary_mode):
+        print("Call Execsummary processor now")
+        #process_execsummary_table_blocks(xlfile)
+        #process_jira_table_blocks(xlfile)
+    else:
+        process_jira_table_blocks(xlfile)
     
-    process_jira_table_blocks(xlfile)
     print("Finished processing Jira Table blocks.")
 
             

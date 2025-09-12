@@ -33,6 +33,70 @@ def is_valid_jira_id(jira_id: str) -> bool:
     
     return False
 
+
+import re
+
+def extract_ai_summary_table_list(text: str, timestamp) -> list[str]:
+    """
+    Extracts all comma-separated substrings after <ai summary> in the given text.
+    Spaces in substrings are replaced with underscores.
+    """
+    match = re.search(r"<ai brief>(.*)", text, re.IGNORECASE)
+    if not match:
+        return []
+    
+    # Get everything after <ai summary>
+    substrings = match.group(1).strip()
+    
+    # Split by commas and normalize
+#    return [s.strip().replace(" ", "_") for s in substrings.split(",") if s.strip()]
+    return [s.strip().replace(" ", "_") + "." + timestamp for s in substrings.split(",") if s.strip()]
+
+
+def write_execsummary_yaml():
+    # always create <exec summary> yaml files incase they're needed down the chain
+    # step 1 hunt for jira id in all rows and build a list
+    # step 2 hunt for jql in all the rows and get list of jira id and add to list from #1
+    # step 3 Create ayaml new exec summary scope yaml file with all the Jira found in #1 #2
+    # step 4 read_jira will process this yaml downstream
+    print("ExecSumamry processing now")
+    #cleaned_value = "ExecSummary"
+    execsummary_scope_output_file = f"{filename}.{file_info["table"]}.{timestamp}.aisummary.scope.yaml"
+
+
+    file_info["scope file"] = execsummary_scope_output_file
+    #file_info["table"] = cleaned_value
+
+    with open(execsummary_scope_output_file, 'w') as f:
+        yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
+
+    jira_fields = []
+
+    jira_fields.append({"value": "key", "index": 0})
+    jira_fields.append({"value": "summary", "index": 0})
+    jira_fields.append({"value": "description", "index": 0})
+    jira_fields.append({"value": "status", "index": 0})
+    jira_fields.append({"value": "issuetype", "index": 0})
+    jira_fields.append({"value": "priority", "index": 0})
+    jira_fields.append({"value": "created", "index": 0})
+    jira_fields.append({"value": "assignee", "index": 0})
+    jira_fields.append({"value": "status", "index": 0})
+    jira_fields.append({"value": "comments", "index": 0})
+
+
+    with open(execsummary_scope_output_file, 'a') as f:
+        yaml.dump({ "fields": jira_fields }, f, default_flow_style=False)
+
+    if jira_ids:
+        print(f"JIRA IDs found: {jira_ids}")
+        with open(execsummary_scope_output_file, 'a') as f:
+            yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
+
+    f.close()
+    print("ExecSummary scope yaml file created successfully:", execsummary_scope_output_file)
+
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Usage: python scope.py <filename> <timestamp>")
@@ -80,10 +144,25 @@ if __name__ == "__main__":
         for idx, cell in enumerate(row):
             cell_str = str(cell).replace("\n", " ").replace("\r", " ").strip().lower()
 
-            if "<exec summary>" in cell_str:
-                print(f"<exec summary> found in cell_str={cell_str}")
+            if "<ai brief>" in cell_str:
+                print(f"<ai brief> found in cell_str={cell_str}")
                 exec_summary_found = True;
                 exec_summary_cell = "";
+                cleaned_value = str(cell).rsplit("<ai brief>", 1)[0].strip().replace(" ", "_")
+                #scope_output_file = set_output_filename(filename, cleaned_value, timestamp, jira_import_found, jira_create_found)
+                scope_output_file = f"{filename}.{cleaned_value}.{timestamp}.aisummary.yaml"
+                print(f"scope will be saved to: {scope_output_file}")
+                file_info["scope file"] = scope_output_file
+                file_info["table"] = cleaned_value
+                with open(scope_output_file, 'w') as f:
+                    yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
+       
+                ai_table_list = extract_ai_summary_table_list(cell_str, timestamp)
+                with open(scope_output_file, 'a') as f:
+                    yaml.dump({"tables":ai_table_list}, f, default_flow_style=False)
+
+                break   # break out of for loop and continue with next row
+            
             
             elif "<jira>" in cell_str and len(str(cell_str)) > 6:  # greater than 6 because a table name is expected
                 if jira_table_found:
@@ -107,6 +186,11 @@ if __name__ == "__main__":
                         print("Total rows processed:", row_count)
                         # close the file
                         f.close()
+
+                        # always write exec sumamry yaml even tho we don't know if
+                        # will be needed/used
+                        write_execsummary_yaml()  
+
                     elif jira_create_rows:
                         print("closing out previous scope file")
 
@@ -119,6 +203,7 @@ if __name__ == "__main__":
                         print("Total rows processed:", row_count)
                         # close the file
                         f.close()
+                        
                     else:
                         print(f"No scope file create because No JIRA IDs found in table {file_info['table']} in file {filename}")
 
@@ -135,9 +220,7 @@ if __name__ == "__main__":
                 else:
                     jira_table_found = True
 
-                
                 print(f"Found 'Jira Table' in cell index {idx} {row}")     
-                #cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
 
                 if "jql" in cell_str:
                     jira_import_found = True
@@ -152,7 +235,6 @@ if __name__ == "__main__":
                     print("CREATE found in table name: ", cell_str)
 
                 cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
-#                scope_output_file = set_output_filename(filename,cleaned_value)
                 scope_output_file = set_output_filename(filename, cleaned_value, timestamp, jira_import_found, jira_create_found)
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
@@ -190,10 +272,6 @@ if __name__ == "__main__":
 
         if jira_fields and not fields_found:
             fields_found = True
-            #base = os.path.splitext(os.path.basename(filename))[0]
-            #output_file = f"{base}.scope.yaml"
-#            with open(scope_output_file, 'a') as f:
-#                yaml.dump({ "fields": jira_fields }, f, default_flow_style=False)
             continue
 
         if fields_found and jira_create_found:
@@ -271,50 +349,6 @@ if __name__ == "__main__":
     # close the file
     f.close()
     print("Scope file created successfully:", scope_output_file)
+    write_execsummary_yaml()
 
-    # now process the <exec summary> if one was found in the sheet
-    if (exec_summary_found):
-        # step 1 hunt for jira id in all rows and build a list
-        # step 2 hunt for jql in all the rows and get list of jira id and add to list from #1
-        # step 3 Create a new exec summary scope yaml file with all the Jira found in #1 #2
-        # step 4 read_jira will process this yaml downstream
-        print("ExecSumamry processing now")
-        cleaned_value = "ExecSummary"
-        scope_output_file = set_output_filename(filename, cleaned_value, timestamp)
-
-        file_info["scope file"] = scope_output_file
-        file_info["table"] = cleaned_value
-
-        with open(scope_output_file, 'w') as f:
-            yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
-       
-        jira_fields = []
-        '''
-        idx = 0
-        for f in jira_fields_exec_summary:
-            print(f"jira_fields.append({f},{idx})")
-            jira_fields.append({"value": f, "index": idx})
-            idx += 1
-        '''
-
-        jira_fields.append({"value": "key", "index": 0})
-        jira_fields.append({"value": "summary", "index": 0})
-        jira_fields.append({"value": "description", "index": 0})
-        jira_fields.append({"value": "status", "index": 0})
-        jira_fields.append({"value": "issuetype", "index": 0})
-        jira_fields.append({"value": "priority", "index": 0})
-        jira_fields.append({"value": "assignee", "index": 0})
-        jira_fields.append({"value": "status", "index": 0})
-
-
-        with open(scope_output_file, 'a') as f:
-            yaml.dump({ "fields": jira_fields }, f, default_flow_style=False)
-
-        if jira_id_exec_summary:
-            print(f"JIRA IDs found: {jira_ids}")
-            with open(scope_output_file, 'a') as f:
-                yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
-
-        f.close()
-        print("ExecSummary yaml file created successfully:", scope_output_file)
 

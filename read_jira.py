@@ -24,6 +24,7 @@ JIRA_MAX_RESULTS = 50
 model_name = "llama3.2:1b"  # Default model name
 
 
+'''
 class OllamaSummarizer:
     def __init__(self, model_name):
         self.model_name = model_name
@@ -71,8 +72,8 @@ class OllamaSummarizer:
         return f"({model_name}) {summary}"
 
 # Initialize once
-#summarizer = OllamaSummarizer(model_name)
-
+summarizer = OllamaSummarizer(model_name)
+'''
 
 def get_summarized_comments(comments_list_asc):
     """
@@ -252,15 +253,29 @@ if not tablename:
     print("No 'table' found in fileinfo. Expecting 'table' key.")
     sys.exit(1)
 
+import_mode = False
+execsummary_mode = False
+
 # Determine if we will be INSERTING rows eventually vs just UPDATING existing rows in Excel/SharePoint
 if "import" in yaml_file.lower():
     print("Import mode detected based on filename containing 'import'.")
     # You can set a flag or handle import-specific logic here if needed
     import_mode = True
     output_file = basename + "." + tablename + "." + timestamp + ".import.jira.csv"
+# Determine if we are dealing wiht ExecSummary table here
+elif "aisummary" in yaml_file.lower():
+    print(f"ai summary mode detected based on filename = {yaml_file}")
+    # You can set a flag or handle import-specific logic here if needed
+    execsummary_mode = True
+    output_file = basename + "." + tablename + "." + timestamp + ".aisummary.jira.csv"
 else:
     import_mode = False
+    execsummary_mode = False
     output_file = basename + "." + tablename + "." + timestamp + ".jira.csv"
+
+
+
+
 
 fields = data.get('fields', [])
 field_values = [field.get('value') for field in fields if 'value' in field]
