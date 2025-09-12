@@ -14,7 +14,21 @@ import logging
 # -----------------------------------------------------------------------------
 logger = logging.getLogger(__name__)
 
-def move_temp_files():
+logs_dir = os.path.join(os.path.dirname(__file__), "logs")
+os.makedirs(logs_dir, exist_ok=True)
+
+resync_log = os.path.join(logs_dir, "resync.log")
+
+file_handler = logging.FileHandler(resync_log, encoding="utf-8")
+file_handler.setFormatter(logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+))
+logger.addHandler(file_handler)
+logger.setLevel(logging.INFO)
+
+
+'''def move_temp_files():
     """Move temp files into logs/temp directory."""
     target_dir = os.path.join("logs", "temp")
     os.makedirs(target_dir, exist_ok=True)
@@ -26,7 +40,7 @@ def move_temp_files():
             dest = os.path.join(target_dir, os.path.basename(file_path))
             logger.info(f"Moving {file_path} → {dest}")
             shutil.move(file_path, dest)
-
+'''
 
 def resync(url: str, userlogin):
     """
@@ -43,13 +57,14 @@ def resync(url: str, userlogin):
     logs_dir = os.path.join(base_dir, "logs")
     os.makedirs(logs_dir, exist_ok=True)
 
-    log_file = os.path.join(logs_dir, f"{basename}_{timestamp}.log")
+    log_file= os.path.join(logs_dir, f"{basename}_{timestamp}.log")
 
     # Persistent rolling resync.log
-    resync_log = os.path.join(logs_dir, "resync.log")
-    with open(resync_log, "a", encoding="utf-8") as f:
-        f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
-                f"Resync called on URL={url}, file={filename} timestamp={timestamp}\n")
+    #resync_log = os.path.join(logs_dir, "resync.log")
+    #with open(resync_log, "a", encoding="utf-8") as f:
+    #    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
+    #            f"Resync called on URL={url}, file={filename} timestamp={timestamp}\n")
+    logger.info(f"Resync called on URL={url}, file={filename} timestamp={timestamp}\n")
 
     import uuid
     run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
@@ -80,8 +95,8 @@ def resync(url: str, userlogin):
 
         output_lines = []
         for line in process.stdout:
-            logger.info(line.strip())
-            log.write(line)
+            #logger.info(line.strip())   # do not echo the subprocess output to rsync log file!
+            log.write(line) # this write stdout to the table specific log file as intended.
             output_lines.append(line.strip())
 
         process.wait()
@@ -92,6 +107,7 @@ def resync(url: str, userlogin):
 
         return output_lines
 
+    '''
     def run_post_import_resync_chain(csv_files, file_url, input_file):
         def extract_substring_from_csv(path):
             m = re.match(rf"{re.escape(input_file)}\.(.+)\.jira\.csv", os.path.basename(path))
@@ -126,17 +142,7 @@ def resync(url: str, userlogin):
                     continue
                 else:
                     break
-
-    def process_exec_summary(file_url, input_file, timestamp):
-        yaml_pattern = os.path.join(work_dir, f"{input_file}.ExecSummary.{timestamp}.*scope.yaml")
-        yaml_files = glob.glob(yaml_pattern)
-        if not yaml_files:
-            msg = f"No ExecSummary YAML files found matching pattern {yaml_pattern}"
-            logger.warning(msg)
-            log.write(msg + "\n")
-            return
-        
-
+    '''
 
 
     def process_yaml(file_url, input_file, timestamp):
@@ -210,11 +216,33 @@ def resync(url: str, userlogin):
                     # all files are process now so end the loop
                     break
 
-    with open(log_file, "a", encoding="utf-8") as log:
+    def process_aibrief_yaml(file_url, input_file, timestamp):
+        yaml_pattern = os.path.join(work_dir, f"{input_file}.*.{timestamp}.aisummary.yaml")
+        yaml_files = glob.glob(yaml_pattern)
+        if not yaml_files:
+            msg = f"No aisummary.yaml files found matching pattern {yaml_pattern}"
+            logger.warning(msg)
+            log.write(msg + "\n")
+            return
+
+        def extract_substring(path):
+            m = re.match(rf"{re.escape(input_file)}\.(.+)\.aisummary\.yaml", os.path.basename(path))
+            return m.group(1) if m else ""
+
+        yaml_files.sort(key=extract_substring)
+
+        for yaml_file in yaml_files:
+            logger.info(f"start processing {yaml_file}")
+                
+
+
+    with open(log_file, "w", encoding="utf-8") as log:
         try:
             run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+            logger.info("about to call process_yaml")
             process_yaml(url, filename, timestamp)
-            process_exec_summary(url, filename, timestamp)
+            process_aibrief_yaml(url, filename, timestamp)
+            logger.info("about to call process_aibrief_yaml")
         except Exception as e:
             err_msg = f"Error running resync: {e}"
             logger.exception(err_msg)

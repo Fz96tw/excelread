@@ -127,10 +127,7 @@ def process_jira_table_blocks(filename):
         #print(f"Printing flag is {'ON' if printing else 'OFF'} for row {row[0].row}")
         #print(f"Import mode is {'ON' if import_mode else 'OFF'}")
 
-        if printing and execsummary_mode:
-            print("This is ExecSummary table")
-
-        elif printing and not import_mode:
+        if printing and not import_mode:
             print("About to process update row.")
             first_cell = row[field_index_map["key"]].value
    
@@ -402,18 +399,18 @@ if __name__ == "__main__":
     xlfile = sys.argv[2]
     print(f"Received argument: {xlfile}")
 
+    import_mode = False
+    execsummary_mode = False
+
     if "import" in jiracsv.lower():
         print("Import mode detected based on filename containing 'import'.")
         # You can set a flag or handle import-specific logic here if needed
         import_mode = True
-    else:
-        import_mode = False
 
     if "aisummary" in jiracsv.lower():
         print("This file is ExecSummary")
         execsummary_mode = True
-    else:
-        execsummary_mode = False
+
 
     field_index_map, jira_data_in = load_jira_file(jiracsv)
     print(f"Loaded {len(jira_data)} records from {jiracsv}")
@@ -427,9 +424,7 @@ if __name__ == "__main__":
         print(f"lowercased {key}: {record}")
 
     if (execsummary_mode):
-        print("Call Execsummary processor now")
-        #process_execsummary_table_blocks(xlfile)
-        #process_jira_table_blocks(xlfile)
+        print(f"Skipping file {jiracsv} since it is an intended for <ai brief> post processing")
     else:
         process_jira_table_blocks(xlfile)
     
