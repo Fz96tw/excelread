@@ -187,10 +187,14 @@ def load_schedules(sched_file, userlogin=None):
             print(f"loading schedule file = {sched_file}")
             schedules = json.load(f)
             # Only return schedules belonging to this user
+            '''
             if (userlogin is not None):
                 return [s for s in schedules if s.get("userlogin") == userlogin]
             else:
                 return schedules
+            '''
+            return schedules
+            
     return []
 
 
@@ -500,8 +504,8 @@ def index():
     
     schedule_dict = {}
     for s in schedules:  # schedules = load_schedules(user_sched_file, current_user.username)
-        if s.get("userlogin") == current_user.username:
-            schedule_dict[s["filename"]] = s
+        #if s.get("userlogin") == current_user.username:
+         schedule_dict[s["filename"]] = s
 
     #schedule_jobs(user_sched_file)   #schedule ALL the jobs in the schedules.json since we are starting up
 
@@ -635,7 +639,7 @@ def schedule_file():
     #existing = next((s for s in schedules if s["filename"] == filename and s.get("userlogin") == userlogin), None)
     existing = None
     for s in schedules:
-        if s["filename"] == filename and s["userlogin"] == userlogin:
+        if s["filename"] == filename: #and s["userlogin"] == userlogin:
             existing = s
 
     if existing:
@@ -685,7 +689,8 @@ def clear_schedule():
             schedules = json.load(f)
     '''
     # Remove the schedule for this file
-    schedules = [s for s in schedules if s["filename"] != filename or s["userlogin"] != userlogin]
+    #schedules = [s for s in schedules if s["filename"] != filename or s["userlogin"] != userlogin]
+    schedules = [s for s in schedules if s["filename"] != filename]
 
     # Save back
     with open(user_sched_file, "w") as f:

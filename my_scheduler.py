@@ -65,7 +65,8 @@ def make_job_id(userlogin: str, filename: str) -> str:
     file_hash = hashlib.sha1(filename.encode("utf-8")).hexdigest()[:12]  # 12 chars is plenty
 
     # Build a short job_id like: "userlogin::abc123..."
-    job_id = f"{userlogin}::{file_hash}"
+    #job_id = f"{userlogin}::{file_hash}"
+    job_id = file_hash
     return job_id
 
 
