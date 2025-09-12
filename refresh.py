@@ -77,6 +77,7 @@ def resync(url: str, userlogin):
     create_jira_script = os.path.join(base_dir, "create_jira.py")
     update_excel_script = os.path.join(base_dir, "update_excel.py")
     update_sharepoint_script = os.path.join(base_dir, "update_sharepoint.py")
+    aibrief_script = os.path.join(base_dir, "aibrief.py")
 
     def run_and_log(cmd, log, desc):
         """Run a command and log output."""
@@ -231,8 +232,15 @@ def resync(url: str, userlogin):
 
         yaml_files.sort(key=extract_substring)
 
+        if yaml_files:
+            logger.info(f"aisummary.yaml files found =  {yaml_files}")
+        else:
+            logger.info("No aisummary.yaml files found")
+
         for yaml_file in yaml_files:
-            logger.info(f"start processing {yaml_file}")
+            logger.info(f"Start processing {yaml_file}")
+            run_and_log(["python", "-u", aibrief_script, yaml_file, timestamp], log, f"aibrief.py params = {yaml_file}, {timestamp}")
+
                 
 
 
