@@ -50,7 +50,7 @@ def extract_ai_summary_table_list(text: str, timestamp) -> list[str]:
     
     # Split by commas and normalize
 #    return [s.strip().replace(" ", "_") for s in substrings.split(",") if s.strip()]
-    return [s.strip().replace(" ", "_") + "." + timestamp for s in substrings.split(",") if s.strip()]
+    return [s.strip().replace(" ", "_") for s in substrings.split(",") if s.strip()]
 
 
 def write_execsummary_yaml():
@@ -164,10 +164,10 @@ if __name__ == "__main__":
                 break   # break out of for loop and continue with next row
             
             
-            elif "<jira>" in cell_str and len(str(cell_str)) > 6:  # greater than 6 because a table name is expected
+            elif ("<jira>" in cell_str and len(str(cell_str)) > 6) or ("<ai brief>" in cell_str and len(str(cell_str)) > 9):  # greater than 6 because a table name is expected
                 if jira_table_found:
                 
-                    print("Found a NEW 'Jira Table'")
+                    print("Found a NEW <jira> table or <ai brief> table")
 
                     if jira_fields and jira_create_rows:
                             jira_fields.append({"value": "row", "index": -1})

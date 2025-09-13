@@ -34,6 +34,24 @@ class OllamaSummarizer:
         except Exception as e:
             print(f"[ERROR] Failed to check/warm up model: {e}")
 
+
+    def summarize_str(self, comments: str) -> str:
+            if not comments:
+                return "No comments available."
+
+            prompt = (
+                "You are a helpful assistant. Summarize the following comments "
+                "in one or two short sentences. Only summarize the content; do not add extra information. "
+                f"The following is the content you need to summarize:\n{comments}"
+            )
+
+            response = ollama.chat(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            summary = response["message"]["content"].replace("\n", "; ").replace("|", "/")
+            return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
     def summarize(self, comments: list[str]) -> str:
         if not comments:
             return "No comments available."
@@ -59,3 +77,7 @@ summarizer = OllamaSummarizer(MODEL_NAME)
 @app.post("/summarize")
 def summarize(comments: list[str]):
     return {"summary": summarizer.summarize(comments)}
+
+@app.post("/summarize_str")
+def summarize(comments: str):
+    return {"summary": summarizer.summarize_str(comments)}

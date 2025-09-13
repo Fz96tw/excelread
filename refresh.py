@@ -55,7 +55,7 @@ def resync(url: str, userlogin):
     base_dir = os.path.dirname(__file__)
 
     logs_dir = os.path.join(base_dir, "logs")
-    os.makedirs(logs_dir, exist_ok=True)
+    os.makedirs(logs_dir, exist_ok=True) 
 
     log_file= os.path.join(logs_dir, f"{basename}_{timestamp}.log")
 
@@ -240,7 +240,36 @@ def resync(url: str, userlogin):
         for yaml_file in yaml_files:
             logger.info(f"Start processing {yaml_file}")
             run_and_log(["python", "-u", aibrief_script, yaml_file, timestamp], log, f"aibrief.py params = {yaml_file}, {timestamp}")
+        
 
+
+    def process_aibrief_changes_txt(file_url, input_file, timestamp):
+        file_pattern = os.path.join(work_dir, f"{input_file}.*.aisummary.changes.txt")
+        changes_files = glob.glob(file_pattern)
+        if not changes_files:
+            msg = f"No aisummary.changes.txt files found matching pattern {file_pattern}"
+            logger.warning(msg)
+            log.write(msg + "\n")
+            return
+
+        def extract_substring(path):
+            m = re.match(rf"{re.escape(input_file)}\.(.+)\.aisummary\.yaml", os.path.basename(path))
+            return m.group(1) if m else ""
+
+        changes_files.sort(key=extract_substring)
+
+        if changes_files:
+            logger.info(f"aisummary.changes.txt files found =  {changes_files}")
+        else:
+            logger.info("No aisummary.changes.txt files found")
+
+        for changes_file in changes_files:    
+            logger.info(f"Updating SharePoint for {url} with changes from {changes_file}...")
+            output_lines = run_and_log(
+                ["python", "-u", update_sharepoint_script, url, changes_file, timestamp],
+                log,
+                f"update_sharepoint.py {url} {changes_file} {timestamp}"
+            )
                 
 
 
@@ -249,8 +278,17 @@ def resync(url: str, userlogin):
             run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
             logger.info("about to call process_yaml")
             process_yaml(url, filename, timestamp)
-            process_aibrief_yaml(url, filename, timestamp)
             logger.info("about to call process_aibrief_yaml")
+            process_aibrief_yaml(url, filename, timestamp)
+
+            # need to download xlsx file again since process_yaml earlier updated
+            # sharepoint and this means the meta data will not match any longer 
+            logger.info(f"Re-downloading {url}...")
+            run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+
+            logger.info("about to call process_aibrief_changes_txt")
+            process_aibrief_changes_txt(url, filename, timestamp)
+
         except Exception as e:
             err_msg = f"Error running resync: {e}"
             logger.exception(err_msg)
