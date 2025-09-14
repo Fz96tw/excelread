@@ -20,14 +20,16 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key")  # Use a real secret in production
 
 
-FOO_FILE = '.env'
-BAR_FILE = '.bar'
+FOO_FILE = './config/.env'
+BAR_FILE = './config/.bar'
 BANNER_PATH = '/static/banner3.jpg'  # put banner.jpg in static folder
 
 # -------------------------------
 # TOKEN MANAGEMENT
 # -------------------------------
-load_dotenv()
+#load_dotenv()
+# load .env from config folder
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "config", ".env"))
 CLIENT_ID = os.environ.get("CLIENT_ID")  # From Azure AD app registration
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET")  # From Azure AD app registration
 TENANT_ID = os.environ.get("TENANT_ID")  # From Azure AD app registration
@@ -37,7 +39,7 @@ AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 REDIRECT_PATH = "/getAToken"
 REDIRECT_URI = f"http://localhost:5000{REDIRECT_PATH}"
 
-TOKEN_CACHE_FILE = "token_cache.json"
+TOKEN_CACHE_FILE = "./config/token_cache.json"
 
 
 
@@ -144,7 +146,7 @@ import json
 import os
 from datetime import datetime
 
-USERS_FILE = "users.json"
+USERS_FILE = "./config/users.json"
 LOCK_FILE = USERS_FILE + ".lock"
 
 def load_users():
@@ -416,7 +418,7 @@ userlogin = None
 
 
 # File to store schedules
-SCHEDULE_FILE = "schedules.json"
+SCHEDULE_FILE = "./config/schedules.json"
 
 # Ensure file exists
 if not os.path.exists(SCHEDULE_FILE):
@@ -448,22 +450,22 @@ def job_listener(event):
         )
 
 
-if __name__ != "__main__" or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-    scheduler = BackgroundScheduler()
-    if not scheduler.running:
-        scheduler.start()
-        scheduler.add_job(
-            dump_job_status, 
-            "interval", 
-            minutes=5, 
-            args=[scheduler], 
-            id="__status_dumper__", 
-            replace_existing = True,
-            misfire_grace_time=300,  # 5 minutes to prevent skipping of jobs when delays occur)
-            max_instances=1 )  # don't start new one if previous still running
-        scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
-        # Setup all the schedules since app is starting up
-        schedule_jobs(scheduler,SCHEDULE_FILE)
+#if __name__ != "__main__" or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+scheduler = BackgroundScheduler()
+if not scheduler.running:
+    scheduler.start()
+    scheduler.add_job(
+        dump_job_status, 
+        "interval", 
+        minutes=5, 
+        args=[scheduler], 
+        id="__status_dumper__", 
+        replace_existing = True,
+        misfire_grace_time=300,  # 5 minutes to prevent skipping of jobs when delays occur)
+        max_instances=1 )  # don't start new one if previous still running
+    scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
+    # Setup all the schedules since app is starting up
+    schedule_jobs(scheduler,SCHEDULE_FILE)
 
 
 
@@ -702,7 +704,6 @@ def clear_schedule():
 
     return jsonify({"success": True})
 
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
 
-
-if __name__ == '__main__':
-    app.run(debug=True)

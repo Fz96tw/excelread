@@ -1,0 +1,22 @@
+FROM ollama/ollama
+WORKDIR /summarizer
+
+
+# Copy your app code
+COPY . .
+
+# Install tzdata and set timezone (same as Flask app)
+RUN apt-get update && \
+    apt-get install -y tzdata && \
+    ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=America/New_York
+
+EXPOSE 11434
+
+# Expose Ollama port
+EXPOSE 11434
+
+CMD ["serve"]

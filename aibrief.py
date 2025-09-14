@@ -11,6 +11,7 @@ from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 
 
+
 # this is how this script is called from resync, note the paramter list
 # run_and_log(["python", "-u", proc_aisummary_script, yaml_file, timestamp], log, f"proc_aisummary.py {yaml_file}, {timestamp}")
 
@@ -89,6 +90,10 @@ print(f"{yaml_file} contains refer_tables: {refer_tables}")
 import requests
 from requests.auth import HTTPBasicAuth
 
+
+# Default to localhost unless overridden in env variable (set when in Docker)
+SUMMARIZER_HOST = os.getenv("SUMMARIZER_HOST", "http://localhost:8000")
+
 def get_summarized_comments(context, sysprompt):
     """
     Summarize comments for LLM processing.
@@ -113,7 +118,8 @@ def get_summarized_comments(context, sysprompt):
     prompt_list = [prompt]
 
     print("calling LLM...")
-    resp = requests.post("http://localhost:8000/summarize", json=prompt_list)
+    #resp = requests.post("http://localhost:8000/summarize", json=prompt_list)
+    resp = requests.post(f"{SUMMARIZER_HOST}/summarize", json=prompt_list)
 
     if resp.status_code == 200:
         full_response = resp.json()["summary"]

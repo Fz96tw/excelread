@@ -23,6 +23,8 @@ JIRA_MAX_RESULTS = 50
 
 model_name = "llama3.2:1b"  # Default model name
 
+# Default to localhost unless overridden in env variable (set when in Docker)
+SUMMARIZER_HOST = os.getenv("SUMMARIZER_HOST", "http://localhost:8000")
 
 '''
 class OllamaSummarizer:
@@ -122,7 +124,7 @@ def get_summarized_comments(comments_list_asc):
     # If you only have one string, wrap it in a list.
     comments = [comments_str]
 
-    resp = requests.post("http://localhost:8000/summarize", json=comments)
+    resp = requests.post(f"{SUMMARIZER_HOST}/summarize", json=comments)
 
     if resp.status_code == 200:
         full_response = resp.json()["summary"]

@@ -61,7 +61,7 @@ def write_execsummary_yaml():
     # step 4 read_jira will process this yaml downstream
     print("ExecSumamry processing now")
     #cleaned_value = "ExecSummary"
-    execsummary_scope_output_file = f"{filename}.{file_info["table"]}.{timestamp}.aisummary.scope.yaml"
+    execsummary_scope_output_file = f"{filename}.{file_info['table']}.{timestamp}.aisummary.scope.yaml"
 
 
     file_info["scope file"] = execsummary_scope_output_file

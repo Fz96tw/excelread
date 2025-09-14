@@ -1,10 +1,13 @@
 from fastapi import FastAPI
 import ollama
+import os
 from datetime import datetime
 
 app = FastAPI()
 MODEL_NAME = "llama3.2:1b"
 
+# used with running in Docker
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
 class OllamaSummarizer:
     def __init__(self, model_name=MODEL_NAME):
@@ -29,6 +32,7 @@ class OllamaSummarizer:
                 ollama.chat(
                     model=self.model_name,
                     messages=[{"role": "user", "content": "Hello"}],
+                    host=OLLAMA_HOST
                 )
                 print(f"[INFO] {self.model_name} warmed up and ready.")
         except Exception as e:
@@ -48,6 +52,7 @@ class OllamaSummarizer:
             response = ollama.chat(
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
+                host=OLLAMA_HOST
             )
             summary = response["message"]["content"].replace("\n", "; ").replace("|", "/")
             return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"

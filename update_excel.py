@@ -168,7 +168,9 @@ def process_jira_table_blocks(filename):
                                 target_cell.style = "Hyperlink"
                             '''
                             # Save coordinate + value to list
-                            change_list.append(f"{target_cell.coordinate}={cell_value.replace("\n",";")}||{old_value}")
+                            cv = cell_value.replace('\n',';')
+                            change_list.append(f"{target_cell.coordinate}={cv}||{old_value}")
+                            #change_list.append(f"{target_cell.coordinate}={cell_value.replace('\n',';')}||{old_value}")
             else:
                 print(f"No data found for {first_cell} in jira_data.")
         
@@ -203,7 +205,7 @@ def process_jira_table_blocks(filename):
                 print("First cell is blank")
                 print(f"Import mode: Adding new row for {first_cell}")
    
-                print(f"Updating row {row[field_index_map["key"]].row} with data for {first_cell}")
+                print(f"Updating row {row[field_index_map['key']].row} with data for {first_cell}")
                 k, record = jira_data.popitem()
                 for field, index in field_index_map.items():
                     print(f"Checking field {field} at index {index}")
@@ -230,7 +232,9 @@ def process_jira_table_blocks(filename):
                                 target_cell.style = "Hyperlink"
                             
                             # Save coordinate + value to list
-                            change_list.append(f"{target_cell.coordinate}={cell_value.replace("\n",";")}||{old_value}")
+                            cv = cell_value.replace('\n',';')
+                            change_list.append(f"{target_cell.coordinate}={cv}||{old_value}")
+                            #change_list.append(f"{target_cell.coordinate}={cell_value.replace('\n',';')}||{old_value}")
             
             elif not jira_data and first_cell is not None:
                 if first_cell is not None: #and is_valid_jira_id(first_cell)
@@ -258,7 +262,9 @@ def process_jira_table_blocks(filename):
                         print(f"STRIKEOUT added to target_cell '{target_cell}'")
                         target_cell.font = target_cell.font.copy(strike=True)  # Apply strikeout
                         target_cell.alignment = Alignment(wrapText=True)                 
-                        change_list.append(f"{target_cell.coordinate}={target_cell.value.replace("\n",";")}||{old_value}")
+                        cv = target_cell.value.replace('\n',';')
+                        change_list.append(f"{target_cell.coordinate}={cv}||{old_value}")
+                        #change_list.append(f"{target_cell.coordinate}={target_cell.value.replace('\n',';')}||{old_value}")
                 else:
                     # now we can exit loop since not more jira_data and no more keys in key column              
                     break
@@ -294,7 +300,7 @@ def process_jira_table_blocks(filename):
                     
                     # if there are Jira IDs in the table already it means we need to update them instead of insert
                     # Call update process here. 
-                    print(f"Updating row {row[field_index_map["key"]].row} with data for {first_cell}")
+                    print(f"Updating row {row[field_index_map['key']].row} with data for {first_cell}")
                     #k, record = jira_data.popitem()
                     for field, index in field_index_map.items():
                         print(f"Checking field {field} at index {index}")
@@ -321,7 +327,9 @@ def process_jira_table_blocks(filename):
                                     target_cell.style = "Hyperlink"
                                 
                                 # Save coordinate + value to list
-                                change_list.append(f"{target_cell.coordinate}={cell_value.replace("\n",";")}||{old_value}")
+                                cv = cell_value.replace('\n',';')
+                                change_list.append(f"{target_cell.coordinate}={cv}||{old_value}")
+                                #change_list.append(f"{target_cell.coordinate}={cell_value.replace('\n',';')}||{old_value}")
 
                 else:
                     # Mark the cell for strikeout if isn't in jira_ids for this JQL result
@@ -341,8 +349,11 @@ def process_jira_table_blocks(filename):
                         target_cell.value = "STRIKEOUT " + first_cell  # add marker to indicate it needs strick out 
                         print(f"STRIKEOUT added to target_cell '{target_cell}'")
                         target_cell.font = target_cell.font.copy(strike=True)  # Apply strikeout
-                        target_cell.alignment = Alignment(wrapText=True)                 
-                        change_list.append(f"{target_cell.coordinate}={target_cell.value.replace("\n",";")}||{old_value}")
+                        target_cell.alignment = Alignment(wrapText=True)
+                        cv = target_cell.value.replace('\n',';')                 
+                        change_list.append(f"{target_cell.coordinate}={cv}||{old_value}")
+                        #change_list.append(f"{target_cell.coordinate}={target_cell.value.replace('\n',';')}||{old_value}")
+
             elif not jira_data and first_cell is None:
                 # reached row with first_cell is None. Will Exit Loop"
                 print(f"Reached row with None first_cell = {first_cell} so will break out of row scan loop")
@@ -357,7 +368,7 @@ def process_jira_table_blocks(filename):
         #while jira_data and (first_cell is None or first_cell == ""):
         while jira_data:
             last_known_row_num += 1
-            print(f"Updating row {row[field_index_map["key"]].row}")
+            print(f"Updating row {row[field_index_map['key']].row}")
             k, record = jira_data.popitem()
             for field, index in field_index_map.items():
                 print(f"Checking field {field} at index {index}")
@@ -379,7 +390,9 @@ def process_jira_table_blocks(filename):
                         #target_cell.alignment = Alignment(wrapText=True)
                         
                         # Save coordinate + value to list
-                        change_list.append(f"{target_cell_coordinate}={cell_value.replace("\n",";")}||{old_value}")
+                        cv = cell_value.replace('\n',';')
+                        change_list.append(f"{target_cell_coordinate}={cv}||{old_value}")
+                        #change_list.append(f"{target_cell_coordinate}={cell_value.replace('\n',';')}||{old_value}")
 
 
 

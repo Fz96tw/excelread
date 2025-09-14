@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+
+  ollama:
+      image: llama:latest  # or the appropriate Ollama image
+      container_name: llama
+      ports:
+        - "11434:11434"           # default Ollama API port
+      restart: unless-stopped
+      networks:
+        - appnet
+
+
+  ia-connector:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    depends_on:
+      - summarizer
+    networks:
+      - appnet
+    volumes:
+      - config:/appnew/config
+    environment:
+      - SUMMARIZER_HOST=http://summarizer:8000
+
+
+  summarizer:
+    build:
+      context: ./
+      dockerfile: Dockerfile.summarizer
+    ports:
+      - "8000:8000"
+    depends_on:
+      - ollama
+    networks:
+      - appnet
+    volumes:
+      - config:/summarizer/config
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    
+networks:
+  appnet:
+    driver: bridge
+
+volumes:
+  config:
