@@ -112,12 +112,12 @@ def get_summarized_comments(context, sysprompt):
     # If you only have one string, wrap it in a list.
     #context = [comments_str]
 
-    prompt = sysprompt + "\n\n" + context
+    prompt = sysprompt + ".\n\n" + context
     #prompt = sysprompt + "\n\n" + "\n".join(context)
 
     prompt_list = [prompt]
 
-    print("calling LLM...")
+    print(f"calling LLM with prompt = {prompt_list[0][:255]}...")
     #resp = requests.post("http://localhost:8000/summarize", json=prompt_list)
     resp = requests.post(f"{SUMMARIZER_HOST}/summarize", json=prompt_list)
 
@@ -275,7 +275,7 @@ with open(filename, "w", encoding="utf-8") as f:
     f.write(aibrief_context)
 print(f"Context saved to {filename}")
 
-sysprompt = "summarize the following as brief project status report for executive sumamry. highlight all milestones,  risks or blocking issues."
+sysprompt = "The following text is a csv data separated by | character.  Read all of it and summarize briefly as possible in the form of project status report for executive sumamry. highlight all milestones,  risks or blocking issues."
 
 if isinstance(aibrief_context, list):
     aibrief_context = "\n".join(aibrief_context)

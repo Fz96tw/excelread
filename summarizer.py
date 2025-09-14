@@ -62,8 +62,6 @@ class OllamaSummarizer:
             return "No comments available."
 
         prompt = (
-            "You are a helpful assistant. Summarize the following comments "
-            "in one or two short sentences. Only summarize the content; do not add extra information. "
             f"The following is the content you need to summarize:\n{comments}"
         )
 
