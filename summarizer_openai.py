@@ -55,13 +55,13 @@ class OpenAISummarizer:
 
 
 # Create one global summarizer instance
-summarizer = OpenAISummarizer(MODEL_NAME)
+openai_summarizer = OpenAISummarizer(MODEL_NAME)
 
 
 @app.post("/summarize")
 def summarize(comments: list[str]):
-    return {"summary": summarizer.summarize(comments)}
+    return {"summary": openai_summarizer.summarize(comments)}
 
 @app.post("/summarize_str")
 def summarize_str(comments: str):
-    return {"summary": summarizer.summarize_str(comments)}
+    return {"summary": openai_summarizer.summarize_str(comments)}

@@ -6,6 +6,8 @@ WORKDIR /summarizer
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+RUN pip install openai
+
 # Copy your app code
 COPY . .
 

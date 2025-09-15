@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import re
 import ollama
 from datetime import datetime
+import json
 
 # Cache dictionary to avoid repeated calls
 user_cache = {}
@@ -26,56 +27,9 @@ model_name = "llama3.2:1b"  # Default model name
 # Default to localhost unless overridden in env variable (set when in Docker)
 SUMMARIZER_HOST = os.getenv("SUMMARIZER_HOST", "http://localhost:8000")
 
-'''
-class OllamaSummarizer:
-    def __init__(self, model_name):
-        self.model_name = model_name
-        print(f"[INFO] Initializing Ollama model: {self.model_name}")
-        # Warm up the model by sending a trivial prompt
-        self._warm_up()
 
-    def _warm_up(self):
-        try:
-            ollama.chat(
-                model=self.model_name,
-                messages=[{"role": "user", "content": "Hello"}]
-            )
-            print(f"[INFO] Model {self.model_name} is warmed up and ready.")
-        except Exception as e:
-            print(f"[ERROR] Failed to warm up model: {e}")
+LLMCONFIG_FILE = "../../../config/llmconfig.json"
 
-    def summarize_comments(self, comments_list):
-        if not comments_list:
-            return "No comments available."
-
-        #comments_str = "; ".join(comments_list)
-        # Safety-aware prompt template
-        prompt = (
-            "You are a helpful assistant. Summarize the following comments "
-            "in one or two short sentences. Only summarize the content; do not add extra information. Do not expand any abbreviations used here "
-            "or provide opinions. Keep it concise and clear. "
-            + user_prompt + "\nThe following is the content you need to summarize:\n" + comments_list
-        )
-        print(f"Prompt for summarization: {prompt}")
-        try:
-            # Non-streaming call is faster
-            response = ollama.chat(
-                model=self.model_name,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            summary = response["message"]["content"]
-            print(f"[INFO] Summary generated successfully. {summary}")
-        except Exception as e:
-            return f"[ERROR] Ollama chat failed: {e}"
-
-        # Clean up formatting
-        summary = summary.replace("\n", "; ").replace("|", "/")
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        return f"({model_name}) {summary}"
-
-# Initialize once
-summarizer = OllamaSummarizer(model_name)
-'''
 
 def get_summarized_comments(comments_list_asc):
     """
@@ -90,41 +44,18 @@ def get_summarized_comments(comments_list_asc):
         comments_str = "; ".join(comments_list_asc)
     else:
         comments_str = comments_list_asc  # already a string
-    
-    # Join comments into a single string separated by semicolons
-    #comments_str = "; ".join(comments_list_asc)
-    '''
-    #model_name = "falcon:7b"
-    model_name = "llama3.2:1b"
-    prompt = (
-       # "This is a chronological sequence of notes for an Jira issue. Summarize the following text into 1 or 2 short sentences using only words already included. Do not expand any abbreviations."
-       # "Do not add any newlines in the summary. Only summarize what is included here, do not add any additional information"
-        "Summarize the following as briefly as possible:"
-        f"{comments_str}"
-    )
-    
-        # Stream the response from Ollama and accumulate
-        print("Creating ollama chat stream")
-        stream = ollama.chat(
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
-            stream=True
-        )
 
-        full_response = ""
-        for chunk in stream:
-            full_response += chunk['message']['content']
-            print(chunk['message']['content'], end="", flush=True)
-        print()  # Final newline        
-    '''
-    #full_response = summarizer.summarize_comments(comments_str)
     
-
     # comments_str was a single string before, but the service expects a list[str].
     # If you only have one string, wrap it in a list.
     comments = [comments_str]
 
-    resp = requests.post(f"{SUMMARIZER_HOST}/summarize", json=comments)
+    if llm_model == "OpenAI":
+        ENDPOINT = "/summarize_openai"
+    else:
+        ENDPOINT = "/summarize_local"
+    
+    resp = requests.post(f"{SUMMARIZER_HOST}{ENDPOINT}", json=comments)
 
     if resp.status_code == 200:
         full_response = resp.json()["summary"]
@@ -228,6 +159,21 @@ def move_brackets_to_front(lines):
     return result
 
 
+def get_llm_model(llm_config_file):
+    print("Current working directory:", os.getcwd())  # <-- debug
+    if os.path.exists(llm_config_file):
+        with open(llm_config_file, "r") as f:
+            llm_model_set = json.load(f)
+            m = llm_model_set.get("model")
+            print(f"get_llm_model returning  {m}")
+            return m
+    else:
+        print(f"ERROR: load_llm_config file {llm_config_file} was not found")
+    
+    return None
+
+
+
 if len(sys.argv) != 3:
     print("Usage: python read_jira.py <yaml_file>")
     sys.exit(1)
@@ -276,8 +222,9 @@ else:
     output_file = basename + "." + tablename + "." + timestamp + ".jira.csv"
 
 
-
-
+llm_model = get_llm_model(LLMCONFIG_FILE)
+if not llm_model:
+    llm_model = "Local"
 
 fields = data.get('fields', [])
 field_values = [field.get('value') for field in fields if 'value' in field]

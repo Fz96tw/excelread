@@ -131,6 +131,7 @@
     <div class="menu-bar">
         <button id="btn-section1"><img src="/static/jiraicon.png" alt="Jira Icon"><span>Jira</span></button>
         <button id="btn-section2" class="active"><img src="/static/sharepointicontransparent.png" alt="SharePoint Icon"><span>Sharepoint</span></button>
+        <button id="btn-section4"><img src="/static/llmicon.png" alt="LLM Icon"><span>LLM Model</span></button>
         <button id="btn-section3"><img src="/static/debuglogs.png" alt="Debug Logs Icon"><span>Logs</span></button>
         <!-- Display user login -->
         <button id="btn-exit" onclick="window.location.href='/logout'"><img src="/static/exiticon.png" alt="Exit Icon"><span>Logout</span></button>
@@ -181,6 +182,7 @@
                     <tr>
                         <th style="text-align:center; padding:6px;"> </th>
                         <th style="text-align:left; padding:6px;"> </th>
+                        <th style="text-align:left; padding:6px;"> Username </th>
                         <th style="text-align:left; padding:6px;">Schedule</th>
                         <th style="text-align:center; padding:6px;">Run</th>
                         <th style="text-align:center; padding:6px;">Remove</th>
@@ -191,7 +193,7 @@
                     <tr>
                         <td style="text-align:left; padding:6px;">{{ loop.index }}</td>
                         <td style="padding:6px;"><a href="{{ val }}" target="_blank">{{ val }}</a></td>
-                        
+                        <td style="padding:6px;">foo</td>
                         <td style="text-align:left; padding:6px;">
                             <button type="button" class="table-btn" onclick="openSchedule('{{ val }}')">
                                 <img src="/static/schedule-icon.png" alt="Schedule">
@@ -243,6 +245,25 @@
             </ul>
         </div>
     </div>
+
+    <!-- Section 4: LLM Model -->
+    <div id="section4" class="section-content">
+        <h2><img src="/static/llmicon.png" alt="LLM Icon" style="width:60px;">Configure LLM Model</h2>
+        <form id="llmForm" class="left-form">
+            <label for="llmSelect">Select LLM Model:</label>
+            <select id="llmSelect" name="llm_model">
+                <option value="Local" {% if llm_default == 'Local' %}selected{% endif %}>Local</option>
+                <option value="OpenAI" {% if llm_default == 'OpenAI' %}selected{% endif %}>OpenAI</option>
+            </select>
+             <label>OpenAI API Token:</label>
+             <input type="text" name="openai_token" value="{{ foo_values.get('jira_token', '') }}">
+            <button type="submit" class="table-btn" style="width:150px; margin-top:10px;">
+                <img src="/static/saveicontransparent.png" style="height:40px; vertical-align:middle; margin-right:4px;">
+                Save
+            </button>
+        </form>
+    </div>
+
 
     <!-- Schedule Modal -->
     <div id="scheduleModal" class="modal">
@@ -321,18 +342,56 @@
         const btnSection1 = document.getElementById('btn-section1');
         const btnSection2 = document.getElementById('btn-section2');
         const btnSection3 = document.getElementById('btn-section3');
+        const btnSection4 = document.getElementById('btn-section4');
         const section1 = document.getElementById('section1');
         const section2 = document.getElementById('section2');
         const section3 = document.getElementById('section3');
+        const section4 = document.getElementById('section4');
 
+
+        // Add new section button for LLM model configuration menu bar
+
+        btnSection4.addEventListener('click', () => showSection('section4'));
+
+        // Extend showSection to include section4
         function showSection(sectionToShow) {
-            section1.classList.remove('active'); section2.classList.remove('active'); section3.classList.remove('active');
-            btnSection1.classList.remove('active'); btnSection2.classList.remove('active'); btnSection3.classList.remove('active');
+            section1.classList.remove('active'); section2.classList.remove('active'); section3.classList.remove('active'); section4.classList.remove('active');
+            btnSection1.classList.remove('active'); btnSection2.classList.remove('active'); btnSection3.classList.remove('active'); btnSection4.classList.remove('active');
 
             if (sectionToShow === 'section1') { section1.classList.add('active'); btnSection1.classList.add('active'); }
             else if (sectionToShow === 'section2') { section2.classList.add('active'); btnSection2.classList.add('active'); }
-            else { section3.classList.add('active'); btnSection3.classList.add('active'); }
+            else if (sectionToShow === 'section3') { section3.classList.add('active'); btnSection3.classList.add('active'); }
+            else { section4.classList.add('active'); btnSection4.classList.add('active'); }
         }
+
+        // Fetch default model from backend on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            fetch('/getmodel')
+            .then(res => res.json())
+            .then(data => {
+                if(data.default_model) document.getElementById('llmSelect').value = data.default_model;
+            })
+            .catch(err => console.error('Failed to fetch default model:', err));
+        });
+
+        // Submit selected model to backend
+        document.getElementById('llmForm').addEventListener('submit', function(event){
+            event.preventDefault();
+            const selectedModel = document.getElementById('llmSelect').value;
+            fetch('/setmodel', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({model: selectedModel})
+            })
+            .then(res => {
+                if(res.ok) showToast(`✅ LLM model set to ${selectedModel}`);
+                else showToast('❌ Failed to set model', false);
+            })
+            .catch(()=> showToast('❌ Error connecting to server', false));
+        });
+
+
+
 
         btnSection1.addEventListener('click', () => showSection('section1'));
         btnSection2.addEventListener('click', () => showSection('section2'));
@@ -534,7 +593,7 @@
             });
         });
 
-    const scheduleData = {{ schedule_dict | tojson }};
+        const scheduleData = {{ schedule_dict | tojson }};
 
     </script>
 </body>

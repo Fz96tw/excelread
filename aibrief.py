@@ -16,12 +16,36 @@ from openpyxl.utils import get_column_letter
 # run_and_log(["python", "-u", proc_aisummary_script, yaml_file, timestamp], log, f"proc_aisummary.py {yaml_file}, {timestamp}")
 
 
+import json
+LLMCONFIG_FILE = "../../../config/llmconfig.json"
+
+def get_llm_model(llm_config_file):
+    print("Current working directory:", os.getcwd())  # <-- debug
+    if os.path.exists(llm_config_file):
+        with open(llm_config_file, "r") as f:
+            llm_model_set = json.load(f)
+            m = llm_model_set.get("model")
+            print(f"get_llm_model returning  {m}")
+            return m
+    else:
+        print(f"ERROR: load_llm_config file {llm_config_file} was not found")
+    
+    return None
+
+
 if len(sys.argv) < 3:
     print("Usage: python aisummary.py <yaml_file> <timestamp>")
     sys.exit(1)
 
 yaml_file = sys.argv[1]
 timestamp = sys.argv[2]
+
+
+
+llm_model = get_llm_model(LLMCONFIG_FILE)
+if not llm_model:
+    llm_model = "Local"
+
 
 with open(yaml_file, 'r') as f:
     data = yaml.safe_load(f)
@@ -116,10 +140,15 @@ def get_summarized_comments(context, sysprompt):
     #prompt = sysprompt + "\n\n" + "\n".join(context)
 
     prompt_list = [prompt]
-
     print(f"calling LLM with prompt = {prompt_list[0][:255]}...")
+
+    if llm_model == "OpenAI":
+        ENDPOINT = "/summarize_openai"
+    else:
+        ENDPOINT = "/summarize_local"
+
     #resp = requests.post("http://localhost:8000/summarize", json=prompt_list)
-    resp = requests.post(f"{SUMMARIZER_HOST}/summarize", json=prompt_list)
+    resp = requests.post(f"{SUMMARIZER_HOST}{ENDPOINT}", json=prompt_list)
 
     if resp.status_code == 200:
         full_response = resp.json()["summary"]

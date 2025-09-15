@@ -6,7 +6,7 @@ import requests
 import msal
 import uuid
 from pathlib import Path
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key 
 from flask import flash
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR 
@@ -182,6 +182,17 @@ def load_user(user_id):
     return None
 
 
+def load_llm_config(llm_config_file):
+    print("Current working directory:", os.getcwd())  # <-- debug
+    if os.path.exists(llm_config_file):
+        with open(llm_config_file, "r") as f:
+            print(f"loading llm config file = {llm_config_file}")
+            llm_model_set = json.load(f)
+            return llm_model_set
+    else:
+        print(f"ERROR: load_llm_config file {llm_config_file} was not found")
+    
+    return None
 
 def load_schedules(sched_file, userlogin=None):
     if os.path.exists(sched_file):
@@ -414,11 +425,18 @@ def home():
     
     return render_template('login.html')  # Renders login.html from the templates folder
 
-userlogin = None
 
+# these are globals
+
+userlogin = None
+llm_model = "Local"
 
 # File to store schedules
 SCHEDULE_FILE = "./config/schedules.json"
+LLMCONFIG_FILE = "./config/llmconfig.json"
+
+# gloabals ^^^
+
 
 # Ensure file exists
 if not os.path.exists(SCHEDULE_FILE):
@@ -473,7 +491,6 @@ if not scheduler.running:
 @app.route('/', methods=['GET', 'POST'])
 def index():
 
-
     # Make sure user is logged into AI Connector before showing main page
     #userlogin = None
     if current_user.is_authenticated:
@@ -495,21 +512,30 @@ def index():
     else:
         print(f"Schedule file already exists {user_sched_file}")
 
+    if not os.path.exists(LLMCONFIG_FILE):
+        with open(LLMCONFIG_FILE, "w") as f:
+            print(f"creating LLM config settings file = {LLMCONFIG_FILE}")
+            json.dump([], f)
+    else:
+        print(f"LLM config settings file already exists {LLMCONFIG_FILE}")
 
     # Load saved value
     foo_values = {}
     foo_lines = read_file_lines(FOO_FILE)
     schedules = load_schedules(user_sched_file,userlogin)
 
-    # Create a dictionary for quick lookup
-    #schedule_dict = {s["filename"]: s for s in schedules}
+    llm_settings_from_config_file = load_llm_config(LLMCONFIG_FILE)
+    if llm_settings_from_config_file:
+        llm_model = llm_settings_from_config_file.get("model")  # This will be 'OpenAI'
+        print(f"setting llm_model to {llm_model} from config file")
+        llm_model = llm_model
+    else:
+        print(f"setting llm_model to default LOCAL")
+        llm_model = "Local"
     
     schedule_dict = {}
-    for s in schedules:  # schedules = load_schedules(user_sched_file, current_user.username)
-        #if s.get("userlogin") == current_user.username:
+    for s in schedules:  
          schedule_dict[s["filename"]] = s
-
-    #schedule_jobs(user_sched_file)   #schedule ALL the jobs in the schedules.json since we are starting up
 
     # Extract text between the first pair of double quotes in each line
     foo_lines = [re.search(r'"(.*?)"', line).group(1) if re.search(r'"(.*?)"', line) else "" for line in foo_lines]
@@ -540,7 +566,9 @@ def index():
             jira_url = "JIRA_URL = \"" + request.form.get('jira_url', '') + "\""
             jira_user = "JIRA_EMAIL = \"" + request.form.get('jira_user', '') + "\""
             jira_token = "JIRA_API_TOKEN = \"" + request.form.get('jira_token', '') + "\""
+            print(f"saving new .env values {jira_url}, {jira_user}, {jira_token}")
             write_file_lines(FOO_FILE, [jira_url, jira_user, jira_token])
+            load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "config", ".env"))
             return redirect(url_for('index'))
 
         elif 'add_bar' in request.form:
@@ -594,10 +622,30 @@ def index():
                            logged_in=logged_in,
                            folder_tree=folder_tree,
                            schedule_dict=schedule_dict,
-                           username=userlogin)
+                           username=userlogin,
+                           llm_default=llm_model)
 
 
 
+
+@app.route("/setmodel", methods=["POST"])
+def setmodel():
+    print("/setmodel endpoint called")
+    data = request.get_json()
+    llm_model = data.get("model")
+    if not llm_model:
+        return "LLM model value not received", 400
+    
+    print(f"/setmodel setting model to {llm_model}")
+
+     # Ensure config folder exists
+    os.makedirs(os.path.dirname(LLMCONFIG_FILE), exist_ok=True)
+
+    # Save to JSON file
+    with open(LLMCONFIG_FILE, 'w') as f:
+        json.dump({"model": llm_model}, f, indent=4)
+        
+    return jsonify({"success": True, "message": "LLM Model updated successfully"})
 
 
 @app.route("/schedule", methods=["POST"])
