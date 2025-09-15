@@ -568,7 +568,7 @@ def index():
             jira_token = "JIRA_API_TOKEN = \"" + request.form.get('jira_token', '') + "\""
             print(f"saving new .env values {jira_url}, {jira_user}, {jira_token}")
             write_file_lines(FOO_FILE, [jira_url, jira_user, jira_token])
-            load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "config", ".env"))
+            
             return redirect(url_for('index'))
 
         elif 'add_bar' in request.form:
