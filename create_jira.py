@@ -198,7 +198,9 @@ jira_create_row = data.get('jira_create_rows',[])
 # Replace with your Jira Cloud credentials and URL
 
 # Load environment variables from a .env file if present
-load_dotenv()
+#load_dotenv()
+ENV_PATH = "../../../config/.env"
+load_dotenv(dotenv_path=ENV_PATH)
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
 JIRA_URL = os.environ.get("JIRA_URL")
 JIRA_EMAIL = os.environ.get("JIRA_EMAIL")

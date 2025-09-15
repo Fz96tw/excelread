@@ -13,7 +13,10 @@ import string
 # -------------------------------
 # Load env vars
 from dotenv import load_dotenv
-load_dotenv()
+#load_dotenv()
+ENV_PATH = "../../../config/.env"
+load_dotenv(dotenv_path=ENV_PATH)
+
 SCOPES = ["https://graph.microsoft.com/.default"]  # Required for client credentials flow
 CLIENT_ID = os.environ["CLIENT_ID"]
 CLIENT_SECRET = os.environ["CLIENT_SECRET"]
@@ -61,9 +64,10 @@ else:
 '''
 import_mode = False
 
+
 import re
 
-def read_jira_url(filename: str) -> str:
+def read_jira_url_not_used(filename: str) -> str:
     """
     Reads the JIRA_URL value from a config-style file.
 
@@ -73,7 +77,11 @@ def read_jira_url(filename: str) -> str:
     Returns:
         str: The JIRA URL, or None if not found.
     """
-    jira_url = None
+    jira_url = os.environ["JIRA_URL"]
+    
+    
+    
+    '''
     pattern = re.compile(r'^JIRA_URL\s*=\s*["\'](.+?)["\']')
 
     with open(filename, "r", encoding="utf-8") as file:
@@ -82,7 +90,7 @@ def read_jira_url(filename: str) -> str:
             if match:
                 jira_url = match.group(1)
                 break
-
+    '''
     return jira_url
 
 #jira_base_url = "https://fz96tw.atlassian.net"
@@ -327,7 +335,8 @@ def update_column(site_id, item_id, worksheet_name, start_cell, values, headers)
 
 
 
-jira_base_url = read_jira_url("../../../.env")
+#jira_base_url = read_jira_url("../../../.env")
+jira_base_url =  os.environ["JIRA_URL"]
 print(f"Using JIRA base URL: {jira_base_url}")
 
 # --- PARSE CHANGES FILE ---

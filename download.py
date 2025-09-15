@@ -9,7 +9,10 @@ from urllib.parse import urlparse, quote
 # -------------------------------
 # Config from environment variables
 # -------------------------------
-load_dotenv()
+#load_dotenv()
+ENV_PATH = "../../../config/.env"
+load_dotenv(dotenv_path=ENV_PATH)
+
 CLIENT_ID = os.environ["CLIENT_ID"]
 CLIENT_SECRET = os.environ["CLIENT_SECRET"]
 TENANT_ID = os.environ["TENANT_ID"]

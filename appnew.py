@@ -29,7 +29,8 @@ BANNER_PATH = '/static/banner3.jpg'  # put banner.jpg in static folder
 # -------------------------------
 #load_dotenv()
 # load .env from config folder
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "config", ".env"))
+ENV_PATH = os.path.join(os.path.dirname(__file__), "config", ".env")
+load_dotenv(dotenv_path=ENV_PATH)
 CLIENT_ID = os.environ.get("CLIENT_ID")  # From Azure AD app registration
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET")  # From Azure AD app registration
 TENANT_ID = os.environ.get("TENANT_ID")  # From Azure AD app registration
@@ -521,7 +522,16 @@ def index():
 
     # Load saved value
     foo_values = {}
-    foo_lines = read_file_lines(FOO_FILE)
+    foo_values["jira_url"] = read_env("JIRA_URL", ENV_PATH)
+    foo_values["jira_user"] = read_env("JIRA_EMAIL", ENV_PATH)
+    foo_values["jira_token"] = read_env("JIRA_API_TOKEN", ENV_PATH)
+    foo_values["openai_token"] = read_env("OPENAI_API_KEY", ENV_PATH)
+
+    print(f"Loaded following foo_values from {ENV_PATH}")
+    for key, value in foo_values.items():
+        print(f"{key}: {value}")
+
+    #foo_lines = read_file_lines(FOO_FILE)
     schedules = load_schedules(user_sched_file,userlogin)
 
     llm_settings_from_config_file = load_llm_config(LLMCONFIG_FILE)
@@ -537,7 +547,7 @@ def index():
     for s in schedules:  
          schedule_dict[s["filename"]] = s
 
-    # Extract text between the first pair of double quotes in each line
+    '''# Extract text between the first pair of double quotes in each line
     foo_lines = [re.search(r'"(.*?)"', line).group(1) if re.search(r'"(.*?)"', line) else "" for line in foo_lines]
 
     if len(foo_lines) >= 3:
@@ -546,7 +556,8 @@ def index():
             "jira_user": foo_lines[1],
             "jira_token": foo_lines[2],
         }
-
+    '''
+    
     bar_values = read_file_lines(BAR_FILE)
     
     bar_values_original = {}
@@ -563,14 +574,23 @@ def index():
    
     if request.method == 'POST':
         if 'save_foo' in request.form:
-            jira_url = "JIRA_URL = \"" + request.form.get('jira_url', '') + "\""
-            jira_user = "JIRA_EMAIL = \"" + request.form.get('jira_user', '') + "\""
-            jira_token = "JIRA_API_TOKEN = \"" + request.form.get('jira_token', '') + "\""
+            #jira_url = "JIRA_URL = \"" + request.form.get('jira_url', '') + "\""
+            #jira_user = "JIRA_EMAIL = \"" + request.form.get('jira_user', '') + "\""
+            #jira_token = "JIRA_API_TOKEN = \"" + request.form.get('jira_token', '') + "\""
+            jira_url = request.form.get('jira_url', '') 
+            jira_user = request.form.get('jira_user', '') 
+            jira_token = request.form.get('jira_token', '')
             print(f"saving new .env values {jira_url}, {jira_user}, {jira_token}")
-            write_file_lines(FOO_FILE, [jira_url, jira_user, jira_token])
+#            write_file_lines(FOO_FILE, [jira_url, jira_user, jira_token])
+            write_env("JIRA_URL",jira_url,ENV_PATH)
+            write_env("JIRA_EMAIL",jira_user,ENV_PATH)
+            write_env("JIRA_API_TOKEN",jira_token,ENV_PATH)
+            # load .env from config folder
+            load_dotenv(dotenv_path=ENV_PATH)
             
-            return redirect(url_for('index'))
-
+            #return redirect(url_for('index'))
+            return jsonify({"success": True, "message": "Jira settings updated successfully"})
+        
         elif 'add_bar' in request.form:
             new_val = request.form.get('bar_value', '').strip()
             if new_val:
@@ -626,13 +646,32 @@ def index():
                            llm_default=llm_model)
 
 
+from flask import Flask, request, jsonify
+
+@app.route("/save_jira", methods=["POST"])
+def save_jira():
+    data = request.get_json()
+    jira_url = data.get("jira_url", "")
+    jira_user = data.get("jira_user", "")
+    jira_token = data.get("jira_token", "")
+
+    print(f"Saving new .env values {jira_url}, {jira_user}, {jira_token}")
+    write_env("JIRA_URL", jira_url, ENV_PATH)
+    write_env("JIRA_EMAIL", jira_user, ENV_PATH)
+    write_env("JIRA_API_TOKEN", jira_token, ENV_PATH)
+
+    return jsonify({"success": True, "message": "Jira settings updated successfully"})
 
 
 @app.route("/setmodel", methods=["POST"])
 def setmodel():
     print("/setmodel endpoint called")
     data = request.get_json()
-    llm_model = data.get("model")
+    #llm_model = data.get("model")
+
+    llm_model = data.get("llm_model")
+    openai_token = data.get("openai_token")
+
     if not llm_model:
         return "LLM model value not received", 400
     
@@ -644,6 +683,10 @@ def setmodel():
     # Save to JSON file
     with open(LLMCONFIG_FILE, 'w') as f:
         json.dump({"model": llm_model}, f, indent=4)
+
+    write_env("OPENAI_API_KEY", openai_token,ENV_PATH)    
+    load_dotenv(dotenv_path=ENV_PATH)
+
         
     return jsonify({"success": True, "message": "LLM Model updated successfully"})
 
@@ -753,5 +796,5 @@ def clear_schedule():
     return jsonify({"success": True})
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+    app.run(host="0.0.0.0", port=6000, debug=True, use_reloader=False)
 

@@ -8,7 +8,10 @@ app = FastAPI()
 MODEL_NAME = "gpt-4o-mini"   # you can switch to gpt-4.1, gpt-4o, etc.
 
 # Load environment variables from a .env file if present
-load_dotenv()
+# load .env from config folder
+ENV_PATH = os.path.join(os.path.dirname(__file__), "config", ".env")
+load_dotenv(dotenv_path=ENV_PATH)
+
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 # OpenAI client (picks up OPENAI_API_KEY from env)

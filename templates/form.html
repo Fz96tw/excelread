@@ -61,7 +61,7 @@
             align-items: flex-start;
             gap: 5px;
             margin: 0;
-            width: 80px; /* will override for schedule modal */
+            width: 100px; /* will override for schedule modal */
         }
         .left-form label { display: block; font-weight: normal; width: 300px; }
         .left-form input, .left-form button { width: 100%; box-sizing: border-box; }
@@ -248,16 +248,24 @@
 
     <!-- Section 4: LLM Model -->
     <div id="section4" class="section-content">
-        <h2><img src="/static/llmicon.png" alt="LLM Icon" style="width:60px;">Configure LLM Model</h2>
+        <h2>
+            <img src="/static/llmicon.png" alt="LLM Icon" style="width:60px;">
+            Configure LLM Model
+        </h2>
         <form id="llmForm" class="left-form">
             <label for="llmSelect">Select LLM Model:</label>
-            <select id="llmSelect" name="llm_model">
+            <select id="llmSelect" name="llm_model"  style="width:300px; padding:6px;">
                 <option value="Local" {% if llm_default == 'Local' %}selected{% endif %}>Local</option>
                 <option value="OpenAI" {% if llm_default == 'OpenAI' %}selected{% endif %}>OpenAI</option>
             </select>
-             <label>OpenAI API Token:</label>
-             <input type="text" name="openai_token" value="{{ foo_values.get('jira_token', '') }}">
-            <button type="submit" class="table-btn" style="width:150px; margin-top:10px;">
+
+            <!-- OpenAI token field, hidden by default -->
+            <div id="openaiTokenField" style="display: none; margin-top: 10px;">
+                <label>OpenAI API Key:</label>
+                <input type="text" name="openai_token" value="{{ foo_values.get('openai_token', '') }}"  style="width:300px; padding:6px;">
+            </div>
+
+            <button type="submit" class="table-btn" style="width:100px; margin-top:10px;">
                 <img src="/static/saveicontransparent.png" style="height:40px; vertical-align:middle; margin-right:4px;">
                 Save
             </button>
@@ -375,20 +383,30 @@
         });
 
         // Submit selected model to backend
-        document.getElementById('llmForm').addEventListener('submit', function(event){
+        document.getElementById('llmForm').addEventListener('submit', function(event) {
             event.preventDefault();
+
             const selectedModel = document.getElementById('llmSelect').value;
+            const openaiToken = document.querySelector('input[name="openai_token"]').value;
+
             fetch('/setmodel', {
                 method: 'POST',
-                headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({model: selectedModel})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    llm_model: selectedModel,
+                    openai_token: openaiToken
+                })
             })
             .then(res => {
-                if(res.ok) showToast(`✅ LLM model set to ${selectedModel}`);
-                else showToast('❌ Failed to set model', false);
+                if (res.ok) {
+                    showToast(`✅ Saved LLM model: ${selectedModel}`);
+                } else {
+                    showToast('❌ Failed to save settings', false);
+                }
             })
-            .catch(()=> showToast('❌ Error connecting to server', false));
+            .catch(() => showToast('❌ Error connecting to server', false));
         });
+
 
 
 
@@ -594,6 +612,55 @@
         });
 
         const scheduleData = {{ schedule_dict | tojson }};
+
+        const llmSelect = document.getElementById('llmSelect');
+        const openaiTokenField = document.getElementById('openaiTokenField');
+
+        function toggleTokenField() {
+            if (llmSelect.value === 'OpenAI') {
+                openaiTokenField.style.display = 'block';
+            } else {
+                openaiTokenField.style.display = 'none';
+            }
+        }
+
+        // Run on page load (in case default is OpenAI)
+        toggleTokenField();
+
+        // Run when dropdown changes
+        llmSelect.addEventListener('change', toggleTokenField);
+
+
+        // Grab the Jira form
+        const jiraForm = document.querySelector('#section1 form.left-form');
+
+        // Intercept submit
+        jiraForm.addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent default page reload
+
+            // Gather form values
+            const formData = {
+                jira_url: this.querySelector('input[name="jira_url"]').value,
+                jira_user: this.querySelector('input[name="jira_user"]').value,
+                jira_token: this.querySelector('input[name="jira_token"]').value
+            };
+
+            // Send to backend via POST
+            fetch('/save_jira', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    showToast('✅ Jira settings saved');
+                } else {
+                    showToast('❌ Failed to save Jira settings', false);
+                }
+            })
+            .catch(() => showToast('❌ Error connecting to server', false));
+        });
 
     </script>
 </body>
