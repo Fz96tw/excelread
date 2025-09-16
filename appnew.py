@@ -505,6 +505,9 @@ def map_windows_path_to_container(path: str) -> str:
     return path
 
 
+bar_values = read_file_lines(BAR_FILE)
+local_file_values = read_file_lines(LOCAL_FILES)
+user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -611,19 +614,6 @@ def index():
             #return redirect(url_for('index'))
             return jsonify({"success": True, "message": "Jira settings updated successfully"})
         
-        elif 'add_local' in request.form:
-            new_val = request.form.get('local_value', '').strip()
-            if new_val:
-                print(f"add_local with local_value={new_val}")
-                if new_val not in local_file_values:
-                    container_val = map_windows_path_to_container(new_val)
-                    print(f"{container_val} added to local_file_values")   
-                    local_file_values.append(container_val)
-                    write_file_lines(LOCAL_FILES, local_file_values)                        
-                else:
-                    print(f"{new_val} already present so no action needed")
-            return redirect(url_for('index', section="local"))
-
         elif 'add_bar' in request.form:
             new_val = request.form.get('bar_value', '').strip()
             if new_val:
@@ -634,21 +624,9 @@ def index():
                     write_file_lines(BAR_FILE, bar_values)                        
                 else:
                     print(f"{new_val} already present so no action needed")
-            return redirect(url_for('index', section="sharepoint"))
-
-        elif 'remove_local' in request.form:
-            to_remove = request.form.get('remove_local')
-            print(f"remove_local called with {to_remove}")
-            if to_remove in local_file_values:
-                print(f"{to_remove} found and will be removed")
-                local_file_values.remove(to_remove)
-                write_file_lines(LOCAL_FILES, local_file_values)
-                # if file was scheduled for resync then remove from schedule.json 
-                clear_schedule_file(user_sched_file, to_remove, userlogin) 
-                schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
-            else:
-                print(f"{to_remove} not found in local_file_values , no action taken")
-            return redirect(url_for('index', section="local"))
+                    return jsonify({"success": True, "message": "File already present, no action needed"})
+                #return redirect(url_for('index', section="local"))
+                return jsonify({"success": True, "message": "File added successfully"})
 
         elif 'remove_bar' in request.form:
             to_remove = request.form.get('remove_bar')
@@ -660,10 +638,12 @@ def index():
 
                 # if file was scheduled for resync then remove from schedule.json 
                 clear_schedule_file(user_sched_file, to_remove, userlogin) 
-                schedule_job_clear(scheduler, user_sched_file, SCHEDULE_FILE, to_remove, userlogin)           
+                schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+                return jsonify({"success": True, "message": "File removed successfully"})
             else:
                 print(f"{to_remove} not found in bar_values, no action taken")
-            return redirect(url_for('index', section="sharepoint"))
+            #return redirect(url_for('index', section="local"))
+            return jsonify({"success": False, "message": "File not found"})
         
         elif 'resync_bar' in request.form:
             print("Resyncing file values...")
@@ -746,6 +726,77 @@ def setmodel():
 
         
     return jsonify({"success": True, "message": "LLM Model updated successfully"})
+
+
+@app.route("/add_sharepoint", methods=["POST"])
+def add_sharepoint():
+    new_val = request.form.get('bar_value', '').strip()
+    if new_val:
+        print(f"add_bar with bar_value={new_val}")
+        if new_val not in bar_values and new_val not in local_file_values:
+            print(f"{new_val} added to bar_values")   
+            bar_values.append(new_val)
+            write_file_lines(BAR_FILE, bar_values)                        
+        else:
+            print(f"{new_val} already present so no action needed")
+            return jsonify({"success": True, "message": "File already present, no action needed"})
+        #return redirect(url_for('index', section="local"))
+        return jsonify({"success": True, "message": "File added successfully"})
+
+
+@app.route("/remove_sharepoint", methods=["POST"])
+def remove_sharepoint():
+    to_remove = request.form.get('remove_bar')
+    print(f"remove_bar called with {to_remove}")
+    if to_remove in bar_values:
+        print(f"{to_remove} found and will be removed")
+        bar_values.remove(to_remove)
+        write_file_lines(BAR_FILE, bar_values)
+
+        # if file was scheduled for resync then remove from schedule.json 
+        clear_schedule_file(user_sched_file, to_remove, userlogin) 
+        schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+        return jsonify({"success": True, "message": "File removed successfully"})
+    else:
+        print(f"{to_remove} not found in bar_values, no action taken")
+    #return redirect(url_for('index', section="local"))
+    return jsonify({"success": False, "message": "File not found"})
+        
+
+
+@app.route("/add_local", methods=["POST"])
+def add_local():
+    new_val = request.form.get('local_value', '').strip()
+    if new_val:
+        print(f"add_local with local_value={new_val}")
+        if new_val not in local_file_values:
+            container_val = map_windows_path_to_container(new_val)
+            print(f"{container_val} added to local_file_values")   
+            local_file_values.append(container_val)
+            write_file_lines(LOCAL_FILES, local_file_values)                        
+        else:
+            print(f"{new_val} already present so no action needed")
+            return jsonify({"success": True, "message": "File already present, no action needed"})
+    #return redirect(url_for('index', section="local"))
+    return jsonify({"success": True, "message": "File added successfully"})
+
+
+@app.route("/remove_local", methods=["POST"])
+def remove_local():
+    to_remove = request.form.get('remove_local')
+    print(f"remove_local called with {to_remove}")
+    if to_remove in local_file_values:
+        print(f"{to_remove} found and will be removed")
+        local_file_values.remove(to_remove)
+        write_file_lines(LOCAL_FILES, local_file_values)
+        # if file was scheduled for resync then remove from schedule.json 
+        clear_schedule_file(user_sched_file, to_remove, userlogin) 
+        schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+        return jsonify({"success": True, "message": "File removed successfully"})
+    else:
+        print(f"{to_remove} not found in collection , no action taken")
+    #return redirect(url_for('index', section="local"))
+    return jsonify({"success": False, "message": "File not found"})
 
 
 @app.route("/schedule", methods=["POST"])

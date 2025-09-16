@@ -232,7 +232,7 @@ def process_jira_table_blocks(filename):
                                 target_cell.style = "Hyperlink"
                             
                             # Save coordinate + value to list
-                            cv = cell_value.replace('\n',';')
+                            cv = target_cell.replace('\n',';')
                             change_list.append(f"{target_cell.coordinate}={cv}||{old_value}")
                             #change_list.append(f"{target_cell.coordinate}={cell_value.replace('\n',';')}||{old_value}")
             
@@ -327,7 +327,7 @@ def process_jira_table_blocks(filename):
                                     target_cell.style = "Hyperlink"
                                 
                                 # Save coordinate + value to list
-                                cv = cell_value.replace('\n',';')
+                                cv = target_cell.replace('\n',';')
                                 change_list.append(f"{target_cell.coordinate}={cv}||{old_value}")
                                 #change_list.append(f"{target_cell.coordinate}={cell_value.replace('\n',';')}||{old_value}")
 
