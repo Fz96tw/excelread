@@ -304,7 +304,7 @@ with open(filename, "w", encoding="utf-8") as f:
     f.write(aibrief_context)
 print(f"Context saved to {filename}")
 
-sysprompt = "The following text is a csv data separated by | character.  Read all of it and summarize briefly as possible in the form of project status report for executive sumamry. highlight all milestones,  risks or blocking issues."
+sysprompt = f"The following text is a csv data separated by | character. Refer to this project as Project {tablename}.  Read all of it and briefly as possible in the form of project status report for executive sumamry. highlight all milestones,  risks or blocking issues. Also add a paragraph of titled 'Executive Summary' at the top of your response with very brief business executive summary"
 
 if isinstance(aibrief_context, list):
     aibrief_context = "\n".join(aibrief_context)

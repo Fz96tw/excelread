@@ -59,12 +59,14 @@ def save_cache(cache):
             f.write(cache.serialize())
 
 
+from urllib.parse import urlparse, quote, unquote
 
 def read_file_lines(path):
     if os.path.exists(path):
         with open(path, 'r') as f:
-            return [line.strip() for line in f.readlines()]
+            return [unquote(line.strip()) for line in f.readlines()]
     return []
+
 
 def write_file_lines(path, lines):
     with open(path, 'w') as f:
