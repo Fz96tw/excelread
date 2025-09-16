@@ -474,7 +474,7 @@ def job_listener(event):
 scheduler = BackgroundScheduler()
 if not scheduler.running:
     scheduler.start()
-    scheduler.add_job(
+    '''scheduler.add_job(
         dump_job_status, 
         "interval", 
         minutes=5, 
@@ -483,7 +483,9 @@ if not scheduler.running:
         replace_existing = True,
         misfire_grace_time=300,  # 5 minutes to prevent skipping of jobs when delays occur)
         max_instances=1 )  # don't start new one if previous still running
+    '''
     scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
+    
     # Setup all the schedules since app is starting up
     schedule_jobs(scheduler,SCHEDULE_FILE)
 
