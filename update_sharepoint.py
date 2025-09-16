@@ -1,7 +1,7 @@
 import requests
 from collections import defaultdict
 import argparse
-from urllib.parse import urlparse, quote
+from urllib.parse import urlparse, quote, unquote
 import msal
 import os
 import json
@@ -372,7 +372,7 @@ with open(changes_file, "r") as f:
         }
         print(f"Parsed {cell}: new='{new_value.strip()}', old='{old_value.strip()}'")
 
-
+file_url = unquote(file_url)  # decode %20 → space if there are space chars in filename 
 
 if "http" in file_url:
     print(f"sharepoint path in file_url={file_url}")
@@ -538,19 +538,25 @@ if "http" in file_url:
 else:
     print(f"Assuming local file based on file_url={file_url}")
 
-    
+    file_url = unquote(file_url)  # decode %20 → space if there are space chars in filename    
+
     #Make an incremental backup of the Excel file, then update cells with 'new' values from row_values.
     if not os.path.isfile(file_url):
         raise FileNotFoundError(f"Excel file not found: {file_url}")
+    
     # Create backup file path
     base, ext = os.path.splitext(file_url)
-    backup_path = f"{base}_backup{ext}"
+    backup_path = f"{base}.{timestamp}{ext}"
+    
+    '''
     # If backup exists, incrementally number it
     counter = 1
     while os.path.exists(backup_path):
-        backup_path = f"{base}_backup_{counter}{ext}"
+        backup_path = f"{base}.{timestamp}_{counter}{ext}"
         counter += 1
-    shutil.copy(file_url, backup_path)
+    '''
+    if not os.path.exists(backup_path):
+        shutil.copy(file_url, backup_path)
 
     print(f"{file_url} backup file = {backup_path}")
 

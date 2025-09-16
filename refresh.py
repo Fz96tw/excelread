@@ -42,12 +42,19 @@ logger.setLevel(logging.INFO)
             shutil.move(file_path, dest)
 '''
 
+from urllib.parse import unquote
+import os
+import shutil
+
+
 def resync(url: str, userlogin):
     """
     Full resync process with recursive handling of YAML files.
     """
     parsed_url = urlparse(url)
     filename = os.path.basename(parsed_url.path)  # e.g., Milestones.xlsx
+    filename = unquote(filename)  # decode %20 → space if there are space chars in filename
+
     basename, _ = os.path.splitext(filename)      # e.g., Milestones
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
