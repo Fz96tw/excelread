@@ -4,7 +4,10 @@ import json
 import requests
 import msal
 from dotenv import load_dotenv
-from urllib.parse import urlparse, quote
+from urllib.parse import urlparse, quote, unquote
+import shutil
+
+
 
 # -------------------------------
 # Config from environment variables
@@ -101,15 +104,16 @@ def download_excel_with_meta(site_url, file_path):
     return filename, meta_filename
 
 
-import os
-import shutil
 
 def copy_excel_to_working_directory(filepath: str) -> str:
-    """
-    Copy an Excel file from `filepath` into the current working directory.
-    Returns the destination path.
-    Raises FileNotFoundError if source does not exist.
-    """
+    
+    #Copy an Excel file from `filepath` into the current working directory.
+    #Handles URL-encoded paths (spaces as %20).
+    #Returns the destination path.
+    #Raises FileNotFoundError if source does not exist.
+    
+    filepath = unquote(filepath)  # decode %20 → space
+
     if not os.path.isfile(filepath):
         raise FileNotFoundError(f"Source file does not exist: {filepath}")
 
@@ -119,6 +123,7 @@ def copy_excel_to_working_directory(filepath: str) -> str:
     shutil.copy(filepath, dest_path)
     print(f"Copied file from {filepath} ---> {dest_path}")
     return dest_path
+
 
 
 
@@ -132,6 +137,8 @@ if __name__ == "__main__":
 
     full_url = sys.argv[1]
     timestamp = sys.argv[2]
+
+    full_url = unquote(full_url)  # decode %20 → space
     parsed_url = urlparse(full_url)
 
     if "http" in full_url:
