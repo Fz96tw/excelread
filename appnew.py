@@ -435,6 +435,7 @@ llm_model = "Local"
 # File to store schedules
 SCHEDULE_FILE = "./config/schedules.json"
 LLMCONFIG_FILE = "./config/llmconfig.json"
+LOCAL_FILES = "./config/files_local.json"
 
 # gloabals ^^^
 
@@ -486,6 +487,18 @@ if not scheduler.running:
     # Setup all the schedules since app is starting up
     schedule_jobs(scheduler,SCHEDULE_FILE)
 
+
+
+def map_windows_path_to_container(path: str) -> str:
+
+    #Convert Windows-style path (C:\...) to container path (/mnt/c/...).
+    #If already looks like a Linux path, return as-is.
+    
+    if len(path) > 2 and path[1:3] in [":\\", ":/"]:
+        drive_letter = path[0].lower()
+        relative_path = path[2:].lstrip("\\/").replace("\\", "/")
+        return f"/mnt/{drive_letter}/{relative_path}"
+    return path
 
 
 
@@ -559,7 +572,10 @@ def index():
     '''
     
     bar_values = read_file_lines(BAR_FILE)
-    
+    print(f"/ route loaded bar_values = {bar_values}")
+
+    local_file_values = read_file_lines(LOCAL_FILES)
+    print(f"/ route loaded local_file_values = {local_file_values}")    
     bar_values_original = {}
 
     # Synchronize session login status with real token state every request
@@ -591,23 +607,59 @@ def index():
             #return redirect(url_for('index'))
             return jsonify({"success": True, "message": "Jira settings updated successfully"})
         
+        elif 'add_local' in request.form:
+            new_val = request.form.get('local_value', '').strip()
+            if new_val:
+                print(f"add_local with local_value={new_val}")
+                if new_val not in local_file_values:
+                    container_val = map_windows_path_to_container(new_val)
+                    print(f"{container_val} added to local_file_values")   
+                    local_file_values.append(container_val)
+                    write_file_lines(LOCAL_FILES, local_file_values)                        
+                else:
+                    print(f"{new_val} already present so no action needed")
+            return redirect(url_for('index', section="local"))
+
         elif 'add_bar' in request.form:
             new_val = request.form.get('bar_value', '').strip()
             if new_val:
-                if new_val not in bar_values:   
+                print(f"add_bar with bar_value={new_val}")
+                if new_val not in bar_values and new_val not in local_file_values:
+                    print(f"{new_val} added to bar_values")   
                     bar_values.append(new_val)
-                    write_file_lines(BAR_FILE, bar_values)
-            return redirect(url_for('index'))
+                    write_file_lines(BAR_FILE, bar_values)                        
+                else:
+                    print(f"{new_val} already present so no action needed")
+            return redirect(url_for('index', section="sharepoint"))
+
+        elif 'remove_local' in request.form:
+            to_remove = request.form.get('remove_local')
+            print(f"remove_local called with {to_remove}")
+            if to_remove in local_file_values:
+                print(f"{to_remove} found and will be removed")
+                local_file_values.remove(to_remove)
+                write_file_lines(LOCAL_FILES, local_file_values)
+                # if file was scheduled for resync then remove from schedule.json 
+                clear_schedule_file(user_sched_file, to_remove, userlogin) 
+                schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+            else:
+                print(f"{to_remove} not found in local_file_values , no action taken")
+            return redirect(url_for('index', section="local"))
 
         elif 'remove_bar' in request.form:
             to_remove = request.form.get('remove_bar')
+            print(f"remove_bar called with {to_remove}")
             if to_remove in bar_values:
+                print(f"{to_remove} found and will be removed")
                 bar_values.remove(to_remove)
                 write_file_lines(BAR_FILE, bar_values)
+
                 # if file was scheduled for resync then remove from schedule.json 
                 clear_schedule_file(user_sched_file, to_remove, userlogin) 
-                schedule_job_clear(user_sched_file, to_remove, userlogin)           
-            return redirect(url_for('index'))
+                schedule_job_clear(scheduler, user_sched_file, SCHEDULE_FILE, to_remove, userlogin)           
+            else:
+                print(f"{to_remove} not found in bar_values, no action taken")
+            return redirect(url_for('index', section="sharepoint"))
         
         elif 'resync_bar' in request.form:
             print("Resyncing file values...")
@@ -639,6 +691,7 @@ def index():
                            banner_path=BANNER_PATH,
                            foo_values=foo_values,
                            bar_values=bar_values,
+                           local_values=local_file_values,
                            logged_in=logged_in,
                            folder_tree=folder_tree,
                            schedule_dict=schedule_dict,
@@ -796,5 +849,5 @@ def clear_schedule():
     return jsonify({"success": True})
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=6000, debug=True, use_reloader=False)
+    app.run(host="0.0.0.0", port=9001, debug=True, use_reloader=False)
 

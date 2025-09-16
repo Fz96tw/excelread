@@ -131,6 +131,7 @@
     <div class="menu-bar">
         <button id="btn-section1"><img src="/static/jiraicon.png" alt="Jira Icon"><span>Jira</span></button>
         <button id="btn-section2" class="active"><img src="/static/sharepointicontransparent.png" alt="SharePoint Icon"><span>Sharepoint</span></button>
+        <button id="btn-section5"><img src="/static/disk-file.png" alt="Local Files Icon"><span>Local Files</span></button>
         <button id="btn-section4"><img src="/static/llmicon.png" alt="LLM Icon"><span>LLM Model</span></button>
         <button id="btn-section3"><img src="/static/debuglogs.png" alt="Debug Logs Icon"><span>Logs</span></button>
         <!-- Display user login -->
@@ -165,14 +166,14 @@
     
     
 <br><br>
-            <h2><img src="/static/excelicon.jpg" style="height:28px; vertical-align:bottom; margin-right:2px;">Add Excel file to connect with Jira</h2>
+            <h2><img src="/static/excelicon.jpg" style="height:28px; vertical-align:bottom; margin-right:2px;">Connect File To AI Connector</h2>
             <form method="POST" class="left-form">
-                <label for="bar_value">Direct Sharepoint URL path to file:</label>
+                <label for="bar_value">Direct Sharepoint URL Path To File:</label>
                 <input type="text" name="bar_value" id="bar_value" placeholder="https://...">
                 <button type="submit" name="add_bar"><img src="/static/connect-icon-gears.png" style="height:40px; vertical-align:middle; margin-right:2px;">Connect</button>
             </form>
 <br><br>
-            <h2><img src="/static/sharepointicon.jpg" style="height:40px; vertical-align:bottom; margin-right:2px;">
+            <h2><!--img src="/static/sharepointicon.jpg" style="height:40px; vertical-align:bottom; margin-right:2px;"-->
                 Active Sharepoint Connections
             </h2>
             <!--p class="sync-desc">Active ShareConnections currently active:</p>
@@ -181,8 +182,7 @@
                 <thead>
                     <tr>
                         <th style="text-align:center; padding:6px;"> </th>
-                        <th style="text-align:left; padding:6px;"> </th>
-                        <th style="text-align:left; padding:6px;"> Username </th>
+                        <th style="text-align:left; padding:6px;">Connected Files</th>
                         <th style="text-align:left; padding:6px;">Schedule</th>
                         <th style="text-align:center; padding:6px;">Run</th>
                         <th style="text-align:center; padding:6px;">Remove</th>
@@ -192,8 +192,9 @@
                     {% for val in bar_values %}
                     <tr>
                         <td style="text-align:left; padding:6px;">{{ loop.index }}</td>
-                        <td style="padding:6px;"><a href="{{ val }}" target="_blank">{{ val }}</a></td>
-                        <td style="padding:6px;">foo</td>
+                        <td style="padding:6px;">
+                            <img src="/static/excelicon.jpg" style="height:16px; vertical-align:bottom; margin-right:2px;">
+                            <a href="{{ val }}" target="_blank">{{ val }}</a></td>
                         <td style="text-align:left; padding:6px;">
                             <button type="button" class="table-btn" onclick="openSchedule('{{ val }}')">
                                 <img src="/static/schedule-icon.png" alt="Schedule">
@@ -222,6 +223,77 @@
                             <form method="POST">
                                 <input type="hidden" name="remove_bar" value="{{ val }}">
                                 <button type="submit" class="table-btn" onclick="return confirm('Remove {{ val }}?')"><img src="/static/delete-icon.png" alt="Delete"></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section 5: Local Files -->
+        <div id="section5" class="section-content">
+            Logged in user: {{username}}
+            <br><br>
+            <h2><img src="/static/localfiles.png" style="height:28px; vertical-align:bottom; margin-right:2px;">Connect Local File To Agent</h2>
+            <form method="POST" class="left-form" action="/">
+                <label for="local_value">Local File Path:</label>
+                <input type="text" name="local_value" id="local_value" placeholder="/path/to/file.xlsx">
+                <button type="submit" name="add_local">
+                    <img src="/static/connect-icon-gears.png" style="height:40px; vertical-align:middle; margin-right:2px;">Connect
+                </button>
+            </form>
+
+            <br><br>
+            <h2>Active Local File Connections</h2>
+
+            <table style="border-collapse: collapse; width: 100%;">
+                <thead>
+                    <tr>
+                        <th style="text-align:center; padding:6px;"> </th>
+                        <th style="text-align:left; padding:6px;">Connected Files</th>
+                        <th style="text-align:left; padding:6px;">Schedule</th>
+                        <th style="text-align:center; padding:6px;">Run</th>
+                        <th style="text-align:center; padding:6px;">Remove</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for val in local_values %}
+                    <tr>
+                        <td style="text-align:left; padding:6px;">{{ loop.index }}</td>
+                        <td style="padding:6px;">
+                            <img src="/static/excelicon.jpg" style="height:16px; vertical-align:bottom; margin-right:2px;">
+                            <span>{{ val }}</span>
+                        </td>
+                        <td style="text-align:left; padding:6px;">
+                            <button type="button" class="table-btn" onclick="openSchedule('{{ val }}')">
+                                <img src="/static/schedule-icon.png" alt="Schedule">
+                            </button>
+                            {% set sched = schedule_dict.get(val) %}
+                            {% if sched %}
+                                {% if sched.time %}
+                                    <span style="font-size:12px; margin-left:6px;">{{sched.mode}} at {{ sched.time }}</span>
+                                {% elif sched.interval %}
+                                    <span style="font-size:12px; margin-left:6px;">Every {{ sched.interval }} min</span>
+                                {% endif %}
+                            {% else %}
+                                <span style="font-size:12px; margin-left:6px;">None</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align:center; padding:6px;">
+                            <form method="POST"  action="/" >
+                                <input type="hidden" name="resync_bar" value="{{ val }}">
+                                <button type="submit" class="table-btn" onclick="return confirm('Resync {{ val }}?')">
+                                    <img src="/static/sync-icon.png" alt="Resync">
+                                </button>
+                            </form>
+                        </td>
+                        <td style="text-align:center; padding:6px;">
+                            <form method="POST"  action="/">
+                                <input type="hidden" name="remove_local" value="{{ val }}">
+                                <button type="submit" class="table-btn" onclick="return confirm('Remove {{ val }}?')">
+                                    <img src="/static/delete-icon.png" alt="Delete">
+                                </button>
                             </form>
                         </td>
                     </tr>
@@ -356,21 +428,35 @@
         const section3 = document.getElementById('section3');
         const section4 = document.getElementById('section4');
 
+        const btnSection5 = document.getElementById('btn-section5');
+        const section5 = document.getElementById('section5');
+        btnSection5.addEventListener('click', () => showSection('section5'));
+
 
         // Add new section button for LLM model configuration menu bar
 
         btnSection4.addEventListener('click', () => showSection('section4'));
 
-        // Extend showSection to include section4
-        function showSection(sectionToShow) {
-            section1.classList.remove('active'); section2.classList.remove('active'); section3.classList.remove('active'); section4.classList.remove('active');
-            btnSection1.classList.remove('active'); btnSection2.classList.remove('active'); btnSection3.classList.remove('active'); btnSection4.classList.remove('active');
+       function showSection(sectionToShow) {
+        section1.classList.remove('active');
+        section2.classList.remove('active');
+        section3.classList.remove('active');
+        section4.classList.remove('active');
+        section5.classList.remove('active');
 
-            if (sectionToShow === 'section1') { section1.classList.add('active'); btnSection1.classList.add('active'); }
-            else if (sectionToShow === 'section2') { section2.classList.add('active'); btnSection2.classList.add('active'); }
-            else if (sectionToShow === 'section3') { section3.classList.add('active'); btnSection3.classList.add('active'); }
-            else { section4.classList.add('active'); btnSection4.classList.add('active'); }
-        }
+        btnSection1.classList.remove('active');
+        btnSection2.classList.remove('active');
+        btnSection3.classList.remove('active');
+        btnSection4.classList.remove('active');
+        btnSection5.classList.remove('active');
+
+        if (sectionToShow === 'section1') { section1.classList.add('active'); btnSection1.classList.add('active'); }
+        else if (sectionToShow === 'section2') { section2.classList.add('active'); btnSection2.classList.add('active'); }
+        else if (sectionToShow === 'section3') { section3.classList.add('active'); btnSection3.classList.add('active'); }
+        else if (sectionToShow === 'section4') { section4.classList.add('active'); btnSection4.classList.add('active'); }
+        else { section5.classList.add('active'); btnSection5.classList.add('active'); }
+    }
+
 
         // Fetch default model from backend on page load
         window.addEventListener('DOMContentLoaded', () => {
@@ -661,6 +747,10 @@
             })
             .catch(() => showToast('❌ Error connecting to server', false));
         });
+
+        const activeSection = "{{ active_section }}";  // e.g., "local"
+        if (activeSection === "local") showSection("section5");
+        else if (activeSection === "sharepoint") showSection("section2"); // etc.
 
     </script>
 </body>

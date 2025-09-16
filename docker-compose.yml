@@ -21,6 +21,8 @@ services:
       - appnet
     volumes:
       - config:/appnew/config
+      - /c:/mnt/c         
+
     environment:
       - SUMMARIZER_HOST=http://summarizer:8000
 

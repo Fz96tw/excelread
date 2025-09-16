@@ -87,7 +87,7 @@ def download_excel_with_meta(site_url, file_path):
     excel_bytes = content_resp.content
 
     # 3. Save file
-    filename = file_path.replace("/", "_")
+    filename = file_path.replace("/", "_")  # file may be inside sharepoint folders so keep the folder names in the filename but replace / with _ 
     with open(filename, "wb") as f:
         f.write(excel_bytes)
     print(f"✅ File saved locally as {filename}")
@@ -99,6 +99,28 @@ def download_excel_with_meta(site_url, file_path):
     print(f"✅ Metadata saved as {meta_filename}")
 
     return filename, meta_filename
+
+
+import os
+import shutil
+
+def copy_excel_to_working_directory(filepath: str) -> str:
+    """
+    Copy an Excel file from `filepath` into the current working directory.
+    Returns the destination path.
+    Raises FileNotFoundError if source does not exist.
+    """
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(f"Source file does not exist: {filepath}")
+
+    filename = os.path.basename(filepath)
+    dest_path = os.path.join(os.getcwd(), filename)
+
+    shutil.copy(filepath, dest_path)
+    print(f"Copied file from {filepath} ---> {dest_path}")
+    return dest_path
+
+
 
 # -------------------------------
 # Example usage
@@ -112,15 +134,22 @@ if __name__ == "__main__":
     timestamp = sys.argv[2]
     parsed_url = urlparse(full_url)
 
-    path_parts = parsed_url.path.strip("/").split("/")
-    if len(path_parts) < 2:
-        print("Invalid URL format. Expected site path and file path.")
-        sys.exit(1)
+    if "http" in full_url:
+        print(f"http found in full_url={full_url}")
+        path_parts = parsed_url.path.strip("/").split("/")
+        if len(path_parts) < 2:
+            print("Invalid URL format. Expected site path and file path.")
+            sys.exit(1)
 
-    site_url = f"{parsed_url.scheme}://{parsed_url.netloc}/{path_parts[0]}/{path_parts[1]}"
-    file_path = "/".join(path_parts[2:])
+        site_url = f"{parsed_url.scheme}://{parsed_url.netloc}/{path_parts[0]}/{path_parts[1]}"
+        file_path = "/".join(path_parts[2:])
 
-    print("site_url:", site_url)
-    print("file_path:", file_path)
+        print("site_url:", site_url)
+        print("file_path:", file_path)
 
-    download_excel_with_meta(site_url, file_path)
+        download_excel_with_meta(site_url, file_path)
+    else:
+        # assume local file
+        print(f"assumed to be local file, full_url={full_url}")
+        copy_excel_to_working_directory(full_url)
+

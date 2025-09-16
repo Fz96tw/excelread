@@ -6,7 +6,9 @@ import msal
 import os
 import json
 import string
-
+import shutil
+from openpyxl import load_workbook
+from openpyxl.utils import column_index_from_string
 
 # -------------------------------
 # Config from environment variables
@@ -335,7 +337,8 @@ def update_column(site_id, item_id, worksheet_name, start_cell, values, headers)
 
 
 
-#jira_base_url = read_jira_url("../../../.env")
+print(f"parameter file_url = {file_url}")
+
 jira_base_url =  os.environ["JIRA_URL"]
 print(f"Using JIRA base URL: {jira_base_url}")
 
@@ -370,161 +373,209 @@ with open(changes_file, "r") as f:
         print(f"Parsed {cell}: new='{new_value.strip()}', old='{old_value.strip()}'")
 
 
-# --- GRAPH API BASE ---
-headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
 
-# --- EXTRACT SITE AND FILE PATH FROM URL ---
-parsed = urlparse(file_url)
-# Example: https://contoso.sharepoint.com/sites/mysite/Shared%20Documents/ExcelFile.xlsx
-hostname = parsed.netloc
-path_parts = parsed.path.strip("/").split("/", 2)
-if len(path_parts) < 3:
-    raise ValueError("Invalid SharePoint URL format. Must include /sites/.../file.xlsx")
-site_path = f"/{path_parts[0]}/{path_parts[1]}"
-file_path = "/" + path_parts[2]
+if "http" in file_url:
+    print(f"sharepoint path in file_url={file_url}")
 
-# Build meta filename from file_path
-meta_filename = file_path.strip("/").replace("/", "_") + "." + timestamp + ".meta.json"
-if not os.path.exists(meta_filename):
-    raise FileNotFoundError(f"Metadata file {meta_filename} not found. Run download script first.")
+    # --- GRAPH API BASE ---
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
 
-# --- LOAD SAVED ETAG ---
-with open(meta_filename, "r") as f:
-    saved_meta = json.load(f)
-saved_etag = saved_meta.get("etag")
-print(f"📂 Loaded saved eTag: {saved_etag} from {meta_filename}")
+    # --- EXTRACT SITE AND FILE PATH FROM URL ---
+    parsed = urlparse(file_url)
+    # Example: https://contoso.sharepoint.com/sites/mysite/Shared%20Documents/ExcelFile.xlsx
+    hostname = parsed.netloc
+    path_parts = parsed.path.strip("/").split("/", 2)
+    if len(path_parts) < 3:
+        raise ValueError("Invalid SharePoint URL format. Must include /sites/.../file.xlsx")
+    site_path = f"/{path_parts[0]}/{path_parts[1]}"
+    file_path = "/" + path_parts[2]
 
-# Get site ID
-site_api_url = f"https://graph.microsoft.com/v1.0/sites/{hostname}:{site_path}"
-resp_site = requests.get(site_api_url, headers=headers)
-resp_site.raise_for_status()
-site_id = resp_site.json()["id"]
+    # Build meta filename from file_path
+    meta_filename = file_path.strip("/").replace("/", "_") + "." + timestamp + ".meta.json"
+    if not os.path.exists(meta_filename):
+        raise FileNotFoundError(f"Metadata file {meta_filename} not found. Run download script first.")
 
-# Get file ID
-file_api_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:{quote(file_path)}"
-resp_file = requests.get(file_api_url, headers=headers)
-resp_file.raise_for_status()
-file_meta = resp_file.json()
-item_id = file_meta["id"]
-current_etag = file_meta["eTag"]
+    # --- LOAD SAVED ETAG ---
+    with open(meta_filename, "r") as f:
+        saved_meta = json.load(f)
+    saved_etag = saved_meta.get("etag")
+    print(f"📂 Loaded saved eTag: {saved_etag} from {meta_filename}")
 
-print(f"🔎 Current eTag: {current_etag}")
+    # Get site ID
+    site_api_url = f"https://graph.microsoft.com/v1.0/sites/{hostname}:{site_path}"
+    resp_site = requests.get(site_api_url, headers=headers)
+    resp_site.raise_for_status()
+    site_id = resp_site.json()["id"]
 
-# --- COMPARE ETAG ---
-if current_etag != saved_etag:
-    print("❌ eTag mismatch! File has been modified since last download.")
-    print("👉 Aborting update to prevent overwriting newer changes.")
-    exit(1)
+    # Get file ID
+    file_api_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:{quote(file_path)}"
+    resp_file = requests.get(file_api_url, headers=headers)
+    resp_file.raise_for_status()
+    file_meta = resp_file.json()
+    item_id = file_meta["id"]
+    current_etag = file_meta["eTag"]
 
-print("✅ eTag matches. Safe to apply updates.")
+    print(f"🔎 Current eTag: {current_etag}")
 
-# --- ITERATE AND UPDATE SAFELY ---
-if import_mode:
-    print("Import mode ON")
-    # Get the first row number (smallest key)
-    first_row_num = min(row_values.keys())
+    # --- COMPARE ETAG ---
+    if current_etag != saved_etag:
+        print("❌ eTag mismatch! File has been modified since last download.")
+        print("👉 Aborting update to prevent overwriting newer changes.")
+        exit(1)
 
-    # Get the dict of column values for that row
-    first_row_data = row_values[first_row_num]
+    print("✅ eTag matches. Safe to apply updates.")
 
-    # Get the only column letter
-    first_col_letter = next(iter(first_row_data.keys()))
+    # --- ITERATE AND UPDATE SAFELY ---
+    if import_mode:
+        print("Import mode ON")
+        # Get the first row number (smallest key)
+        first_row_num = min(row_values.keys())
 
-    # Access its new/old values
-    first_cell_new = first_row_data[first_col_letter]["new"]
-    first_cell_old = first_row_data[first_col_letter]["old"]
+        # Get the dict of column values for that row
+        first_row_data = row_values[first_row_num]
 
-    print(f"First row: {first_row_num}, first column: {first_col_letter}")
-    print(f"New value: {first_cell_new}, Old value: {first_cell_old}")
+        # Get the only column letter
+        first_col_letter = next(iter(first_row_data.keys()))
 
-    start_cell = f"{first_col_letter}{first_row_num}"
-    #start_cell = start_cell.replace("INSERT","").strip()
-    print(f"Import mode: updating column at {start_cell}")
+        # Access its new/old values
+        first_cell_new = first_row_data[first_col_letter]["new"]
+        first_cell_old = first_row_data[first_col_letter]["old"]
 
-    # Sort row numbers to maintain order
-    all_row_nums = sorted(row_values.keys())
-    # Extract new values from each row
-    new_values_list = [row_values[row_num][next(iter(row_values[row_num].keys()))]["new"]
-                    for row_num in all_row_nums]
-    print("All new values by row:", new_values_list)
+        print(f"First row: {first_row_num}, first column: {first_col_letter}")
+        print(f"New value: {first_cell_new}, Old value: {first_cell_old}")
+
+        start_cell = f"{first_col_letter}{first_row_num}"
+        #start_cell = start_cell.replace("INSERT","").strip()
+        print(f"Import mode: updating column at {start_cell}")
+
+        # Sort row numbers to maintain order
+        all_row_nums = sorted(row_values.keys())
+        # Extract new values from each row
+        new_values_list = [row_values[row_num][next(iter(row_values[row_num].keys()))]["new"]
+                        for row_num in all_row_nums]
+        print("All new values by row:", new_values_list)
 
 
-    # Example usage:
-    #values = ["TES-123", "TES-124", "TES-125"]
-    #update_column(site_id, item_id, "Sheet1", "A2", values, headers)
-    #def update_column(site_id, item_id, worksheet_name, start_cell, values, headers):
+        # Example usage:
+        #values = ["TES-123", "TES-124", "TES-125"]
+        #update_column(site_id, item_id, "Sheet1", "A2", values, headers)
+        #def update_column(site_id, item_id, worksheet_name, start_cell, values, headers):
 
-    update_column(site_id, item_id, worksheet_name, start_cell, new_values_list, headers)
+        update_column(site_id, item_id, worksheet_name, start_cell, new_values_list, headers)
 
-else:
-    for row_num, cols in row_values.items():
-        
-        '''
-        skip_row = False
-        
-        for col_letter, values in cols.items():
-
-            if import_mode:
-                col_letter = col_letter.replace("INSERT","").strip()
-                col_letter = col_letter.replace("DELETE","").strip()
-
-            cell_address = f"{col_letter}{row_num}"
-            print("Cell to update:", cell_address)
-            url_get = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')"
-            resp_get = requests.get(url_get, headers=headers)
-            resp_get.raise_for_status()
-            current_value = resp_get.json().get("values", [[None]])[0][0]
-            current_value = "" if current_value is None else str(current_value)
-            current_value = current_value.replace("\n", ";")  # Normalize newlines to semicolons for comparison
-
-            expected_old = values["old"]
-            new_value = values["new"]
-            if expected_old == "":
-                expected_old = ""  # Treat missing old value as blank
-
+    else:
+        for row_num, cols in row_values.items():
             
-            #if current_value != expected_old:
-            #    print(f"Skipping row {row_num} because {cell_address} has unexpected value '{current_value}' instead of expected '{expected_old}'")
-            #    skip_row = True
-            #    break
+            '''
+            skip_row = False
+            
+            for col_letter, values in cols.items():
 
-            #if old_value == new_value:
-            #    print(f"Skipping row {row_num} because {cell_address} (no change reqd) already has the new value '{new_value}'")
-            #    skip_row = True
-            #    break
-        
+                if import_mode:
+                    col_letter = col_letter.replace("INSERT","").strip()
+                    col_letter = col_letter.replace("DELETE","").strip()
 
-        if skip_row:
-            continue
-        '''
+                cell_address = f"{col_letter}{row_num}"
+                print("Cell to update:", cell_address)
+                url_get = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')"
+                resp_get = requests.get(url_get, headers=headers)
+                resp_get.raise_for_status()
+                current_value = resp_get.json().get("values", [[None]])[0][0]
+                current_value = "" if current_value is None else str(current_value)
+                current_value = current_value.replace("\n", ";")  # Normalize newlines to semicolons for comparison
 
-        print(f"Updating row {row_num} with values: {cols}")
-        update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url)
+                expected_old = values["old"]
+                new_value = values["new"]
+                if expected_old == "":
+                    expected_old = ""  # Treat missing old value as blank
 
-        '''# Update all cells in the row
-        for col_letter, values in cols.items():
-            cell_address = f"{col_letter}{row_num}"
-            new_value = values["new"]
-            if ";" in new_value:
-                new_value = new_value.replace(";", "\n")
+                
+                #if current_value != expected_old:
+                #    print(f"Skipping row {row_num} because {cell_address} has unexpected value '{current_value}' instead of expected '{expected_old}'")
+                #    skip_row = True
+                #    break
 
-            # Update cell value
-            url_patch = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')"
-            payload_value = {"values": [[new_value]]}
-            resp_patch = requests.patch(url_patch, json=payload_value, headers=headers)
-            print(f"Updated {cell_address}: {resp_patch.status_code}")
+                #if old_value == new_value:
+                #    print(f"Skipping row {row_num} because {cell_address} (no change reqd) already has the new value '{new_value}'")
+                #    skip_row = True
+                #    break
+            
 
-            # Add hyperlink if Jira key or JQL
-            hyperlink = create_hyperlink(new_value)
-            if hyperlink:
-                url_hyperlink = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/hyperlink"
-                payload_hyperlink = {"hyperlink": hyperlink}
-                resp_link = requests.patch(url_hyperlink, json=payload_hyperlink, headers=headers)
-                print(f"Hyperlink set for {cell_address}: {resp_link.status_code}")
+            if skip_row:
+                continue
+            '''
 
-            # Enable text wrap
-            url_wrap = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/wrapText"
-            payload_wrap = {"wrapText": True}
-            resp_wrap = requests.patch(url_wrap, json=payload_wrap, headers=headers)
-            print(f"Wrap text enabled for {cell_address}: {resp_wrap.status_code}")
-        '''
+            print(f"Updating row {row_num} with values: {cols}")
+            update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url)
+
+            '''# Update all cells in the row
+            for col_letter, values in cols.items():
+                cell_address = f"{col_letter}{row_num}"
+                new_value = values["new"]
+                if ";" in new_value:
+                    new_value = new_value.replace(";", "\n")
+
+                # Update cell value
+                url_patch = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')"
+                payload_value = {"values": [[new_value]]}
+                resp_patch = requests.patch(url_patch, json=payload_value, headers=headers)
+                print(f"Updated {cell_address}: {resp_patch.status_code}")
+
+                # Add hyperlink if Jira key or JQL
+                hyperlink = create_hyperlink(new_value)
+                if hyperlink:
+                    url_hyperlink = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/hyperlink"
+                    payload_hyperlink = {"hyperlink": hyperlink}
+                    resp_link = requests.patch(url_hyperlink, json=payload_hyperlink, headers=headers)
+                    print(f"Hyperlink set for {cell_address}: {resp_link.status_code}")
+
+                # Enable text wrap
+                url_wrap = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/wrapText"
+                payload_wrap = {"wrapText": True}
+                resp_wrap = requests.patch(url_wrap, json=payload_wrap, headers=headers)
+                print(f"Wrap text enabled for {cell_address}: {resp_wrap.status_code}")
+            '''
+else:
+    print(f"Assuming local file based on file_url={file_url}")
+
+    
+    #Make an incremental backup of the Excel file, then update cells with 'new' values from row_values.
+    if not os.path.isfile(file_url):
+        raise FileNotFoundError(f"Excel file not found: {file_url}")
+    # Create backup file path
+    base, ext = os.path.splitext(file_url)
+    backup_path = f"{base}_backup{ext}"
+    # If backup exists, incrementally number it
+    counter = 1
+    while os.path.exists(backup_path):
+        backup_path = f"{base}_backup_{counter}{ext}"
+        counter += 1
+    shutil.copy(file_url, backup_path)
+
+    print(f"{file_url} backup file = {backup_path}")
+
+
+    # Load workbook
+    wb = load_workbook(file_url)
+    sheet_name = None
+    ws = wb[sheet_name] if sheet_name else wb.active
+
+    for row_num, cols in row_values.items():
+        for col_key, val_dict in cols.items():
+            new_val = val_dict.get("new")
+            if new_val is not None:
+                # Convert row to int (if it’s string)
+                row_idx = int(row_num)
+
+                # Convert column letter to number if necessary
+                if isinstance(col_key, str) and col_key.isalpha():
+                    col_idx = column_index_from_string(col_key)
+                else:
+                    col_idx = int(col_key)
+
+                ws.cell(row=row_idx, column=col_idx).value = new_val
+
+
+    # Save back to the same file
+    print(f"Saving updated file {file_url}")
+    wb.save(file_url)
