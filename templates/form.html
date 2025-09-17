@@ -1,59 +1,128 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Config Form</title>
+    <meta charset="utf-8">
+    <title>Config Form - Two Column</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
+        /* ----- Layout: two columns ----- */
+        html, body {
+            height: 100%;
             margin: 0;
-            padding: 0 0;
+            font-family: Arial, sans-serif;
             color: #414040;
+        }
+        .app-container {
+            display: flex;
+            height: 100vh; /* full viewport */
+            overflow: hidden;
+        }
+
+        /* Left frame (menu) */
+       .left-frame {
+            flex: 0 0 220px;
+            background-color: rgb(12, 67, 122);
+            display: flex;
+            flex-direction: column;
+            padding: 0;       /* remove padding so image is flush */
+            box-sizing: border-box;
+            gap: 8px;
+            color: white;
+            overflow-y: auto;
+        }
+
+        /* Right frame (content) */
+        .right-frame {
+            flex: 1 1 auto;
+            background: #f6f7f9;
+            overflow: auto;
+        }
+
+        /* keep existing banner behaviour but reduced height to fit */
+        img.banner { width: 100%; max-height: 240px; object-fit: cover; display: block; }
+
+       .menu-bar {
+            display: flex;
+            flex-direction: column;
+            padding: 0;       /* remove menu-bar padding */
+            margin: 0;
+            gap: 8px;
+        }
+
+        .menu-bar img.sidebar-logo {
+            display: block;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            border: none;
+        }
+
+        .menu-bar button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background-color: rgb(12, 67, 122);
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: left;
+            gap: 8px;
+            border-radius: 5px;
+        }
+
+        .menu-bar button img {
+            height: 28px;
+            width: 28px;
+            object-fit: contain;
+        }
+
+        .menu-bar button span { color: white; font-size: 15px; font-weight: normal; }
+
+        .menu-bar button:hover { background-color: rgba(255,255,255,0.08); }
+
+        .menu-bar button.active { background-color: rgba(255,255,255,0.14); }
+/*
+        .action-btn img {
+            width: 16px;    
+            height: 16px;
+            background-color: #999c9e;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+*/
+        .action-btn:hover {
+        background-color: #0055aa;
+        }
+
+        /* Put logout visually separated at bottom (if you want that) */
+        .left-footer {
+            margin-top: auto;
+            display: flex;
+            gap: 8px;
+        }
+
+        /* page content (right) - keep your original styles mostly */
+        .page-content {
+            padding: 30px 40px 18px 80px; /* top right bottom left */   
+            box-sizing: border-box;
+            min-height: 100%;
         }
 
         h3 { margin-bottom: 4px; }
         ol { margin-top: 4px; }
-        .sync-desc { margin: 0 0 4px 0; }     
+        .sync-desc { margin: 0 0 4px 0; }
 
         form label { display: inline-block; width: 150px; vertical-align: middle; }
         form input[type="text"] { display: inline-block; vertical-align: middle; width: 300px; margin-bottom: 10px; }
         form button { margin-top: 10px; }
 
-        .menu-bar #btn-exit { margin-left: auto; }
-        .menu-bar {
-            display: flex;
-            padding: 4px 20px;
-            gap: 20px;
-            background-color: rgb(11, 48, 104) !important;
-            position: relative;
-            align-items: center;
-        }
-        .menu-bar button img { height: 40px; margin-bottom: 5px; }
-        .menu-bar button span { color: white; font-size: 18px; font-weight: normal; }
-        .menu-bar::before {
-            content: "";
-            position: relative;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: rgba(0, 0, 0, 0.4);
-            pointer-events: none;
-            z-index: 1;
-        }
-        .menu-bar button {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            border: none;
-            background: none;
-            cursor: pointer;
-            padding: 5px;
-        }
-        .menu-bar button:hover { background-color: rgba(255, 255, 255, 0.2); }
-        .menu-bar button.active { background-color: rgba(255, 255, 255, 0.4); }
-
-        .section-content { display: none; padding: 20px; }
+        .section-content { display: none; padding: 12px 0; }
         .section-content.active { display: block; }
-
-        img.banner { width: 100%; max-height: 300px; object-fit: cover; display: block; }
 
         .left-form {
             display: flex;
@@ -61,14 +130,13 @@
             align-items: flex-start;
             gap: 5px;
             margin: 0;
-            width: 100px; /* will override for schedule modal */
+            width: 100%;
+            max-width: 520px;
         }
         .left-form label { display: block; font-weight: normal; width: 300px; }
-        .left-form input, .left-form button { width: 100%; box-sizing: border-box; }
-        .left-form button { margin-top: 0; }
-        .page-content { padding: 0 50px; box-sizing: border-box; }
+        .left-form input, .left-form button, .left-form select { width: 100%; box-sizing: border-box; }
 
-        .table-btn {
+/*        .table-btn {
             border: 1px solid #ccc;
             background-color: #f5f5f5;
             border-radius: 4px;
@@ -78,7 +146,7 @@
         }
         .table-btn:hover { background-color: #e0e0e0; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
         .table-btn img { height: 20px; vertical-align: middle; }
-
+*/
         /* === Modal === */
         .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
         .modal-content {
@@ -118,240 +186,305 @@
         }
         #toast.show { visibility: visible; opacity: 1; top: 40px; }
 
+        /* smaller tweaks */
+        h2 { display:flex; align-items:center; gap:10px; margin:0 0 10px 0; }
+        h2 img { width:40px; height:auto; }
+        @media (max-width: 800px) {
+            .left-frame { flex: 0 0 64px; } /* collapse sidebar on small screens if desired */
+            .menu-bar button span { display:none; } /* show icons only */
+            img.banner { max-height:120px; }
+        }
+
+
+        /* Reset right-frame buttons to plain defaults */
+        .right-frame button img {
+            width: 20px;        /* adjust to whatever size fits */
+            height: 20px;
+            object-fit: contain;
+            vertical-align: middle;
+            margin-right: 1px;  /* space between icon and text */
+        }
+
+        .right-frame button:hover {
+            background: #e0e0e0;
+        }
+
+        .right-frame button {
+            all: unset;
+            display: inline-flex;     /* instead of inline-block */
+            align-items: center;      /* vertically centers icon + text */
+            gap: 4px;                 /* space between icon and text */
+            padding: 2px 6px;
+            border: 1px solid #ccc;    /* light grey border */
+            background: ButtonFace;
+            color: ButtonText;
+            font: inherit;
+            cursor: pointer;
+            line-height: 1.2;         /* keep text aligned */
+        }
+
+        .right-frame button img {
+            width: 20px;
+            height: 20px;
+            object-fit: contain;
+        }
+
+        .menu-divider {
+            height: 1px;              /* thickness */
+            background-color: rgba(255, 255, 255, 0.3);  /* light gray / translucent */
+            margin: 8px 0;            /* spacing above and below */
+            width: 100%;              /* span full menu width */
+        }
+
+
     </style>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-
 </head>
 
 <body>
-    <img src="{{ banner_path }}" alt="Banner" class="banner">
-
-    <div class="menu-bar">
-        <button id="btn-section1"><img src="/static/jiraicon.png" alt="Jira Icon"><span>Jira</span></button>
-        <button id="btn-section2" ><img src="/static/sharepointicontransparent.png" alt="SharePoint Icon"><span>Sharepoint</span></button>
-        <button id="btn-section6"><img src="/static/googlesheetsicon.png" alt="GoogleSheets"><span>Google Drive</span></button>
-        <button id="btn-section5"><img src="/static/disk-file.png" alt="Local Files Icon"><span>Local Files</span></button>
-        <button id="btn-section4"><img src="/static/llmicon.png" alt="LLM Icon"><span>LLM Model</span></button>
-        <button id="btn-section3"><img src="/static/debuglogs.png" alt="Debug Logs Icon"><span>Logs</span></button>
-        <!-- Display user login -->
-        <button id="btn-exit" onclick="window.location.href='/logout'"><img src="/static/exiticon.png" alt="Exit Icon"><span>Logout</span></button>
-    </div>
-
-    <div class="page-content">
-        <!-- Section 1: Jira -->
-        <div id="section1" class="section-content">
-            <h2><img src="/static/jiraicon.jpg" alt="Jira Icon" style="height:32px; vertical-align:bottom; margin-right:2px;">Jira Connection Info</h2>
-            <form method="POST" class="left-form">
-                <label>Jira Cloud URL:</label>
-                <input type="text" name="jira_url" value="{{ foo_values.get('jira_url', '') }}">
-                <label>Jira Email:</label>
-                <input type="text" name="jira_user" value="{{ foo_values.get('jira_user', '') }}">
-                <label>Jira API Token:</label>
-                <input type="text" name="jira_token" value="{{ foo_values.get('jira_token', '') }}">
-                <button type="submit" name="save_foo"><img src="/static/saveicontransparent.png" style="height:40px; vertical-align:middle; margin-right:2px;">Save</button>
-            </form>
+    <div class="app-container">
+        <!-- LEFT: vertical menu -->
+        <aside class="left-frame">
+        <div class="menu-bar" role="navigation" aria-label="Main menu" style="padding:0; margin:0;">
+            <img src="/static/banner3.jpg" alt="Logo" 
+                style="width:100%; display:block; margin:0; padding:0; border:none;">
+        
+            <!-- Menu buttons -->
+            <button id="btn-section1"><img src="/static/jiraicon.png" alt="Jira Icon"><span>Jira</span></button>
+            <button id="btn-section4"><img src="/static/llmicon.png" alt="LLM Icon"><span>LLM Model</span></button>
+            <div class="menu-divider"></div>
+            <button id="btn-section5"><img src="/static/disk-file.png" alt="Local Files Icon"><span>Local Files</span></button>
+            <button id="btn-section2"><img src="/static/sharepointicontransparent.png" alt="SharePoint Icon"><span>Sharepoint</span></button>
+            <button id="btn-section6"><img src="/static/googlesheetsicon.png" alt="GoogleSheets"><span>Google Drive</span></button>
+            <!-- Divider -->
+            <div class="menu-divider"></div>
+            <button id="btn-section7"><img src="/static/versioninfoicon.png" alt="Info" text-align:left; vertical-align:middle; style="width:25px; height:25px"><span>Version Info</span></button>
+            <button id="btn-section3"><img src="/static/debuglogs.png" alt="Debug Logs"><span>Logs</span></button>
         </div>
 
-        <!-- Section 2: Sharepoint -->
-        <div id="section2" class="section-content">
-            Logged in user: {{username}}
-<br>
-            Sharepoint site permissions:
-            {% if logged_in %}
-                <button type="button" title="Logged in">✅ Authorized</button>
-            {% else %}
-                <button type="button" class="login-btn" onclick="openLoginPopup(this)" title="Login">🔐 Login Required</button>
-            {% endif %}
-    
-    
-<br><br>
-            <h2><img src="/static/excelicon.jpg" style="height:28px; vertical-align:bottom; margin-right:2px;">Connect File To AI Agent</h2>
-            <form method="POST" class="left-form" action="/add_sharepoint">
-                <label for="bar_value">Direct Sharepoint URL Path To File:</label>
-                <input type="text" name="bar_value" id="bar_value" placeholder="https://...">
-                <button type="submit" name="add_bar"><img src="/static/connect-icon-gears.png" style="height:40px; vertical-align:middle; margin-right:2px;">Connect</button>
-            </form>
-<br><br>
-            <h2><!--img src="/static/sharepointicon.jpg" style="height:40px; vertical-align:bottom; margin-right:2px;"-->
-                Active Sharepoint Connections
-            </h2>
-            <!--p class="sync-desc">Active ShareConnections currently active:</p>
-        -->
-            <table style="border-collapse: collapse; width: 100%;">
-                <thead>
-                    <tr>
-                        <th style="text-align:center; padding:6px;"> </th>
-                        <th style="text-align:left; padding:6px;">Connected Files</th>
-                        <th style="text-align:center; padding:1px;">Recurring</th>
-                        <th style="text-align:center; padding:1px;">Set Schedule</th>
-                        <th style="text-align:center; padding:1px;">Run</th>
-                        <th style="text-align:center; padding:1px;">Remove</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for val in bar_values %}
-                    <tr>
-                        <td style="text-align:left; padding:6px;">{{ loop.index }}</td>
-                        <td style="padding:6px;">
-                            <img src="/static/excelicon.jpg" style="height:18px; vertical-align:bottom; margin-right:2px;">
-                            <a href="{{ val }}" target="_blank">{{ val }}</a></td>
-                        <td style="text-align:center; padding:1px;">
-                            {% set sched = schedule_dict.get(val) %}
-                            {% if sched %}
-                                {% if sched.time %}
-                                    <span style="font-size:12px; margin-left:6px;">{{sched.mode}} at {{ sched.time }}</span>
-                                {% elif sched.interval %}
-                                    <span style="font-size:12px; margin-left:6px;">Every {{ sched.interval }} min</span>
-                                {% endif %}
-                            {% else %}
-                                <span style="font-size:12px; margin-left:6px;">None</span>
-                            {% endif %}
-                        </td>
-                        <td style="text-align:center; padding:1px;">
-                            <button type="button" class="table-btn" onclick="openSchedule('{{ val }}')">
-                                <img src="/static/schedule-icon.png" alt="Schedule">
-                            </button>
-                        </td>                        
-                        
-                        
-                        <td style="text-align:center; padding:1px;">
-                            <form method="POST">
-                                <input type="hidden" name="resync_bar" value="{{ val }}">
-                                <button type="submit" class="table-btn" onclick="return confirm('Resync {{ val }}?')"><img src="/static/sync-icon.png" alt="Resync"></button>
-                            </form>
-                        </td>
-                        <td style="text-align:center; padding:1px;">
-                            <form method="POST" action="/remove_sharepoint">
-                                <input type="hidden" name="remove_bar" value="{{ val }}">
-                                <button type="submit" class="table-btn" onclick="return confirm('Remove {{ val }}?')"><img src="/static/delete-icon.png" alt="Delete"></button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Section 5: Local Files -->
-        <div id="section5" class="section-content">
-            Logged in user: {{username}}
-            <br><br>
-            <h2><img src="/static/localfiles.png" style="height:28px; vertical-align:bottom; margin-right:2px;">Connect Local File To AI Agent</h2>
-            <form method="POST" class="left-form" action="/add_local">
-                <label for="local_value">Local File Path:</label>
-                <input type="text" name="local_value" id="local_value" placeholder="/path/to/file.xlsx">
-                <button type="submit" name="add_local">
-                    <img src="/static/connect-icon-gears.png" style="height:40px; vertical-align:middle; margin-right:2px;">Connect
-                </button>
-            </form>
-
-            <br><br>
-            <h2>Active Local File Connections</h2>
-
-            <table style="border-collapse: collapse; width: 100%;">
-                <thead>
-                    <tr>
-                        <th style="text-align:center; padding:6px;"> </th>
-                        <th style="text-align:left; padding:6px;">Connected Files</th>
-                        <th style="text-align:center; padding:1px;">Recurring</th>
-                        <th style="text-align:center; padding:1px;">Set Schedule</th>
-                        <th style="text-align:center; padding:1px;">Run</th>
-                        <th style="text-align:center; padding:1px;">Remove</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for val in local_values %}
-                    <tr>
-                        <td style="text-align:center; padding:6px;">{{ loop.index }}</td>
-                        <td style="padding:6px;">
-                            <img src="/static/excelicon.jpg" style="height:18px; vertical-align:bottom; margin-right:2px;">
-                            <span>{{ val }}</span>
-                        </td>
-                        <td style="text-align:center; padding:1px;">
-                            {% set sched = schedule_dict.get(val) %}
-                            {% if sched %}
-                                {% if sched.time %}
-                                    <span style="font-size:12px; margin-left:6px;">{{sched.mode}} at {{ sched.time }}</span>
-                                {% elif sched.interval %}
-                                    <span style="font-size:12px; margin-left:6px;">Every {{ sched.interval }} min</span>
-                                {% endif %}
-                            {% else %}
-                                <span style="font-size:12px; margin-left:6px;">None</span>
-                            {% endif %}
-                        </td>
-                        <td style="text-align:center; padding:1px;">
-                            <button type="button" class="table-btn" onclick="openSchedule('{{ val }}')">
-                                <img src="/static/schedule-icon.png" alt="Schedule">
-                            </button>
-                        </td>
-                        <td style="text-align:center; padding:1px;">
-                            <form method="POST"  action="/" >
-                                <button type="submit" class="table-btn" onclick="return confirm('Resync {{ val }}?')">
-                                    <img src="/static/sync-icon.png" alt="Resync">
-                                </button>
-                                <input type="hidden" name="resync_bar" value="{{ val }}">
-                            </form>
-                        </td>
-                        <td style="text-align:center; padding:1px;">
-                            <form method="POST"  action="/remove_local">
-                                <button type="submit" class="table-btn" onclick="return confirm('Remove {{ val }}?')">
-                                    <img src="/static/delete-icon.png" alt="Delete">
-                                </button>
-                                <input type="hidden" name="remove_local" value="{{ val }}">
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Section 3: Logs -->
-        <div id="section3" class="section-content">
-            <h3>Debug Logs</h3>
-            <ul>
-            {% for file in folder_tree %}
-                <li>📄 {{ file.name }} — <small>{{ file.modified }}</small>
-                    <form method="POST" style="display:inline;">
-                        <input type="hidden" name="view_log" value="{{ file.name }}">
-                        <button type="submit">👁️ View</button>
-                    </form>
-                </li>
-            {% endfor %}
-            </ul>
-        </div>
-    </div>
-
-    <!-- Section 4: LLM Model -->
-    <div id="section4" class="section-content">
-        <h2 style="display: flex; align-items: center; gap: 10px;">
-            <img src="/static/llmicon.png" alt="LLM Icon" style="width:60px;">
-            Change LLM Model
-        </h2>
-        <label>Currently using: {{llm_default}}</label>
-        <br><br>
-        <form id="llmForm" class="left-form">
-            <label for="llmSelect">Change to different model:</label>
-            <select id="llmSelect" name="llm_model"  style="width:300px; padding:6px;">
-                <option value="Local" {% if llm_default == 'Local' %}selected{% endif %}>Local llama 3.2:1b</option>
-                <option value="OpenAI" {% if llm_default == 'OpenAI' %}selected{% endif %}>OpenAI gpt-4o-mini</option>
-            </select>
-
-            <!-- OpenAI token field, hidden by default -->
-            <div id="openaiTokenField" style="display: none; margin-top: 10px;">
-                <label>OpenAI API Key:</label>
-                <input type="text" name="openai_token" value="{{ foo_values.get('openai_token', '') }}"  style="width:300px; padding:6px;">
+            <!-- keep logout pinned to bottom of sidebar -->
+            <div class="menu-bar" role="navigation" aria-label="Main menu">
+                <button id="btn-exit" onclick="window.location.href='/logout'"><img src="/static/exiticon.png" alt="Exit Icon" vertical-align:middle; style="width:30px; height:30px;"><span>Logout</span></button>
             </div>
+        </aside>
 
-            <button type="submit" class="table-btn" style="width:100px; margin-top:10px;">
-                <img src="/static/saveicontransparent.png" style="height:40px; vertical-align:middle; margin-right:4px;">
-                Save
-            </button>
-        </form>
+        <!-- RIGHT: banner + content -->
+        <main class="right-frame">
+            <!--img src="{{ banner_path }}" alt="Banner" class="banner"-->
+
+            <div class="page-content">
+                <!-- Section 1: Jira -->
+                <div id="section1" class="section-content">
+                    Login: {{username}}
+                    <br><br><br><br>
+                    <h2><img src="/static/jiraicon.jpg" alt="Jira" style="height:32px; vertical-align:bottom; margin-right:2px;">Jira Connection Info</h2>
+                    <form method="POST" class="left-form">
+                        <label>Jira Cloud URL:</label>
+                        <input type="text" name="jira_url" value="{{ foo_values.get('jira_url', '') }}">
+                        <label>Jira Email:</label>
+                        <input type="text" name="jira_user" value="{{ foo_values.get('jira_user', '') }}">
+                        <label>Jira API Token:</label>
+                        <input type="text" name="jira_token" value="{{ foo_values.get('jira_token', '') }}">
+                        <button type="submit" name="save_foo"><img src="/static/saveicontransparent.png" style="height:20px; vertical-align:middle; margin-right:6px;">Save</button>
+                    </form>
+                </div>
+
+                <!-- Section 2: Sharepoint -->
+                <div id="section2" class="section-content">
+                    Login: {{username}}
+                    <br>
+                    Sharepoint site permissions:
+                    {% if logged_in %}
+                        <button type="button" title="Logged in">✅ Authorized</button>
+                    {% else %}
+                        <button type="button" class="login-btn" onclick="openLoginPopup(this)" title="Login">🔐 Login Required</button>
+                    {% endif %}
+                    <br><br><br><br>
+                    <h2><img src="/static/excelicon.jpg" style="height:28px; vertical-align:bottom; margin-right:2px;">Connect File To AI Agent</h2>
+                    <form method="POST" class="left-form" action="/add_sharepoint">
+                        <label for="bar_value">Direct Sharepoint URL Path To File:</label>
+                        <input type="text" name="bar_value" id="bar_value" placeholder="https://...">
+                        <button type="submit" name="add_bar"><img src="/static/connect-icon-gears.png" style="height:20px; vertical-align:middle; margin-right:6px;">Connect</button>
+                    </form>
+                    <br><br><br><br>
+                    <h2>Active Sharepoint Connections</h2>
+                    <table style="border-collapse: collapse; width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="text-align:center; padding:6px;"> </th>
+                                <th style="text-align:left; padding:6px;">Connected Files</th>
+                                <th style="text-align:center; padding:1px;">Recurring</th>
+                                <th style="text-align:center; padding:1px;">Set Schedule</th>
+                                <th style="text-align:center; padding:1px;">Run</th>
+                                <th style="text-align:center; padding:1px;">Remove</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for val in bar_values %}
+                            <tr>
+                                <td style="text-align:left; padding:6px;">{{ loop.index }}</td>
+                                <td style="padding:6px;">
+                                    <img src="/static/excelicon.jpg" style="height:18px; vertical-align:bottom; margin-right:2px;">
+                                    <a href="{{ val }}" target="_blank">{{ val }}</a></td>
+                                <td style="text-align:center; padding:1px;">
+                                    {% set sched = schedule_dict.get(val) %}
+                                    {% if sched %}
+                                        {% if sched.time %}
+                                            <span style="font-size:12px; margin-left:6px;">{{sched.mode}} at {{ sched.time }}</span>
+                                        {% elif sched.interval %}
+                                            <span style="font-size:12px; margin-left:6px;">Every {{ sched.interval }} min</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span style="font-size:12px; margin-left:6px;">None</span>
+                                    {% endif %}
+                                </td>
+                                <td style="text-align:center; padding:1px;">
+                                    <button type="button"  onclick="openSchedule('{{ val }}')">
+                                        <img src="/static/schedule-icon.png" alt="Schedule">
+                                    </button>
+                                </td>
+                                <td style="text-align:center; padding:1px;">
+                                    <form method="POST">
+                                        <input type="hidden" name="resync_bar" value="{{ val }}">
+                                        <button type="submit"  onclick="return confirm('Resync {{ val }}?')"><img src="/static/sync-icon.png" alt="Resync"></button>
+                                    </form>
+                                </td>
+                                <td style="text-align:center; padding:1px;">
+                                    <form method="POST" action="/remove_sharepoint">
+                                        <input type="hidden" name="remove_bar" value="{{ val }}">
+                                        <button type="submit"  onclick="return confirm('Remove {{ val }}?')"><img src="/static/delete-icon.png" alt="Delete"></button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Section 5: Local Files -->
+                <div id="section5" class="section-content">
+                    Login: {{username}}
+                    <br><br><br><br>
+                    <h2><img src="/static/localfiles.png" style="height:28px; vertical-align:bottom; margin-right:2px;">Connect Local File To AI Agent</h2>
+                    <form method="POST" class="left-form" action="/add_local">
+                        <label for="local_value">Local File Path:</label>
+                        <input type="text" name="local_value" id="local_value" placeholder="/path/to/file.xlsx">
+                        <button type="submit" name="add_local">
+                            <img src="/static/connect-icon-gears.png" style="height:20px; vertical-align:middle; margin-right:6px;">Connect
+                        </button>
+                    </form>
+
+                    <br><br><br><br>
+                    <h2>Active Local File Connections</h2>
+
+                    <table style="border-collapse: collapse; width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="text-align:center; padding:6px;"> </th>
+                                <th style="text-align:left; padding:6px;">Connected Files</th>
+                                <th style="text-align:center; padding:1px;">Recurring</th>
+                                <th style="text-align:center; padding:1px;">Set Schedule</th>
+                                <th style="text-align:center; padding:1px;">Run</th>
+                                <th style="text-align:center; padding:1px;">Remove</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for val in local_values %}
+                            <tr>
+                                <td style="text-align:center; padding:6px;">{{ loop.index }}</td>
+                                <td style="padding:6px;">
+                                    <img src="/static/excelicon.jpg" style="height:18px; vertical-align:bottom; margin-right:2px;">
+                                    <span>{{ val }}</span>
+                                </td>
+                                <td style="text-align:center; padding:1px;">
+                                    {% set sched = schedule_dict.get(val) %}
+                                    {% if sched %}
+                                        {% if sched.time %}
+                                            <span style="font-size:12px; margin-left:6px;">{{sched.mode}} at {{ sched.time }}</span>
+                                        {% elif sched.interval %}
+                                            <span style="font-size:12px; margin-left:6px;">Every {{ sched.interval }} min</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span style="font-size:12px; margin-left:6px;">None</span>
+                                    {% endif %}
+                                </td>
+                                <td style="text-align:center; padding:1px;">
+                                    <button type="button" class="table-btn" onclick="openSchedule('{{ val }}')">
+                                        <img src="/static/schedule-icon.png" alt="Schedule">
+                                    </button>
+                                </td>
+                                <td style="text-align:center; padding:1px;">
+                                    <form method="POST"  action="/" >
+                                        <button type="submit" class="table-btn" onclick="return confirm('Resync {{ val }}?')">
+                                            <img src="/static/sync-icon.png" alt="Resync">
+                                        </button>
+                                        <input type="hidden" name="resync_bar" value="{{ val }}">
+                                    </form>
+                                </td>
+                                <td style="text-align:center; padding:1px;">
+                                    <form method="POST"  action="/remove_local">
+                                        <button type="submit" class="table-btn" onclick="return confirm('Remove {{ val }}?')">
+                                            <img src="/static/delete-icon.png" alt="Delete">
+                                        </button>
+                                        <input type="hidden" name="remove_local" value="{{ val }}">
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Section 3: Logs -->
+                <div id="section3" class="section-content">
+                    <h3>Debug Logs</h3>
+                    <ul>
+                    {% for file in folder_tree %}
+                        <li>📄 {{ file.name }} — <small>{{ file.modified }}</small>
+                            <form method="POST" style="display:inline;">
+                                <input type="hidden" name="view_log" value="{{ file.name }}">
+                                <button type="submit">👁️ View</button>
+                            </form>
+                        </li>
+                    {% endfor %}
+                    </ul>
+                </div>
+
+                <!-- Section 4: LLM Model -->
+                <div id="section4" class="section-content">
+                    Login: {{username}}
+                    <br><br><br><br>
+                    <h2 style="display: flex; align-items: center; gap: 10px;">
+                        <img src="/static/llmicon.png" alt="LLM Icon" style="width:60px;">
+                        Change LLM Model
+                    </h2>
+                    <label>Currently using: {{llm_default}}</label>
+                    <br><br>
+                    <form id="llmForm" class="left-form">
+                        <label for="llmSelect">Change to different model:</label>
+                        <select id="llmSelect" name="llm_model"  style="width:300px; padding:6px;">
+                            <option value="Local" {% if llm_default == 'Local' %}selected{% endif %}>Local llama 3.2:1b</option>
+                            <option value="OpenAI" {% if llm_default == 'OpenAI' %}selected{% endif %}>OpenAI gpt-4o-mini</option>
+                        </select>
+
+                        <!-- OpenAI token field, hidden by default -->
+                        <div id="openaiTokenField" style="display: none; margin-top: 10px;">
+                            <label>OpenAI API Key:</label>
+                            <input type="text" name="openai_token" value="{{ foo_values.get('openai_token', '') }}"  style="width:300px; padding:6px;">
+                        </div>
+
+                        <button type="submit" class="table-btn" style="width:100px; margin-top:10px;">
+                            <img src="/static/saveicontransparent.png" style="height:20px; vertical-align:middle; margin-right:4px;">
+                            Save
+                        </button>
+                    </form>
+                </div>
+
+            </div> <!-- end page-content -->
+        </main>
     </div>
-
 
     <!-- Schedule Modal -->
     <div id="scheduleModal" class="modal">
@@ -366,21 +499,12 @@
 
   <table style="width:100%; margin-top:10px; border-collapse:collapse;">
   <tr>
-    <!-- Column 1: Time & Interval -->
     <td style="vertical-align:top; text-align:left; padding-right:20px; width:50%;">
       <label style="display:block; margin-bottom:4px;">Time (HH:MM):</label>
-      <!--input type="time" id="scheduleTime" name="time" style="width:120px; margin-bottom:10px;">
-    -->
-
         <input type="text" id="scheduleTime" name="time"
         style="width:120px; margin-bottom:10px;"
         placeholder="HH:MM">
 
-      <!----
-      <label style="display:flex; align-items:left; gap:4px; margin-bottom:4px; font-weight:normal;">
-        <input type="radio" class="scheduleMode" name="mode" value="Hourly" style="margin:0; padding:0;"> Hourly
-      </label>
-      --->
       <label style="display:flex; align-items:left; gap:4px; margin-bottom:4px; font-weight:normal;">
         <input type="radio" class="scheduleMode" name="mode" value="Daily" style="margin:0; padding:0;"> Daily
       </label>
@@ -397,18 +521,15 @@
         <label><input type="checkbox" name="days" value="fri"> Fri</label>
         <label><input type="checkbox" name="days" value="sat"> Sat</label>
         <label><input type="checkbox" name="days" value="sun"> Sun</label>
-    </div>
-
+      </div>
     </td>
 
-    <!-- Column 2: Mode Radios -->
     <td style="vertical-align:top; text-align:left; width:50%;">
       <label style="display:block; margin-bottom:4px;">Interval (minutes):</label>
       <input type="number" id="scheduleInterval" name="interval" min="1" style="width:120px;">
     </td>
   </tr>
 </table>
-
 
   <div style="margin-top:15px; display:flex; gap:10px;">
     <button type="submit" id="scheduleSubmit" class="table-btn" style="width:120px;">
@@ -427,100 +548,70 @@
     <div id="toast"></div>
 
     <script>
-        const btnSection1 = document.getElementById('btn-section1');
-        const btnSection2 = document.getElementById('btn-section2');
-        const btnSection3 = document.getElementById('btn-section3');
-        const btnSection4 = document.getElementById('btn-section4');
-        const section1 = document.getElementById('section1');
-        const section2 = document.getElementById('section2');
-        const section3 = document.getElementById('section3');
-        const section4 = document.getElementById('section4');
+        /* ---------- Helper references ---------- */
+        const sections = {
+            section1: document.getElementById('section1'),
+            section2: document.getElementById('section2'),
+            section3: document.getElementById('section3'),
+            section4: document.getElementById('section4'),
+            section5: document.getElementById('section5')
+        };
 
-        const btnSection5 = document.getElementById('btn-section5');
-        const section5 = document.getElementById('section5');
-        btnSection5.addEventListener('click', () => showSection('section5'));
+        const buttons = {
+            section1: document.getElementById('btn-section1'),
+            section2: document.getElementById('btn-section2'),
+            section3: document.getElementById('btn-section3'),
+            section4: document.getElementById('btn-section4'),
+            section5: document.getElementById('btn-section5')
+        };
 
+        /* ---------- Show/activate a section ---------- */
+        function showSection(sectionId) {
+            Object.keys(sections).forEach(key => {
+                sections[key].classList.remove('active');
+                if (buttons[key]) buttons[key].classList.remove('active');
+            });
+            if (sections[sectionId]) {
+                sections[sectionId].classList.add('active');
+                if (buttons[sectionId]) buttons[sectionId].classList.add('active');
+                history.replaceState(null, '', '#' + sectionId);
+            }
+        }
 
-        // Add new section button for LLM model configuration menu bar
+        /* Attach button click handlers (safely only if they exist) */
+        Object.keys(buttons).forEach(key => {
+            const btn = buttons[key];
+            if (btn) btn.addEventListener('click', () => showSection(key));
+        });
 
-        btnSection4.addEventListener('click', () => showSection('section4'));
-
-       function showSection(sectionToShow) {
-        section1.classList.remove('active');
-        section2.classList.remove('active');
-        section3.classList.remove('active');
-        section4.classList.remove('active');
-        section5.classList.remove('active');
-
-        btnSection1.classList.remove('active');
-        btnSection2.classList.remove('active');
-        btnSection3.classList.remove('active');
-        btnSection4.classList.remove('active');
-        btnSection5.classList.remove('active');
-
-        if (sectionToShow === 'section1') { section1.classList.add('active'); btnSection1.classList.add('active'); }
-        else if (sectionToShow === 'section2') { section2.classList.add('active'); btnSection2.classList.add('active'); }
-        else if (sectionToShow === 'section3') { section3.classList.add('active'); btnSection3.classList.add('active'); }
-        else if (sectionToShow === 'section4') { section4.classList.add('active'); btnSection4.classList.add('active'); }
-        else { section5.classList.add('active'); btnSection5.classList.add('active'); }
-    }
-
-
-        // Fetch default model from backend on page load
-        window.addEventListener('DOMContentLoaded', () => {
+        /* On load: pick section from hash or default */
+        window.addEventListener("DOMContentLoaded", () => {
+            // fetch default model to initialize dropdown
             fetch('/getmodel')
             .then(res => res.json())
             .then(data => {
-                if(data.default_model) document.getElementById('llmSelect').value = data.default_model;
-            })
-            .catch(err => console.error('Failed to fetch default model:', err));
-        });
-
-        // Submit selected model to backend
-        document.getElementById('llmForm').addEventListener('submit', function(event) {
-            event.preventDefault();
-
-            const selectedModel = document.getElementById('llmSelect').value;
-            const openaiToken = document.querySelector('input[name="openai_token"]').value;
-
-            fetch('/setmodel', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    llm_model: selectedModel,
-                    openai_token: openaiToken
-                })
-            })
-            .then(res => {
-                if (res.ok) {
-                    showToast(`✅ Saved LLM model: ${selectedModel}`);
-                    setTimeout(() => {
-                    window.location.hash = "section4";  // force stay on #local section
-                    window.location.reload();
-                    }, 1200);
-                } else {
-                    showToast('❌ Failed to save settings', false);
+                if (data.default_model) {
+                    const s = document.getElementById('llmSelect');
+                    if (s) s.value = data.default_model;
                 }
             })
-            .catch(() => showToast('❌ Error connecting to server', false));
+            .catch(err => console.error('Failed to fetch default model:', err));
+
+            const hash = window.location.hash.substring(1);
+            if (hash && sections[hash]) {
+                showSection(hash);
+            } else {
+                showSection('section2'); // default section
+            }
         });
 
-
-
-
-
-        btnSection1.addEventListener('click', () => showSection('section1'));
-        btnSection2.addEventListener('click', () => showSection('section2'));
-        btnSection3.addEventListener('click', () => showSection('section3'));
-        //showSection('section2');
-
+        /* ---------- Login popup handling ---------- */
         let lastLoginBtn = null;
         function openLoginPopup(btn) {
             lastLoginBtn = btn;
             const popup = window.open("/login", "LoginWindow", "width=600,height=700");
             if (!popup) alert("Please allow popups for this site.");
         }
-
         window.addEventListener("message", function(e) {
             if (e.data === "login-success" && lastLoginBtn) {
                 lastLoginBtn.textContent = "✅ Authorized"; lastLoginBtn.title = "Logged in";
@@ -529,56 +620,50 @@
             }
         });
 
-        // === Schedule Modal & Mutual Exclusivity ===
+        /* ---------- Schedule modal and mutual exclusivity ---------- */
         const scheduleTime = document.getElementById("scheduleTime");
         const scheduleInterval = document.getElementById("scheduleInterval");
+        const modeCheckboxes = document.querySelectorAll(".scheduleMode");
 
         function enforceMutualExclusivity() {
             const timeVal = scheduleTime.value.trim();
             const intervalVal = scheduleInterval.value.trim();
 
-            // Disable inputs mutually
             scheduleTime.disabled = !!intervalVal;
             scheduleInterval.disabled = !!timeVal;
 
-            // Disable mode radios if interval is used
             modeCheckboxes.forEach(cb => cb.disabled = !!intervalVal);
 
-            // Enable submit button only if at least one input has value
             document.getElementById("scheduleSubmit").disabled = !(timeVal || intervalVal);
         }
 
-
-        scheduleTime.addEventListener("input", enforceMutualExclusivity);
-        scheduleInterval.addEventListener("input", enforceMutualExclusivity);
+        if (scheduleTime) scheduleTime.addEventListener("input", enforceMutualExclusivity);
+        if (scheduleInterval) scheduleInterval.addEventListener("input", enforceMutualExclusivity);
 
         function openSchedule(filename) {
-            // Load data from schedule_dict (passed into template)
-            const sched = scheduleData[filename];  // <-- ensure you inject schedule_dict into JS as scheduleData
+            const sched = scheduleData[filename];
 
             document.getElementById("scheduleFilename").value = filename;
             document.getElementById("scheduleTime").value = sched && sched.time ? sched.time : "";
             document.getElementById("scheduleInterval").value = sched && sched.interval ? sched.interval : "";
 
-            // Clear all mode radios
+            // Clear radios
             document.querySelectorAll("input[name='mode']").forEach(r => r.checked = false);
 
             if (sched && sched.mode) {
-                // Select correct mode
-                document.querySelector(`input[name='mode'][value='${sched.mode}']`).checked = true;
+                const el = document.querySelector(`input[name='mode'][value='${sched.mode}']`);
+                if (el) el.checked = true;
 
-                // Show/hide weekly days
                 if (sched.mode.toLowerCase() === "weekly") {
                     document.getElementById("weeklyDays").style.display = "block";
                 } else {
                     document.getElementById("weeklyDays").style.display = "none";
                 }
+            } else {
+                document.getElementById("weeklyDays").style.display = "none";
             }
 
-            // Clear all weekly checkboxes
             document.querySelectorAll("#weeklyDays input[type=checkbox]").forEach(cb => cb.checked = false);
-
-            // Re-check saved days
             if (sched && sched.days) {
                 sched.days.forEach(day => {
                     const cb = document.querySelector(`#weeklyDays input[value='${day}']`);
@@ -587,8 +672,8 @@
             }
 
             document.getElementById("scheduleModal").style.display = "block";
+            enforceMutualExclusivity();
         }
-
 
         document.querySelector(".close").onclick = function() {
             document.getElementById("scheduleModal").style.display = "none";
@@ -607,6 +692,7 @@
             setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
         }
 
+        /* ---------- Schedule form submit ---------- */
         document.getElementById("scheduleForm").addEventListener("submit", function(event) {
             event.preventDefault();
             const time = scheduleTime.value.trim();
@@ -614,34 +700,30 @@
             if (!time && !interval) { showToast("❌ Enter time or interval", false); return; }
 
             const formData = new FormData(this);
-        
-            // Find selected mode
+
+            // Selected mode (radio)
             let selectedMode = "";
-            modeCheckboxes.forEach(cb => {
-                if (cb.checked) selectedMode = cb.value;
-            });
+            document.querySelectorAll("input[name='mode']").forEach(r => { if (r.checked) selectedMode = r.value; });
             formData.append("mode", selectedMode);
 
             fetch(this.action, { method: "POST", body: formData })
             .then(response => {
-                if (response.ok) { 
-                    showToast("✅ Schedule saved successfully"); 
-                    document.getElementById("scheduleModal").style.display = "none"; 
-                    // Reload the main page to show updated schedules
+                if (response.ok) {
+                    showToast("✅ Schedule saved successfully");
+                    document.getElementById("scheduleModal").style.display = "none";
                     location.reload();
+                } else {
+                    showToast("❌ Failed to save schedule", false);
                 }
-                else { showToast("❌ Failed to save schedule", false); }
             })
             .catch(() => showToast("❌ Error connecting to server", false));
         });
 
-
+        /* ---------- Clear schedule ---------- */
         const clearScheduleBtn = document.getElementById("clearScheduleBtn");
-
         clearScheduleBtn.addEventListener("click", function() {
             const filename = document.getElementById("scheduleFilename").value;
             if (!filename) return;
-
             if (!confirm(`Clear schedule for ${filename}?`)) return;
 
             fetch('/schedule/clear', {
@@ -653,22 +735,7 @@
             .then(data => {
                 if (data.success) {
                     showToast("✅ Schedule cleared");
-                    // Clear inputs in the modal
-                    scheduleTime.value = "";
-                    scheduleInterval.value = "";
-                    // Clear weekly day checkboxes
-                    document.querySelectorAll("#weeklyDays input[type=checkbox]").forEach(cb => cb.checked = false);
-
-                    // Hide the weeklyDays section
-                    document.getElementById("weeklyDays").style.display = "none";
-
-
-                    scheduleTime.disabled = false;
-                    scheduleInterval.disabled = false;
-                    document.getElementById("scheduleSubmit").disabled = true;
-                    // Close modal if desired
                     document.getElementById("scheduleModal").style.display = "none";
-                    // Reload the main page to show updated schedules
                     location.reload();
                 } else {
                     showToast("❌ Failed to clear schedule", false);
@@ -677,8 +744,7 @@
             .catch(() => showToast("❌ Error connecting to server", false));
         });
 
-                // Ensure only one checkbox can be selected
-        const modeCheckboxes = document.querySelectorAll(".scheduleMode");
+        // ensure only one "mode" radio selected — radios behave this way by default, but keep mutual exclusivity for compatibility
         modeCheckboxes.forEach(cb => {
             cb.addEventListener("change", function() {
                 if (this.checked) {
@@ -689,14 +755,12 @@
             });
         });
 
-
         flatpickr("#scheduleTime", {
             enableTime: true,
             noCalendar: true,
-            dateFormat: "H:i",   // 24-hour format
+            dateFormat: "H:i",
             time_24hr: true
         });
-
 
         document.querySelectorAll("input[name='mode']").forEach(radio => {
             radio.addEventListener("change", function() {
@@ -709,206 +773,153 @@
             });
         });
 
+        /* ---------- Data injected from server ---------- */
         const scheduleData = {{ schedule_dict | tojson }};
 
+        /* ---------- LLM select toggle ---------- */
         const llmSelect = document.getElementById('llmSelect');
         const openaiTokenField = document.getElementById('openaiTokenField');
-
         function toggleTokenField() {
+            if (!llmSelect) return;
             if (llmSelect.value === 'OpenAI') {
                 openaiTokenField.style.display = 'block';
             } else {
                 openaiTokenField.style.display = 'none';
             }
         }
+        if (llmSelect) {
+            toggleTokenField();
+            llmSelect.addEventListener('change', toggleTokenField);
+        }
 
-        // Run on page load (in case default is OpenAI)
-        toggleTokenField();
+        /* ---------- LLM form submit (AJAX) ---------- */
+        const llmForm = document.getElementById('llmForm');
+        if (llmForm) {
+            llmForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                const selectedModel = document.getElementById('llmSelect').value;
+                const openaiToken = document.querySelector('input[name="openai_token"]') ? document.querySelector('input[name="openai_token"]').value : '';
 
-        // Run when dropdown changes
-        llmSelect.addEventListener('change', toggleTokenField);
+                fetch('/setmodel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        llm_model: selectedModel,
+                        openai_token: openaiToken
+                    })
+                })
+                .then(res => {
+                    if (res.ok) {
+                        showToast(`✅ Saved LLM model: ${selectedModel}`);
+                        setTimeout(() => { window.location.hash = "section4"; window.location.reload(); }, 900);
+                    } else {
+                        showToast('❌ Failed to save settings', false);
+                    }
+                })
+                .catch(() => showToast('❌ Error connecting to server', false));
+            });
+        }
 
-
-        // Grab the Jira form
+        /* ---------- Jira form: AJAX submit ---------- */
         const jiraForm = document.querySelector('#section1 form.left-form');
+        if (jiraForm) {
+            jiraForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                const formData = {
+                    jira_url: this.querySelector('input[name="jira_url"]').value,
+                    jira_user: this.querySelector('input[name="jira_user"]').value,
+                    jira_token: this.querySelector('input[name="jira_token"]').value
+                };
+                fetch('/save_jira', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) showToast('✅ Jira settings saved');
+                    else showToast('❌ Failed to save Jira settings', false);
+                })
+                .catch(() => showToast('❌ Error connecting to server', false));
+            });
+        }
 
-        // Intercept submit
-        jiraForm.addEventListener('submit', function(event) {
-            event.preventDefault(); // Prevent default page reload
-
-            // Gather form values
-            const formData = {
-                jira_url: this.querySelector('input[name="jira_url"]').value,
-                jira_user: this.querySelector('input[name="jira_user"]').value,
-                jira_token: this.querySelector('input[name="jira_token"]').value
-            };
-
-            // Send to backend via POST
-            fetch('/save_jira', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            })
-            .then(res => res.json())
-            .then(data => {
-                if(data.success) {
-                    showToast('✅ Jira settings saved');
-                } else {
-                    showToast('❌ Failed to save Jira settings', false);
-                }
-            })
-            .catch(() => showToast('❌ Error connecting to server', false));
-        });
-
-
-        // Grab the local file form
+        /* ---------- Add Sharepoint (AJAX) ---------- */
         const addSharepointForm = document.querySelector('form[action="/add_sharepoint"]');
+        if (addSharepointForm) {
+            addSharepointForm.addEventListener("submit", function(event) {
+                event.preventDefault();
+                const formData = new FormData(this);
+                fetch(this.action, { method: "POST", body: formData })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(`✅ ${data.message}`);
+                        setTimeout(() => { window.location.hash = "section2"; window.location.reload(); }, 900);
+                    } else {
+                        showToast(`❌ ${data.message || "Operation failed"}`, false);
+                    }
+                })
+                .catch(() => showToast("❌ Error connecting to server", false));
+            });
+        }
 
-        addSharepointForm.addEventListener("submit", function(event) {
-            event.preventDefault(); // prevent normal submit
-
-            const formData = new FormData(this);
-
-            fetch(this.action, { method: "POST", body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(`✅ ${data.message}`);
-                    setTimeout(() => {
-                        window.location.hash = "section2";  // force stay on #local section
-                        window.location.reload();
-                    }, 1200);
-                } else {
-                    showToast(`❌ ${data.message || "Operation failed"}`, false);
-                }
-            })
-            .catch(() => showToast("❌ Error connecting to server", false));
-        });
-
-        // Grab ALL remove_local forms
+        /* ---------- Remove sharepoint (AJAX) ---------- */
         document.querySelectorAll('form[action="/remove_sharepoint"]').forEach(form => {
             form.addEventListener("submit", function(event) {
                 event.preventDefault();
-
                 const formData = new FormData(this);
-
-            fetch(this.action, { method: "POST", body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(`✅ ${data.message}`);
-                    setTimeout(() => {
-                        window.location.hash = "section2";  // force stay on #local section
-                        window.location.reload();
-                    }, 1200);
-                } else {
-                    showToast(`❌ ${data.message || "Operation failed"}`, false);
-                }
-            })
-            .catch(() => showToast("❌ Error connecting to server", false));
+                fetch(this.action, { method: "POST", body: formData })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(`✅ ${data.message}`);
+                        setTimeout(() => { window.location.hash = "section2"; window.location.reload(); }, 900);
+                    } else {
+                        showToast(`❌ ${data.message || "Operation failed"}`, false);
+                    }
+                })
+                .catch(() => showToast("❌ Error connecting to server", false));
             });
         });
 
-
-
-
-
-
-
-        // Grab the local file form
+        /* ---------- Add local (AJAX) ---------- */
         const localForm = document.querySelector('form[action="/add_local"]');
+        if (localForm) {
+            localForm.addEventListener("submit", function(event) {
+                event.preventDefault();
+                const formData = new FormData(this);
+                fetch(this.action, { method: "POST", body: formData })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(`✅ ${data.message}`);
+                        setTimeout(() => { window.location.hash = "section5"; window.location.reload(); }, 900);
+                    } else {
+                        showToast(`❌ ${data.message || "Operation failed"}`, false);
+                    }
+                })
+                .catch(() => showToast("❌ Error connecting to server", false));
+            });
+        }
 
-        localForm.addEventListener("submit", function(event) {
-            event.preventDefault(); // prevent normal submit
-
-            const formData = new FormData(this);
-
-            fetch(this.action, { method: "POST", body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(`✅ ${data.message}`);
-                    setTimeout(() => {
-                        window.location.hash = "section5";  // force stay on #local section
-                        window.location.reload();
-                    }, 1200);
-                } else {
-                    showToast(`❌ ${data.message || "Operation failed"}`, false);
-                }
-            })
-            .catch(() => showToast("❌ Error connecting to server", false));
-        });
-
-
-        // Grab ALL remove_local forms
+        /* ---------- Remove local (AJAX) ---------- */
         document.querySelectorAll('form[action="/remove_local"]').forEach(form => {
             form.addEventListener("submit", function(event) {
                 event.preventDefault();
-
                 const formData = new FormData(this);
-
-            fetch(this.action, { method: "POST", body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(`✅ ${data.message}`);
-                    setTimeout(() => {
-                        window.location.hash = "section5";  // force stay on #local section
-                        window.location.reload();
-                    }, 1200);
-                } else {
-                    showToast(`❌ ${data.message || "Operation failed"}`, false);
-                }
-            })
-            .catch(() => showToast("❌ Error connecting to server", false));
+                fetch(this.action, { method: "POST", body: formData })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(`✅ ${data.message}`);
+                        setTimeout(() => { window.location.hash = "section5"; window.location.reload(); }, 900);
+                    } else {
+                        showToast(`❌ ${data.message || "Operation failed"}`, false);
+                    }
+                })
+                .catch(() => showToast("❌ Error connecting to server", false));
             });
-        });
-
-
-        // Sections and buttons
-        const sections = {
-            section1: document.getElementById('section1'),
-            section2: document.getElementById('section2'),
-            section3: document.getElementById('section3'),
-            section4: document.getElementById('section4'),
-            section5: document.getElementById('section5')
-        };
-
-        const buttons = {
-            section1: document.getElementById('btn-section1'),
-            section2: document.getElementById('btn-section2'),
-            section3: document.getElementById('btn-section3'),
-            section4: document.getElementById('btn-section4'),
-            section5: document.getElementById('btn-section5')
-        };
-
-        // Show a section
-        function showSection(sectionId) {
-            Object.keys(sections).forEach(key => {
-                sections[key].classList.remove('active');
-                buttons[key].classList.remove('active');
-            });
-            if (sections[sectionId]) {
-                sections[sectionId].classList.add('active');
-                buttons[sectionId].classList.add('active');
-                // Update URL hash without scrolling
-                history.replaceState(null, '', '#' + sectionId);
-            }
-        }
-
-        // Attach button click handlers
-        Object.keys(buttons).forEach(key => {
-            buttons[key].addEventListener('click', () => showSection(key));
-        });
-
-        // Show section based on hash on page load
-        window.addEventListener("DOMContentLoaded", () => {
-            const hash = window.location.hash.substring(1);
-            if (hash && sections[hash]) {
-                showSection(hash);
-            } else {
-                showSection('section2'); // default section
-            }
         });
 
     </script>
