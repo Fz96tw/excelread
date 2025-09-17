@@ -545,7 +545,9 @@ if jql_ids:
                     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     value = now_str
                 elif field == "url":
-                    value = "URL " + jql_id     # set it to the issue key for now. will be converted to hyperlink by update_sharepoint.py
+                    #jql_id = jql_id.tolower().replace("jql","")
+                    value = "URL " + jql_id    # set it to the issue key for now. will be converted to hyperlink by update_sharepoint.py
+                    #value = jql_query     # set it to the issue key for now. will be converted to hyperlink by update_sharepoint.py
                 elif field == "status":
                     print(f"status list: {status_list}")
                     status_list.sort()

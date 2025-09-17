@@ -116,7 +116,7 @@ def create_hyperlink(value, jira_base_url):
         if is_valid_jira_id(value):
             return f"{jira_base_url}/browse/{value}"
         elif is_jql(value):
-            jql_query = value.replace("JQL", "").strip()
+            jql_query = str(value).lower().replace("jql", "").strip()
             return f"{jira_base_url}/issues/?jql={jql_query}"
     return None
 
@@ -162,17 +162,19 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
         col_letter = chr(col_ascii)
         if col_letter in cols:
             new_val = cols[col_letter]["new"]
-
-            hyperlink = create_hyperlink(new_val, jira_base_url)
-            if hyperlink:
-                print(f"new value is hyperlink = {hyperlink}")
-                new_val = new_val.replace("URL", "").strip()  # Clean up "URL" prefix
-                new_val = new_val.replace("JQL", "").strip()  # Clean up "JQL" prefix
-                #new_value = "🔗" 
-                new_val = _make_hyperlink_formula(hyperlink, new_val)
-            else:   
+            #print(f"checking if {new_val} is hyperlink ") 
+            if new_val.startswith("URL "):
+                hyperlink = create_hyperlink(new_val, jira_base_url)
+                if hyperlink:
+                    print(f"new value is hyperlink = {hyperlink}")
+                    new_val = new_val.replace("URL", "").strip()  # Clean up "URL" prefix
+                    new_val = str(new_val).lower().replace("jql", "").strip()  # Clean up "JQL" prefix
+                    #new_value = "🔗" 
+                    new_val = _make_hyperlink_formula(hyperlink, new_val)
+                 
+            else:
                 new_val = new_val.replace(";", "\n") if ";" in new_val else new_val
-            
+                
             new_values.append(new_val)
             if "!!" in new_val:
                 print(f"   ⚠ Warning: '!!' found in new value for {col_letter}{row_num}. Need to strikeout cell")
