@@ -326,15 +326,17 @@
 
     <!-- Section 4: LLM Model -->
     <div id="section4" class="section-content">
-        <h2>
+        <h2 style="display: flex; align-items: center; gap: 10px;">
             <img src="/static/llmicon.png" alt="LLM Icon" style="width:60px;">
-            Configure LLM Model
+            Change LLM Model
         </h2>
+        <label>Currently using: {{llm_default}}</label>
+        <br><br>
         <form id="llmForm" class="left-form">
-            <label for="llmSelect">Select LLM Model:</label>
+            <label for="llmSelect">Change to different model:</label>
             <select id="llmSelect" name="llm_model"  style="width:300px; padding:6px;">
-                <option value="Local" {% if llm_default == 'Local' %}selected{% endif %}>Local</option>
-                <option value="OpenAI" {% if llm_default == 'OpenAI' %}selected{% endif %}>OpenAI</option>
+                <option value="Local" {% if llm_default == 'Local' %}selected{% endif %}>Local llama 3.2:1b</option>
+                <option value="OpenAI" {% if llm_default == 'OpenAI' %}selected{% endif %}>OpenAI gpt-4o-mini</option>
             </select>
 
             <!-- OpenAI token field, hidden by default -->
@@ -492,6 +494,10 @@
             .then(res => {
                 if (res.ok) {
                     showToast(`✅ Saved LLM model: ${selectedModel}`);
+                    setTimeout(() => {
+                    window.location.hash = "section4";  // force stay on #local section
+                    window.location.reload();
+                    }, 1200);
                 } else {
                     showToast('❌ Failed to save settings', false);
                 }
