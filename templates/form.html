@@ -256,7 +256,7 @@
             <button id="btn-section4"><img src="/static/llmicon.png" alt="LLM Icon"><span>LLM Model</span></button>
             <div class="menu-divider"></div>
             <button id="btn-section5"><img src="/static/disk-file.png" alt="Local Files Icon"><span>Local Files</span></button>
-            <button id="btn-section2"><img src="/static/sharepointicontransparent.png" alt="SharePoint Icon"><span>Sharepoint</span></button>
+            <button id="btn-section2"><img src="/static/sharepointicontransparent.png" alt="SharePoint Icon"><span>SharePoint</span></button>
             <button id="btn-section6"><img src="/static/googlesheetsicon.png" alt="GoogleSheets"><span>Google Drive</span></button>
             <!-- Divider -->
             <div class="menu-divider"></div>
@@ -277,8 +277,11 @@
             <div class="page-content">
                 <!-- Section 1: Jira -->
                 <div id="section1" class="section-content">
-                    Login: {{username}}
-                    <br><br><br><br>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <img src="/static/usericon.png" alt="Login" style="height:35px;">
+                        <span>{{username}}</span>
+                    </div>                    
+                    <br><br>
                     <h2><img src="/static/jiraicon.jpg" alt="Jira" style="height:32px; vertical-align:bottom; margin-right:2px;">Jira Connection Info</h2>
                     <form method="POST" class="left-form">
                         <label>Jira Cloud URL:</label>
@@ -293,18 +296,27 @@
 
                 <!-- Section 2: Sharepoint -->
                 <div id="section2" class="section-content">
-                    Login: {{username}}
+                    <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+                        <!-- Left side: user icon + name -->
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <img src="/static/usericon.png" alt="Login" style="height:35px;">
+                            <span>{{username}}</span>
+                        </div>
+
+                        <!-- Right side: permissions -->
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span>SharePoint site permissions:</span>
+                            {% if logged_in %}
+                                <button type="button" title="Logged in">✅ Authorized</button>
+                            {% else %}
+                                <button type="button" class="login-btn" onclick="openLoginPopup(this)" title="Login">🔐 Login Required</button>
+                            {% endif %}
+                        </div>
+                    </div>
                     <br>
-                    Sharepoint site permissions:
-                    {% if logged_in %}
-                        <button type="button" title="Logged in">✅ Authorized</button>
-                    {% else %}
-                        <button type="button" class="login-btn" onclick="openLoginPopup(this)" title="Login">🔐 Login Required</button>
-                    {% endif %}
-                    <br><br><br><br>
-                    <h2><img src="/static/excelicon.jpg" style="height:28px; vertical-align:bottom; margin-right:2px;">Connect File To AI Agent</h2>
+                    <h2><img src="/static/excelicon.jpg" style="height:35px; vertical-align:bottom; margin-right:2px;">Connect File to AI Agent</h2>
                     <form method="POST" class="left-form" action="/add_sharepoint">
-                        <label for="bar_value">Direct Sharepoint URL Path To File:</label>
+                        <label for="bar_value">Direct Download URL to SharePoint File:</label>
                         <input type="text" name="bar_value" id="bar_value" placeholder="https://...">
                         <button type="submit" name="add_bar"><img src="/static/connect-icon-gears.png" style="height:20px; vertical-align:middle; margin-right:6px;">Connect</button>
                     </form>
@@ -315,8 +327,8 @@
                             <tr>
                                 <th style="text-align:center; padding:6px;"> </th>
                                 <th style="text-align:left; padding:6px;">Connected Files</th>
-                                <th style="text-align:center; padding:1px;">Recurring</th>
-                                <th style="text-align:center; padding:1px;">Set Schedule</th>
+                                <th style="text-align:center; padding:1px;">Repeat</th>
+                                <th style="text-align:center; padding:1px;">Schedule</th>
                                 <th style="text-align:center; padding:1px;">Run</th>
                                 <th style="text-align:center; padding:1px;">Remove</th>
                             </tr>
@@ -365,11 +377,14 @@
 
                 <!-- Section 5: Local Files -->
                 <div id="section5" class="section-content">
-                    Login: {{username}}
-                    <br><br><br><br>
-                    <h2><img src="/static/localfiles.png" style="height:28px; vertical-align:bottom; margin-right:2px;">Connect Local File To AI Agent</h2>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <img src="/static/usericon.png" alt="Login" style="height:35px;">
+                        <span>{{username}}</span>
+                        </div>
+                    <br>
+                    <h2><img src="/static/localfiles.png" style="width:45px; height:35px; vertical-align:bottom; margin-right:2px;">Connect Local Disk File to AI Agent</h2>
                     <form method="POST" class="left-form" action="/add_local">
-                        <label for="local_value">Local File Path:</label>
+                        <label for="local_value">Full File Path with Drive Letter:</label>
                         <input type="text" name="local_value" id="local_value" placeholder="/path/to/file.xlsx">
                         <button type="submit" name="add_local">
                             <img src="/static/connect-icon-gears.png" style="height:20px; vertical-align:middle; margin-right:6px;">Connect
@@ -384,8 +399,8 @@
                             <tr>
                                 <th style="text-align:center; padding:6px;"> </th>
                                 <th style="text-align:left; padding:6px;">Connected Files</th>
-                                <th style="text-align:center; padding:1px;">Recurring</th>
-                                <th style="text-align:center; padding:1px;">Set Schedule</th>
+                                <th style="text-align:center; padding:1px;">Repeat</th>
+                                <th style="text-align:center; padding:1px;">Schedule</th>
                                 <th style="text-align:center; padding:1px;">Run</th>
                                 <th style="text-align:center; padding:1px;">Remove</th>
                             </tr>
@@ -454,8 +469,11 @@
 
                 <!-- Section 4: LLM Model -->
                 <div id="section4" class="section-content">
-                    Login: {{username}}
-                    <br><br><br><br>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <img src="/static/usericon.png" alt="Login" style="height:35px;">
+                        <span>{{username}}</span>
+                        </div>
+                    <br><br>
                     <h2 style="display: flex; align-items: center; gap: 10px;">
                         <img src="/static/llmicon.png" alt="LLM Icon" style="width:60px;">
                         Change LLM Model

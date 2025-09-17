@@ -8,6 +8,7 @@ import re
 import time
 import shutil
 import logging
+from logging.handlers import RotatingFileHandler
 
 # -----------------------------------------------------------------------------
 # Configure logging
@@ -19,7 +20,14 @@ os.makedirs(logs_dir, exist_ok=True)
 
 resync_log = os.path.join(logs_dir, "resync.log")
 
-file_handler = logging.FileHandler(resync_log, encoding="utf-8")
+#file_handler = logging.FileHandler(resync_log, encoding="utf-8")
+# Use RotatingFileHandler instead of FileHandler
+file_handler = RotatingFileHandler(
+    resync_log,
+    maxBytes=5 * 1024 * 1024,  # 5 MB per file
+    backupCount=0,             # keep last 3 rotated logs
+    encoding="utf-8"
+)
 file_handler.setFormatter(logging.Formatter(
     "%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
