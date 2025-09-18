@@ -54,7 +54,7 @@ class OllamaSummarizer:
                 messages=[{"role": "user", "content": prompt}]
 #                host=OLLAMA_HOST
             )
-            summary = response["message"]["content"].replace("\n", "; ").replace("|", "/")
+            summary = response["message"]["content"]
             return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
     def summarize(self, comments: list[str]) -> str:
@@ -69,7 +69,7 @@ class OllamaSummarizer:
             model=self.model_name,
             messages=[{"role": "user", "content": prompt}],
         )
-        summary = response["message"]["content"].replace("\n", "; ").replace("|", "/")
+        summary = response["message"]["content"]
         return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
 
@@ -124,7 +124,7 @@ class OpenAISummarizer:
             messages=[{"role": "user", "content": prompt}],
         )
         summary = response.choices[0].message.content
-        summary = summary.replace("\n", "; ").replace("|", "/")
+        #summary = summary.replace("\n", "; ").replace("|", "/")
         return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
     def summarize(self, comments: list[str]) -> str:
@@ -139,7 +139,7 @@ class OpenAISummarizer:
             messages=[{"role": "user", "content": prompt}],
         )
         summary = response.choices[0].message.content
-        summary = summary.replace("\n", "; ").replace("|", "/")
+        #summary = summary.replace("\n", "; ").replace("|", "/")
         return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
 

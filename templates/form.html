@@ -45,7 +45,7 @@
             flex-direction: column;
             padding: 0;       /* remove menu-bar padding */
             margin: 0;
-            gap: 8px;
+            gap: 0px;
         }
 
         .menu-bar img.sidebar-logo {
@@ -68,7 +68,7 @@
             align-items: center;
             justify-content: left;
             gap: 8px;
-            border-radius: 5px;
+            border-radius: 0px;
         }
 
         .menu-bar button img {
@@ -108,7 +108,7 @@
 
         /* page content (right) - keep your original styles mostly */
         .page-content {
-            padding: 30px 40px 18px 80px; /* top right bottom left */   
+            padding: 30px 60px 18px 50px; /* top right bottom left */   
             box-sizing: border-box;
             min-height: 100%;
         }
@@ -149,17 +149,19 @@
 */
         /* === Modal === */
         .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
+        
         .modal-content {
             background: #fff;
             margin: 5% auto;
             padding: 20px 30px;
-            width: 500px;
+            width: 300px;
             max-width: 90%;
-            border-radius: 12px;
+            border-radius: 0px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             font-family: Arial, sans-serif;
             color: #414040;
         }
+
         .close { float: right; font-size: 22px; font-weight: bold; cursor: pointer; color: #888; }
         .close:hover { color: #000; }
 
@@ -193,6 +195,19 @@
             .left-frame { flex: 0 0 64px; } /* collapse sidebar on small screens if desired */
             .menu-bar button span { display:none; } /* show icons only */
             img.banner { max-height:120px; }
+        }
+
+        .spinner {
+            margin: 20px auto;
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(90deg, #4caf50, #2196f3);
+            animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); opacity: 0.7; }
+            to   { transform: scale(1.2); opacity: 1; }
         }
 
 
@@ -244,6 +259,18 @@
 </head>
 
 <body>
+
+
+    <!-- Loading Modal -->
+    <div id="loadingModal" class="modal">
+    <div class="modal-content" style="text-align:center;">
+        <!--img src="/static/sync-icon.png" alt="Scan"-->
+        <h3> Data scan in progress...</h3>
+        <div class="spinner"></div>
+    </div>
+    </div>
+
+
     <div class="app-container">
         <!-- LEFT: vertical menu -->
         <aside class="left-frame">
@@ -255,18 +282,18 @@
             <button id="btn-section1"><img src="/static/jiraicon.png" alt="Jira Icon"><span>Jira</span></button>
             <button id="btn-section4"><img src="/static/llmicon.png" alt="LLM Icon"><span>LLM Model</span></button>
             <div class="menu-divider"></div>
-            <button id="btn-section5"><img src="/static/disk-file.png" alt="Local Files Icon"><span>Local Files</span></button>
-            <button id="btn-section2"><img src="/static/sharepointicontransparent.png" alt="SharePoint Icon"><span>SharePoint</span></button>
+            <button id="btn-section5"><img src="/static/localfiles.png" alt="Local Files Icon" style="width:25px; height:22px"><span>Local Files</span></button>
+            <button id="btn-section2"><img src="/static/sharepointicontransparent.png" alt="SharePoint Icon" style="width:30px; height:30px"><span>SharePoint</span></button>
             <button id="btn-section6"><img src="/static/googlesheetsicon.png" alt="GoogleSheets"><span>Google Drive</span></button>
             <!-- Divider -->
             <div class="menu-divider"></div>
-            <button id="btn-section7"><img src="/static/versioninfoicon.png" alt="Info" text-align:left; vertical-align:middle; style="width:25px; height:25px"><span>Version Info</span></button>
-            <button id="btn-section3"><img src="/static/debuglogs.png" alt="Debug Logs"><span>Logs</span></button>
+            <button id="btn-section7"><img src="/static/versioninfoicon.png" alt="Info" text-align:left; vertical-align:middle; style="width:28px; height:28px"><span>Info</span></button>
+            <button id="btn-section3"><img src="/static/debuglogs.png" alt="Debug Logs"><span>Debug Logs</span></button>
         </div>
 
             <!-- keep logout pinned to bottom of sidebar -->
             <div class="menu-bar" role="navigation" aria-label="Main menu">
-                <button id="btn-exit" onclick="window.location.href='/logout'"><img src="/static/exiticon.png" alt="Exit Icon" vertical-align:middle; style="width:30px; height:30px;"><span>Logout</span></button>
+                <button id="btn-exit" onclick="window.location.href='/logout'"><img src="/static/exiticon.png" alt="Exit Icon" vertical-align:middle; style="width:25px; height:25px;"><span>Logout</span></button>
             </div>
         </aside>
 
@@ -278,7 +305,7 @@
                 <!-- Section 1: Jira -->
                 <div id="section1" class="section-content">
                     <div style="display:flex; align-items:center; gap:6px;">
-                        <img src="/static/usericon.png" alt="Login" style="height:35px;">
+                        <img src="/static/usericon.png" alt="Login" style="width:25px; height:25px">
                         <span>{{username}}</span>
                     </div>                    
                     <br><br>
@@ -294,12 +321,22 @@
                     </form>
                 </div>
 
+                                <!-- Section 7: VersionInfo -->
+                <div id="section7" class="section-content">
+        
+                </div>
+
+                                <!-- Section 6: Googlesheets -->
+                <div id="section6" class="section-content">
+        
+                </div>
+
                 <!-- Section 2: Sharepoint -->
                 <div id="section2" class="section-content">
                     <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
                         <!-- Left side: user icon + name -->
                         <div style="display:flex; align-items:center; gap:6px;">
-                            <img src="/static/usericon.png" alt="Login" style="height:35px;">
+                            <img src="/static/usericon.png" alt="Login" style="width:30px; height:25px">
                             <span>{{username}}</span>
                         </div>
 
@@ -314,31 +351,33 @@
                         </div>
                     </div>
                     <br>
-                    <h2><img src="/static/excelicon.jpg" style="height:35px; vertical-align:bottom; margin-right:2px;">Connect File to AI Agent</h2>
+                    <h2><img src="/static/sharepointicontransparent.png" style="width:48px; height:48px; vertical-align:bottom; margin-right:2px;">Connect SharePoint File to AI Agent</h2>
                     <form method="POST" class="left-form" action="/add_sharepoint">
                         <label for="bar_value">Direct Download URL to SharePoint File:</label>
                         <input type="text" name="bar_value" id="bar_value" placeholder="https://...">
-                        <button type="submit" name="add_bar"><img src="/static/connect-icon-gears.png" style="height:20px; vertical-align:middle; margin-right:6px;">Connect</button>
+                        <button type="submit" name="add_bar"><img src="/static/llmicon.png" style="height:20px; vertical-align:middle; margin-right:6px;">Connect</button>
                     </form>
                     <br><br><br><br>
                     <h2>Active Sharepoint Connections</h2>
                     <table style="border-collapse: collapse; width: 100%;">
                         <thead>
                             <tr>
-                                <th style="text-align:center; padding:6px;"> </th>
-                                <th style="text-align:left; padding:6px;">Connected Files</th>
-                                <th style="text-align:center; padding:1px;">Repeat</th>
-                                <th style="text-align:center; padding:1px;">Schedule</th>
-                                <th style="text-align:center; padding:1px;">Run</th>
-                                <th style="text-align:center; padding:1px;">Remove</th>
-                            </tr>
+                            <th style="text-align:center; padding:6px; font-size:16px;"> </th>
+                            <th style="text-align:center; padding:6px; font-size:16px;"> </th>
+                            <th style="text-align:left; padding:6px; font-size:16px;">Connected Files</th>
+                            <th style="text-align:center; padding:1px; font-size:10px;">Repeat</th>
+                            <th style="text-align:center; padding:1px; font-size:10px;">Schedule</th>
+                            <th style="text-align:center; padding:1px; font-size:10px;">Run</th>
+                            <th style="text-align:center; padding:1px; font-size:10px;">Remove</th>                            </tr>
                         </thead>
                         <tbody>
                             {% for val in bar_values %}
                             <tr>
                                 <td style="text-align:left; padding:6px;">{{ loop.index }}</td>
-                                <td style="padding:6px;">
+                                <td style="text-align:left; padding:6px;">                                    
                                     <img src="/static/excelicon.jpg" style="height:18px; vertical-align:bottom; margin-right:2px;">
+                                </td>
+                                <td style="padding:6px;">
                                     <a href="{{ val }}" target="_blank">{{ val }}</a></td>
                                 <td style="text-align:center; padding:1px;">
                                     {% set sched = schedule_dict.get(val) %}
@@ -360,13 +399,13 @@
                                 <td style="text-align:center; padding:1px;">
                                     <form method="POST">
                                         <input type="hidden" name="resync_bar" value="{{ val }}">
-                                        <button type="submit"  onclick="return confirm('Resync {{ val }}?')"><img src="/static/sync-icon.png" alt="Resync"></button>
+                                        <button type="submit"  name="resync_bar" onclick="return confirm('Resync {{ val }}?')"><img src="/static/sync-icon.png" alt="Resync"></button>
                                     </form>
                                 </td>
                                 <td style="text-align:center; padding:1px;">
                                     <form method="POST" action="/remove_sharepoint">
                                         <input type="hidden" name="remove_bar" value="{{ val }}">
-                                        <button type="submit"  onclick="return confirm('Remove {{ val }}?')"><img src="/static/delete-icon.png" alt="Delete"></button>
+                                        <button type="submit"  onclick="return confirm('Remove {{ val }}?')"><img src="/static/delete-icon.png" alt="Delete" style="width:21px; height:21px"></button>
                                     </form>
                                 </td>
                             </tr>
@@ -378,7 +417,7 @@
                 <!-- Section 5: Local Files -->
                 <div id="section5" class="section-content">
                     <div style="display:flex; align-items:center; gap:6px;">
-                        <img src="/static/usericon.png" alt="Login" style="height:35px;">
+                        <img src="/static/usericon.png" alt="Login" style="width:30px; height:25px;">
                         <span>{{username}}</span>
                         </div>
                     <br>
@@ -387,7 +426,7 @@
                         <label for="local_value">Full File Path with Drive Letter:</label>
                         <input type="text" name="local_value" id="local_value" placeholder="/path/to/file.xlsx">
                         <button type="submit" name="add_local">
-                            <img src="/static/connect-icon-gears.png" style="height:20px; vertical-align:middle; margin-right:6px;">Connect
+                            <img src="/static/llmicon.png" style="height:25x; vertical-align:middle; margin-right:6px;">Connect
                         </button>
                     </form>
 
@@ -397,20 +436,23 @@
                     <table style="border-collapse: collapse; width: 100%;">
                         <thead>
                             <tr>
-                                <th style="text-align:center; padding:6px;"> </th>
-                                <th style="text-align:left; padding:6px;">Connected Files</th>
-                                <th style="text-align:center; padding:1px;">Repeat</th>
-                                <th style="text-align:center; padding:1px;">Schedule</th>
-                                <th style="text-align:center; padding:1px;">Run</th>
-                                <th style="text-align:center; padding:1px;">Remove</th>
+                                <th style="text-align:center; padding:6px; font-size:16px;"> </th>
+                                <th style="text-align:center; padding:6px; font-size:16px;"> </th>
+                                <th style="text-align:left; padding:6px; font-size:16px;">Connected Files</th>
+                                <th style="text-align:center; padding:1px; font-size:10px;">Repeat</th>
+                                <th style="text-align:center; padding:1px; font-size:10px;">Schedule</th>
+                                <th style="text-align:center; padding:1px; font-size:10px;">Run</th>
+                                <th style="text-align:center; padding:1px; font-size:10px;">Remove</th>                            </tr>
                             </tr>
                         </thead>
                         <tbody>
                             {% for val in local_values %}
                             <tr>
                                 <td style="text-align:center; padding:6px;">{{ loop.index }}</td>
-                                <td style="padding:6px;">
+                                <td style="text-align:left; padding:6px;">                                    
                                     <img src="/static/excelicon.jpg" style="height:18px; vertical-align:bottom; margin-right:2px;">
+                                </td>
+                                <td style="padding:6px;">
                                     <span>{{ val }}</span>
                                 </td>
                                 <td style="text-align:center; padding:1px;">
@@ -431,12 +473,13 @@
                                     </button>
                                 </td>
                                 <td style="text-align:center; padding:1px;">
-                                    <form method="POST"  action="/" >
-                                        <button type="submit" class="table-btn" onclick="return confirm('Resync {{ val }}?')">
+                                    <form method="POST">
+                                        <input type="hidden" name="resync_bar" value="{{ val }}">
+                                        <button type="submit" name="resync_bar" class="table-btn" onclick="return confirm('Resync {{ val }}?')">
                                             <img src="/static/sync-icon.png" alt="Resync">
                                         </button>
-                                        <input type="hidden" name="resync_bar" value="{{ val }}">
                                     </form>
+
                                 </td>
                                 <td style="text-align:center; padding:1px;">
                                     <form method="POST"  action="/remove_local">
@@ -470,10 +513,10 @@
                 <!-- Section 4: LLM Model -->
                 <div id="section4" class="section-content">
                     <div style="display:flex; align-items:center; gap:6px;">
-                        <img src="/static/usericon.png" alt="Login" style="height:35px;">
+                        <img src="/static/usericon.png" alt="Login" style="width:25px; height:25px">
                         <span>{{username}}</span>
                         </div>
-                    <br><br>
+                    <br>
                     <h2 style="display: flex; align-items: center; gap: 10px;">
                         <img src="/static/llmicon.png" alt="LLM Icon" style="width:60px;">
                         Change LLM Model
@@ -572,7 +615,9 @@
             section2: document.getElementById('section2'),
             section3: document.getElementById('section3'),
             section4: document.getElementById('section4'),
-            section5: document.getElementById('section5')
+            section5: document.getElementById('section5'),
+            section7: document.getElementById('section7'),
+            section6: document.getElementById('section6')
         };
 
         const buttons = {
@@ -580,7 +625,9 @@
             section2: document.getElementById('btn-section2'),
             section3: document.getElementById('btn-section3'),
             section4: document.getElementById('btn-section4'),
-            section5: document.getElementById('btn-section5')
+            section5: document.getElementById('btn-section5'),
+            section7: document.getElementById('btn-section7'),
+            section6: document.getElementById('btn-section6')
         };
 
         /* ---------- Show/activate a section ---------- */
@@ -938,6 +985,13 @@
                 })
                 .catch(() => showToast("❌ Error connecting to server", false));
             });
+        });
+
+        document.querySelectorAll("form input[name='resync_bar']").forEach(input => {
+        const form = input.closest("form");
+        form.addEventListener("submit", () => {
+            document.getElementById("loadingModal").style.display = "block";
+        });
         });
 
     </script>

@@ -19,6 +19,39 @@ from openpyxl.utils import get_column_letter
 import json
 LLMCONFIG_FILE = "../../../config/llmconfig.json"
 
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import markdown
+
+
+def send_markdown_email(subject: str, from_address: str, to_address: str, data: str):
+    print(f"send_markdown_email called params= {subject}, {from_address}, {to_address}, {data[:20]}{'...' if len(data) > 20 else ''}")
+    
+    # Gmail SMTP settings
+    smtp_server = "smtp.gmail.com"
+    smtp_port = 587
+    smtp_user = "fz96tw@gmail.com"                # your Gmail address
+    smtp_password = "tgpmcbauhlligxvi"        # your 16-char app password
+
+    html_content = markdown.markdown(data)
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = from_address
+    msg["To"] = to_address
+
+    # Attach HTML only (simpler, avoids client showing raw markdown)
+    msg.attach(MIMEText(html_content, "html"))
+
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
+        server.login("fz96tw@gmail.com", "tgpmcbauhlligxvi")
+        server.send_message(msg)
+
+    print(f"Email sent to {to_address}")
+
+
 def get_llm_model(llm_config_file):
     print("Current working directory:", os.getcwd())  # <-- debug
     if os.path.exists(llm_config_file):
@@ -73,29 +106,6 @@ if "aisummary.yaml" not in yaml_file.lower():
     sys.exit(1)
 
 
-'''# Sample aisumamry.yaml format:
-        fileinfo:
-        basename: Breaker.xlsx
-        scope file: Breaker.xlsx.Overall_Status.20250912_112941.aisummary.yaml
-        source: Breaker.xlsx
-        table: Overall_Status
-        tables:
-        - a_table.20250912_112941
-        - b_table.20250912_112941
-'''
-
-# No fields are expected in aisummary.yaml
-'''
-fields = data.get('fields', [])
-# Convert list of dicts into a dictionary
-fields_dict = {field["value"]: field.get("index", "<blank>") for field in fields}
-
-field_values = [field.get('value') for field in fields if 'value' in field]
-field_indexes = [field.get('index') for field in fields if 'index' in field]
-field_values_str = ','.join(field_values)
-field_indexes_str = ','.join(map(str, field_indexes))
-'''
-
 print("Scope file:", scope_file )
 print("Source file:", source)
 print("basename:", basename)
@@ -103,13 +113,12 @@ print("Table,", tablename)
 #print("Field indexes,", field_indexes_str)
 #print("Field values,", field_values_str)
 
-#jira_ids = data.get('jira_ids', [])
-#jira_create_row = data.get('jira_create_rows',[])
-refer_tables = data.get('tables',[])
 
+refer_tables = data.get('tables',[])
 print(f"{yaml_file} contains refer_tables: {refer_tables}")
 
-
+email_list = data.get('email',[])
+print(f"{yaml_file} contain email: {email_list}")
 
 import requests
 from requests.auth import HTTPBasicAuth
@@ -157,10 +166,6 @@ def get_summarized_comments(context, sysprompt):
     
     
     print(f"Full response: {full_response}")
-     # Replace all newlines with semicolons
-    full_response.rstrip("\n")
-    full_response = full_response.replace("\n", "; ")
-    full_response = full_response.replace("|", "/")
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return  full_response
 
@@ -304,7 +309,7 @@ with open(filename, "w", encoding="utf-8") as f:
     f.write(aibrief_context)
 print(f"Context saved to {filename}")
 
-sysprompt = f"The following text is a csv data separated by | character. Refer to this project as Project {tablename}.  Read all of it and briefly as possible in the form of project status report for executive sumamry. highlight all milestones,  risks or blocking issues. Also add a paragraph of titled 'Executive Summary' at the top of your response with very brief business executive summary"
+sysprompt = f"The following text is a csv data separated by | character. Refer to this project as Project {tablename}.  Read all of it and briefly as possible in the form of project status report for executive summary. highlight all milestones,  risks or blocking issues. Also add a paragraph of titled 'Executive Summary' at the top of your response with very brief business executive summary"
 
 if isinstance(aibrief_context, list):
     aibrief_context = "\n".join(aibrief_context)
@@ -317,16 +322,28 @@ filename = f"{source}.{tablename}.aisummary.llm.txt"
 # Save context to file
 with open(filename, "w", encoding="utf-8") as f:
     f.write(report)
-print(f"LLM reponse saved to {filename}")
+    print(f"LLM reponse saved to {filename}")
+
+    # Replace all newlines with semicolons
+    cleaned_response = report.rstrip("\n")
+    cleaned_response = report.replace("\n", "; ")
+    cleaned_response = report.replace("|", "/")
 
 if aibrief_cells:
     #changes = f"{aibrief_cells[0]["coordinate"]} = {report} || "
-    changes = f"{below_cell.coordinate} = {timestamp}:{report} || "
+    changes = f"{below_cell.coordinate} = {timestamp}:{cleaned_response} || "
     #filename = f"{os.path.splitext(source)[0]}.{tablename}.changes.txt"
     filename = f"{source}.{tablename}.aisummary.changes.txt"
     # Save context to file
     with open(filename, "w", encoding="utf-8") as f:
         f.write(changes)
     print(f"changes written to {filename}")
+
+    for email_id in email_list:
+        print(f"Sending email to {email_id}")
+        send_markdown_email(f"IA Connector update {basename}.{tablename}","fz96tw@gmail.com", email_id, report )
+
 else:
     print(f"aibrief_cells is empty so no changes.txt to write")
+
+

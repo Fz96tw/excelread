@@ -53,6 +53,24 @@ def extract_ai_summary_table_list(text: str, timestamp) -> list[str]:
     return [s.strip().replace(" ", "_") for s in substrings.split(",") if s.strip()]
 
 
+def extract_email_list(text: str) -> list[str]:
+    """
+    Extracts all comma-separated substrings after <ai summary> in the given text.
+    Spaces in substrings are replaced with underscores.
+    """
+    match = re.search(r"<email>(.*)", text, re.IGNORECASE)
+    if not match:
+        return []
+    
+    # Get everything after <ai summary>
+    substrings = match.group(1).strip()
+    
+    # Split by commas and normalize
+#    return [s.strip().replace(" ", "_") for s in substrings.split(",") if s.strip()]
+    return [s.strip().replace(" ", "_") for s in substrings.split(",") if s.strip()]
+
+
+
 def write_execsummary_yaml():
     # always create <exec summary> yaml files incase they're needed down the chain
     # step 1 hunt for jira id in all rows and build a list
@@ -143,7 +161,7 @@ if __name__ == "__main__":
 
         for idx, cell in enumerate(row):
             cell_str = str(cell).replace("\n", " ").replace("\r", " ").strip().lower()
-
+            #print(f"****** cell_str = {cell_str}")
             if "<ai brief>" in cell_str:
                 print(f"<ai brief> found in cell_str={cell_str}")
                 exec_summary_found = True;
@@ -161,9 +179,16 @@ if __name__ == "__main__":
                 with open(scope_output_file, 'a') as f:
                     yaml.dump({"tables":ai_table_list}, f, default_flow_style=False)
 
-                break   # break out of for loop and continue with next row
-            
-            
+                #break   # break out of for loop and continue with next row
+                continue # go on with next cell in row 
+
+            elif "<email>" in cell_str:
+                print(f"<email> found in cell_str={cell_str}")
+                email_list = extract_email_list(cell_str)
+                with open(scope_output_file, 'a') as f:
+                    yaml.dump({"email":email_list}, f, default_flow_style=False)
+                break
+
             elif ("<jira>" in cell_str and len(str(cell_str)) > 6) or ("<ai brief>" in cell_str and len(str(cell_str)) > 9):  # greater than 6 because a table name is expected
                 if jira_table_found:
                 

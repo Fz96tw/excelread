@@ -54,11 +54,52 @@ from urllib.parse import unquote
 import os
 import shutil
 
+import time
+
+def delete_old_folders_by_hours(path: str, hours: int):
+    """
+    Deletes folders inside `path` that are older than `hours` (based on creation time).
+    
+    :param path: Parent directory path to scan
+    :param hours: Number of hours threshold for folder age
+    """
+    now = time.time()
+    cutoff = now - (hours * 60)  # seconds in an hour
+    #cutoff = now - (hours * 3600)  # seconds in an hour
+    #cutoff = now - (days * 86400)  # seconds in a day
+
+
+    logger.info(f"delete_old_folders_by_hours called for file path: {path}, hours:{hours}")
+    
+    if not os.path.exists(path):
+        logger.warning(f"Path not found: {path}")
+        return
+
+    for item in os.listdir(path):
+        item_path = os.path.join(path, item)
+
+        if os.path.isdir(item_path):
+            # Get folder creation time
+            ctime = os.path.getctime(item_path)
+
+            if ctime < cutoff:
+                try:
+                    shutil.rmtree(item_path)
+                    logger.info(f"Deleted: {item_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete {item_path}: {e}")
+
+
+
 
 def resync(url: str, userlogin):
     """
     Full resync process with recursive handling of YAML files.
     """
+
+    import uuid
+    run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+
     parsed_url = urlparse(url)
     filename = os.path.basename(parsed_url.path)  # e.g., Milestones.xlsx
     filename = unquote(filename)  # decode %20 → space if there are space chars in filename
@@ -69,8 +110,13 @@ def resync(url: str, userlogin):
     logger.info(f"resync: timestamp = {timestamp}")
     base_dir = os.path.dirname(__file__)
 
-    logs_dir = os.path.join(base_dir, "logs")
+    work_dir = os.path.join(base_dir, "logs", userlogin, run_id)
+    os.makedirs(work_dir, exist_ok=True)
+
+#    logs_dir = os.path.join(base_dir, "logs")
+    logs_dir = work_dir  # os.path.join(base_dir, f"logs/{userlogin}")  # keep log in the user folder same place as yaml and other temp fiels
     os.makedirs(logs_dir, exist_ok=True) 
+
 
     log_file= os.path.join(logs_dir, f"{basename}_{timestamp}.log")
 
@@ -81,10 +127,6 @@ def resync(url: str, userlogin):
     #            f"Resync called on URL={url}, file={filename} timestamp={timestamp}\n")
     logger.info(f"Resync called on URL={url}, file={filename} timestamp={timestamp}\n")
 
-    import uuid
-    run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
-    work_dir = os.path.join(base_dir, "logs", userlogin, run_id)
-    os.makedirs(work_dir, exist_ok=True)
 
     download_script = os.path.join(base_dir, "download.py")
     scope_script = os.path.join(base_dir, "scope.py")
@@ -254,7 +296,7 @@ def resync(url: str, userlogin):
 
         for yaml_file in yaml_files:
             logger.info(f"Start processing {yaml_file}")
-            run_and_log(["python", "-u", aibrief_script, yaml_file, timestamp], log, f"aibrief.py params = {yaml_file}, {timestamp}")
+            run_and_log(["python", "-u", aibrief_script, yaml_file, timestamp], log, f"aibrief.py {yaml_file} {timestamp}")
         
 
 
@@ -308,3 +350,6 @@ def resync(url: str, userlogin):
             err_msg = f"Error running resync: {e}"
             logger.exception(err_msg)
             log.write(err_msg + "\n")
+
+    userfolder = f"{work_dir}/../"
+    delete_old_folders_by_hours(userfolder,10)   # remove user-level temporary file that are older than 1 hour

@@ -57,42 +57,13 @@ timestamp = args.timestamp
 access_token = get_app_token()  # Use the function to get the token
 worksheet_name = args.worksheet_name
 
-'''
-if "import" in changes_file.lower():
-    print("Import mode detected based on changes file name.")
-    import_mode = True
-else:
-    import_mode = False
-'''
 import_mode = False
 
 
 import re
 
 def read_jira_url_not_used(filename: str) -> str:
-    """
-    Reads the JIRA_URL value from a config-style file.
-
-    Args:
-        filename (str): Path to the file containing JIRA settings.
-
-    Returns:
-        str: The JIRA URL, or None if not found.
-    """
     jira_url = os.environ["JIRA_URL"]
-    
-    
-    
-    '''
-    pattern = re.compile(r'^JIRA_URL\s*=\s*["\'](.+?)["\']')
-
-    with open(filename, "r", encoding="utf-8") as file:
-        for line in file:
-            match = pattern.match(line.strip())
-            if match:
-                jira_url = match.group(1)
-                break
-    '''
     return jira_url
 
 #jira_base_url = "https://fz96tw.atlassian.net"
@@ -168,8 +139,9 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
                 if hyperlink:
                     print(f"new value is hyperlink = {hyperlink}")
                     new_val = new_val.replace("URL", "").strip()  # Clean up "URL" prefix
-                    new_val = str(new_val).lower().replace("jql", "").strip()  # Clean up "JQL" prefix
-                    #new_value = "🔗" 
+                    if "jql" in str(new_val).lower(): 
+                        #new_val = str(new_val).lower().replace("jql", "").strip()  # Clean up "JQL" prefix
+                        new_val = "Link" 
                     new_val = _make_hyperlink_formula(hyperlink, new_val)
                  
             else:
@@ -304,17 +276,7 @@ import requests
 #values = ["TES-123", "TES-124", "TES-125"]
 #update_column(site_id, item_id, "Sheet1", "A2", values, headers)
 def update_column(site_id, item_id, worksheet_name, start_cell, values, headers):
-    """
-    Update a column in Excel starting at `start_cell` with new values using Microsoft Graph.
-    
-    Args:
-        site_id (str): SharePoint site ID
-        item_id (str): Excel file item ID
-        worksheet_name (str): Worksheet name
-        start_cell (str): Starting cell address, e.g. "A2"
-        values (list): List of values to write
-        headers (dict): Auth headers (with Bearer token)
-    """
+
     # Extract column letter and row number
     col_letter = ''.join([c for c in start_cell if c.isalpha()])
     start_row = int(''.join([c for c in start_cell if c.isdigit()]))
@@ -468,75 +430,10 @@ if "http" in file_url:
     else:
         for row_num, cols in row_values.items():
             
-            '''
-            skip_row = False
-            
-            for col_letter, values in cols.items():
-
-                if import_mode:
-                    col_letter = col_letter.replace("INSERT","").strip()
-                    col_letter = col_letter.replace("DELETE","").strip()
-
-                cell_address = f"{col_letter}{row_num}"
-                print("Cell to update:", cell_address)
-                url_get = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')"
-                resp_get = requests.get(url_get, headers=headers)
-                resp_get.raise_for_status()
-                current_value = resp_get.json().get("values", [[None]])[0][0]
-                current_value = "" if current_value is None else str(current_value)
-                current_value = current_value.replace("\n", ";")  # Normalize newlines to semicolons for comparison
-
-                expected_old = values["old"]
-                new_value = values["new"]
-                if expected_old == "":
-                    expected_old = ""  # Treat missing old value as blank
-
-                
-                #if current_value != expected_old:
-                #    print(f"Skipping row {row_num} because {cell_address} has unexpected value '{current_value}' instead of expected '{expected_old}'")
-                #    skip_row = True
-                #    break
-
-                #if old_value == new_value:
-                #    print(f"Skipping row {row_num} because {cell_address} (no change reqd) already has the new value '{new_value}'")
-                #    skip_row = True
-                #    break
-            
-
-            if skip_row:
-                continue
-            '''
 
             print(f"Updating row {row_num} with values: {cols}")
             update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url)
 
-            '''# Update all cells in the row
-            for col_letter, values in cols.items():
-                cell_address = f"{col_letter}{row_num}"
-                new_value = values["new"]
-                if ";" in new_value:
-                    new_value = new_value.replace(";", "\n")
-
-                # Update cell value
-                url_patch = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')"
-                payload_value = {"values": [[new_value]]}
-                resp_patch = requests.patch(url_patch, json=payload_value, headers=headers)
-                print(f"Updated {cell_address}: {resp_patch.status_code}")
-
-                # Add hyperlink if Jira key or JQL
-                hyperlink = create_hyperlink(new_value)
-                if hyperlink:
-                    url_hyperlink = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/hyperlink"
-                    payload_hyperlink = {"hyperlink": hyperlink}
-                    resp_link = requests.patch(url_hyperlink, json=payload_hyperlink, headers=headers)
-                    print(f"Hyperlink set for {cell_address}: {resp_link.status_code}")
-
-                # Enable text wrap
-                url_wrap = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{cell_address}')/format/wrapText"
-                payload_wrap = {"wrapText": True}
-                resp_wrap = requests.patch(url_wrap, json=payload_wrap, headers=headers)
-                print(f"Wrap text enabled for {cell_address}: {resp_wrap.status_code}")
-            '''
 else:
     print(f"Assuming local file based on file_url={file_url}")
 
@@ -550,13 +447,6 @@ else:
     base, ext = os.path.splitext(file_url)
     backup_path = f"{base}.{timestamp}{ext}"
     
-    '''
-    # If backup exists, incrementally number it
-    counter = 1
-    while os.path.exists(backup_path):
-        backup_path = f"{base}.{timestamp}_{counter}{ext}"
-        counter += 1
-    '''
     if not os.path.exists(backup_path):
         shutil.copy(file_url, backup_path)
 
