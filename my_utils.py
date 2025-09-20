@@ -51,3 +51,20 @@ def delete_env(key: str, env_path: str | Path):
     env_path = Path(env_path)
     if env_path.exists():
         unset_key(str(env_path), key)
+
+
+
+import os
+
+def map_windows_path_to_container(path: str) -> str:
+    """
+    Convert Windows-style path (C:\...) to container path (/cdrive/...).
+    If already looks like a Linux path, return as-is.
+    """
+    # Handle "C:\..." or "C:/..."
+    if path[1:3] in [":\\", ":/"]:
+        drive_letter = path[0].lower()
+        relative_path = path[2:].replace("\\", "/")
+        return f"/{drive_letter}drive/{relative_path}"
+    
+    return path  # already container-friendly
