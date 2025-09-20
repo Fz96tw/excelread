@@ -350,6 +350,55 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                 value = issue.key
             elif field == "url":
                 value = "URL " + getattr(issue, 'key', None)     # set it to the issue key for now. will be converted to hyperlink by update_sharepoint.py
+            elif field == "children":
+                issuetype = getattr(issue.fields, "issuetype", None)
+                if issuetype and getattr(issuetype, "name", "") == "Epic":
+                    # Get all issues linked to this epic
+                    print(f"Fetching child issues for epic {issue.key}")
+                    epic_linked_issues = jira.search_issues(
+                        f'"Epic Link" = {issue.key}', 
+                        maxResults=JIRA_MAX_RESULTS
+                    )
+                    if epic_linked_issues:
+                        # Sort issues by numeric part of key (e.g. "ABC-2" < "ABC-12")
+                        epic_linked_issues = sorted(
+                            epic_linked_issues,
+                            key=lambda x: (x.key.split("-")[0], int(x.key.split("-")[1]))
+                        )
+                        child_summaries = [
+                            f"▫️ {linked_issue.key} {linked_issue.fields.summary[:30]}{'...' if len(linked_issue.fields.summary) > 30 else ''}:{linked_issue.fields.status.name}:{linked_issue.fields.assignee.displayName if linked_issue.fields.assignee else 'unassigned'}"
+                            for linked_issue in epic_linked_issues
+                        ]
+                        value = ";".join(child_summaries)
+                    else:
+                        value = ""
+                else:
+                    value = ""
+            elif field == "links":
+                #outward_links = []
+                #inward_links = []
+                linked_jira_str = []
+                if hasattr(issue.fields, 'issuelinks'):
+                    for link in issue.fields.issuelinks:
+                        if hasattr(link, 'outwardIssue'):
+                            linked_jira_str.append(f"▫️ {link.outwardIssue.key} {link.outwardIssue.fields.summary[:30]}[{link.type.outward}]".strip())
+                            #outward_links.append(f"{link.type.outward} {link.outwardIssue.key}")
+                        elif hasattr(link, 'inwardIssue'):
+                            linked_jira_str.append(f"▫️ {link.inwardIssue.key} {link.inwardIssue.fields.summary[:30]}[{link.type.inward}]".strip())
+                            #inward_links.append(f"{link.type.inward} {link.inwardIssue.key}")
+                        # strip out first and trailing commas in linked_jira_ids
+                    value = ";".join(linked_jira_str) if linked_jira_str else ""
+                else:
+                    value = ""            
+                '''
+                links = []
+                if outward_links:
+                    links.append("▫️ Outward: " + ", ".join(outward_links))
+                if inward_links:
+                    links.append("▫️ Inward: " + ", ".join(inward_links))
+                value = ";".join(links) if links else ""
+                '''
+
             elif field == "comments":
                 if issue.fields.comment.comments:
                     sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)

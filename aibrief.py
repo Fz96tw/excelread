@@ -25,6 +25,43 @@ from email.mime.text import MIMEText
 import markdown
 
 
+from bs4 import BeautifulSoup
+
+def html_to_text_with_structure(html: str) -> str:
+    soup = BeautifulSoup(html, "html.parser")
+
+    def walk(node, depth=0):
+        parts = []
+        for child in node.children:
+            if child.name is None:  # NavigableString
+                text = child.strip()
+                if text:
+                    # add indentation spaces based on depth
+                    parts.append(" " * (depth * 2) + text)
+            else:
+                # Handle block-level tags with newlines
+                if child.name in ("p", "div", "section", "article", "header", "footer",
+                                  "ul", "ol", "li", "br", "h1", "h2", "h3", "h4", "h5", "h6"):
+                    if child.name == "li":
+                        parts.append(" " * (depth * 2) + "- " + walk(child, depth + 1).strip())
+                    else:
+                        inner = walk(child, depth + 1)
+                        if inner:
+                            parts.append(inner)
+                    parts.append("\n")  # newline after block
+                else:
+                    # Inline tag (span, b, i, etc.)
+                    inner = walk(child, depth)
+                    if inner:
+                        parts.append(inner)
+        return "\n".join(p for p in parts if p.strip())
+
+    text = walk(soup).strip()
+
+    # Collapse excessive blank lines
+    lines = [line.rstrip() for line in text.splitlines()]
+    return "\n".join(line for line in lines if line.strip() != "")
+
 def send_markdown_email(subject: str, from_address: str, to_address: str, data: str):
     print(f"send_markdown_email called params= {subject}, {from_address}, {to_address}, {data[:20]}{'...' if len(data) > 20 else ''}")
     
@@ -34,8 +71,10 @@ def send_markdown_email(subject: str, from_address: str, to_address: str, data: 
     smtp_user = "fz96tw@gmail.com"                # your Gmail address
     smtp_password = "tgpmcbauhlligxvi"        # your 16-char app password
 
-    html_content = markdown.markdown(data)
-
+    #html_content = markdown.markdown(data)
+    #html_content = markdown.markdown(data, extensions=[])  # no "sane_lists"
+    html_content = data
+    
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = from_address
@@ -309,7 +348,7 @@ with open(filename, "w", encoding="utf-8") as f:
     f.write(aibrief_context)
 print(f"Context saved to {filename}")
 
-sysprompt = f"The following text is a csv data separated by | character. Refer to this project as Project {tablename}.  Read all of it and briefly as possible in the form of project status report for executive summary. highlight all milestones,  risks or blocking issues. Also add a paragraph of titled 'Executive Summary' at the top of your response with very brief business executive summary"
+sysprompt = f"The following text is a csv data separated by | character. Refer to this project as Project {tablename}.  Read all of it and briefly as possible in the form of project status report for executive summary. highlight all milestones,  risks or blocking issues. Also add a paragraph of titled 'Executive Summary' at the top of your response with very brief business executive summary. Provide your summary in HTML format. Convert an items that have corresponding Jira id into URL link for that jira id listed below"
 
 if isinstance(aibrief_context, list):
     aibrief_context = "\n".join(aibrief_context)
@@ -324,10 +363,12 @@ with open(filename, "w", encoding="utf-8") as f:
     f.write(report)
     print(f"LLM reponse saved to {filename}")
 
-    # Replace all newlines with semicolons
-    cleaned_response = report.rstrip("\n")
-    cleaned_response = report.replace("\n", "; ")
-    cleaned_response = report.replace("|", "/")
+# Replace all newlines with semicolons
+cleaned_response = html_to_text_with_structure(report)
+print(f"html_to_text_with_structure returned cleaned_response={cleaned_response}")
+cleaned_response = cleaned_response.rstrip("\n")
+cleaned_response = cleaned_response.replace("\n", "; ")
+cleaned_response = cleaned_response.replace("|", "^")
 
 if aibrief_cells:
     #changes = f"{aibrief_cells[0]["coordinate"]} = {report} || "
@@ -341,7 +382,7 @@ if aibrief_cells:
 
     for email_id in email_list:
         print(f"Sending email to {email_id}")
-        send_markdown_email(f"IA Connector update {basename}.{tablename}","fz96tw@gmail.com", email_id, report )
+        send_markdown_email(f"AI Connector update {basename}.{tablename}","fz96tw@gmail.com", email_id, report )
 
 else:
     print(f"aibrief_cells is empty so no changes.txt to write")

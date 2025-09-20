@@ -179,15 +179,14 @@ if __name__ == "__main__":
                 with open(scope_output_file, 'a') as f:
                     yaml.dump({"tables":ai_table_list}, f, default_flow_style=False)
 
-                #break   # break out of for loop and continue with next row
                 continue # go on with next cell in row 
 
-            elif "<email>" in cell_str:
+            elif "<email>" in cell_str and exec_summary_found:
                 print(f"<email> found in cell_str={cell_str}")
                 email_list = extract_email_list(cell_str)
                 with open(scope_output_file, 'a') as f:
                     yaml.dump({"email":email_list}, f, default_flow_style=False)
-                break
+                continue        # we may have <jira> in same row so continue processing
 
             elif ("<jira>" in cell_str and len(str(cell_str)) > 6) or ("<ai brief>" in cell_str and len(str(cell_str)) > 9):  # greater than 6 because a table name is expected
                 if jira_table_found:
@@ -244,7 +243,7 @@ if __name__ == "__main__":
                     #cleaned_value = str(cell).strip().replace(" ", "_")
                 else:
                     jira_table_found = True
-
+                    
                 print(f"Found 'Jira Table' in cell index {idx} {row}")     
 
                 if "jql" in cell_str:
@@ -267,7 +266,7 @@ if __name__ == "__main__":
                 with open(scope_output_file, 'w') as f:
                     yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
        
-                break   # break out of for loop and continue with next row
+                break   # break out of for loop and continue with next row.  Cannot have anything else in same row after <jira> table tag is found
 
             
             if not jira_table_found:

@@ -64,8 +64,8 @@ def delete_old_folders_by_hours(path: str, hours: int):
     :param hours: Number of hours threshold for folder age
     """
     now = time.time()
-    cutoff = now - (hours * 60)  # seconds in an hour
-    #cutoff = now - (hours * 3600)  # seconds in an hour
+    #cutoff = now - (hours * 60)  # seconds in an hour
+    cutoff = now - (hours * 3600)  # seconds in an hour
     #cutoff = now - (days * 86400)  # seconds in a day
 
 
@@ -352,4 +352,4 @@ def resync(url: str, userlogin):
             log.write(err_msg + "\n")
 
     userfolder = f"{work_dir}/../"
-    delete_old_folders_by_hours(userfolder,10)   # remove user-level temporary file that are older than 1 hour
+    delete_old_folders_by_hours(userfolder,24)   # remove user-level temporary file that are older than 24 hour
