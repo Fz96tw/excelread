@@ -262,7 +262,11 @@ def resync(url: str, userlogin):
                     wait_msg = f"Aborting update detected for {yaml_file}, waiting 30 seconds before retry..."
                     logger.warning(wait_msg)
                     log.write(wait_msg + "\n")
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+                    #commented out possible bug. read_jira and update_excel were cusing diff timestamps after an Abort. ?!
+                    # prob ok to re-use the same timestamp because files will be overwritten anyway.
+                    #timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")   #commented out possible bug. read_jira and update_excel were cusing diff timestamps after an Abort. ?!
+                    
                     time.sleep(30)
                     continue
                 else:

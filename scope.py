@@ -71,7 +71,48 @@ def extract_email_list(text: str) -> list[str]:
 
 
 
-def write_execsummary_yaml():
+def extract_second_block(s: str):
+    # Find all <...> blocks
+    matches = re.findall(r"<(.*?)>", s)
+    
+    if len(matches) < 2:
+        raise ValueError("Input string does not contain a second <...> block")
+    
+    # Take the second block and split by space
+    parts = matches[1].split()
+    if len(parts) != 2:
+        raise ValueError("Second block must contain exactly two parts")
+    
+    text, number = parts[0], int(parts[1])
+    return text, number
+
+
+def extract_rate_params_list(s: str, timestamp) -> list[str]:
+    
+    print(f"extract_rate_params_list called with s={s} timestamp={timestamp}")    
+    # Find all <...> blocks
+    matches = re.findall(r"<(.*?)>", s)
+    
+    if len(matches) < 2:
+        print(f"'{s}' input string does not contain a second <...> block")
+        raise ValueError("Input string does not contain a second <...> block")
+    
+    # Take the second block and split by space
+    #parts = matches[1].split()
+    return_list = []
+    return_list.append(matches[1])
+
+    jql_part = s.split("jql", 1)[1].strip()
+    if jql_part:
+        return_list.append("JQL " + jql_part)
+        print(f"JQL {jql_part} found and return_list {return_list}")
+    else:
+        print("ERROR: No JQL found in <jira resolved> table definition")
+        raise ValueError("ERROR: No JQL found in <jira resolved> table definition")
+
+    return return_list
+
+def write_execsummary_yaml(jira_ids, filename, file_info, timestamp):
     # always create <exec summary> yaml files incase they're needed down the chain
     # step 1 hunt for jira id in all rows and build a list
     # step 2 hunt for jql in all the rows and get list of jira id and add to list from #1
@@ -104,15 +145,71 @@ def write_execsummary_yaml():
 
     with open(execsummary_scope_output_file, 'a') as f:
         yaml.dump({ "fields": jira_fields }, f, default_flow_style=False)
-
+   
     if jira_ids:
         print(f"JIRA IDs found: {jira_ids}")
+
+        # Filter out jira_ids starting with "jql" (case-insensitive) since the excel table already has processed the jql and the Jira IDs are listed here already
+        jira_ids = [jid for jid in jira_ids if not jid.lower().startswith("jql")]
+
         with open(execsummary_scope_output_file, 'a') as f:
             yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
 
     f.close()
     print("ExecSummary scope yaml file created successfully:", execsummary_scope_output_file)
 
+
+def close_current_jira_table(jira_fields, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp): 
+    print("close_current_jira_table called")
+
+    if jira_fields and jira_create_rows:
+            jira_fields.append({"value": "row", "index": -1})
+
+    if jira_fields:
+        with open(scope_output_file, 'a') as f:
+            yaml.dump({ "fields": jira_fields }, f, default_flow_style=False)
+
+    if jira_ids:
+        print("closing out previous scope file")
+        print(f"JIRA IDs found: {jira_ids}")
+        with open(scope_output_file, 'a') as f:
+            yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
+
+        print("JIRA rows have been written to output file:", scope_output_file)
+        print("Total rows processed:", row_count)
+        # close the file
+        f.close()
+
+        # always write exec sumamry yaml even tho we don't know if
+        # will be needed/used
+        write_execsummary_yaml(jira_ids, filename, file_info, timestamp)  
+
+    elif jira_create_rows:
+        print("closing out previous scope file")
+
+
+        print(f"JIRA CREATE ROWS found: {jira_create_rows}")
+        with open(scope_output_file, 'a') as f:
+            yaml.dump({"jira_create_rows": jira_create_rows}, f, default_flow_style=False)
+
+        print("JIRA rows have been written to output file:", scope_output_file)
+        print("Total rows processed:", row_count)
+        # close the file
+        f.close()
+        
+    else:
+        print(f"No scope file create because No JIRA IDs found in table {file_info['table']} in file {filename}")
+
+
+    #jira_table_found = False
+    jira_ids = []
+    jira_fields = []
+    jira_fields_default_value = {}
+    fields_found = False
+    jira_import_found = False
+    jira_create_found = False
+    jira_create_rows = []
+    #cleaned_value = str(cell).strip().replace(" ", "_")        
 
 
 if __name__ == "__main__":
@@ -162,7 +259,8 @@ if __name__ == "__main__":
         for idx, cell in enumerate(row):
             cell_str = str(cell).replace("\n", " ").replace("\r", " ").strip().lower()
             #print(f"****** cell_str = {cell_str}")
-            if "<ai brief>" in cell_str:
+            if ("<ai brief>" in cell_str and len(str(cell_str)) > 9): 
+                                               
                 print(f"<ai brief> found in cell_str={cell_str}")
                 exec_summary_found = True;
                 exec_summary_cell = "";
@@ -179,7 +277,7 @@ if __name__ == "__main__":
                 with open(scope_output_file, 'a') as f:
                     yaml.dump({"tables":ai_table_list}, f, default_flow_style=False)
 
-                continue # go on with next cell in row 
+                continue # go on with next cell in row incase there's <email> in same row
 
             elif "<email>" in cell_str and exec_summary_found:
                 print(f"<email> found in cell_str={cell_str}")
@@ -188,9 +286,47 @@ if __name__ == "__main__":
                     yaml.dump({"email":email_list}, f, default_flow_style=False)
                 continue        # we may have <jira> in same row so continue processing
 
-            elif ("<jira>" in cell_str and len(str(cell_str)) > 6) or ("<ai brief>" in cell_str and len(str(cell_str)) > 9):  # greater than 6 because a table name is expected
-                if jira_table_found:
+            elif "<runrate resolved>" in cell_str:
                 
+                if jira_table_found:
+                    close_current_jira_table(jira_fields, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
+                    jira_table_found = False
+                    #jira_table_found = False
+                    jira_ids = []
+                    jira_fields = []
+                    jira_fields_default_value = {}
+                    fields_found = False
+                    jira_import_found = False
+                    jira_create_found = False
+                    jira_create_rows = []
+                    #cleaned_value = str(cell).strip().replace(" ", "_")  
+
+
+                print(f"<runrate resolved> found in cell_str={cell_str}")
+                # call function to process runrate resolved now...
+                # 1. it will get jira data based on jql provided
+                # 2. get list of jira ids in result
+                # 3. bucketize them based on resolve date create data row per assignee
+                # 4. write to changes.txt file diectly. must include columns headers, and data.
+
+                cleaned_value = str(cell).rsplit("<runrate resolved>", 1)[0].strip().replace(" ", "_")
+                #scope_output_file = set_output_filename(filename, cleaned_value, timestamp, jira_import_found, jira_create_found)
+                scope_output_file = f"{filename}.{cleaned_value}.{timestamp}.rate.yaml"
+                print(f"scope will be saved to: {scope_output_file}")
+                file_info["scope file"] = scope_output_file
+                file_info["table"] = cleaned_value
+                with open(scope_output_file, 'w') as f:
+                    yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
+       
+                rate_params_list = extract_rate_params_list(cell_str, timestamp)
+                with open(scope_output_file, 'a') as f:
+                    yaml.dump({"params":rate_params_list}, f, default_flow_style=False)
+            
+                break # get to next row 
+
+            elif ("<jira>" in cell_str and len(str(cell_str)) > 6):  # greater than 6 because a table name is expected
+  
+                if jira_table_found:            
                     print("Found a NEW <jira> table or <ai brief> table")
 
                     if jira_fields and jira_create_rows:
@@ -213,7 +349,7 @@ if __name__ == "__main__":
 
                         # always write exec sumamry yaml even tho we don't know if
                         # will be needed/used
-                        write_execsummary_yaml()  
+#                        write_execsummary_yaml(jira_ids, filename, file_info, timestamp)  
 
                     elif jira_create_rows:
                         print("closing out previous scope file")
@@ -281,6 +417,8 @@ if __name__ == "__main__":
             match = re.search(r'<(.*?)>', cell_str)    
             if match and not fields_found:  # ignore <..> is found in other rows after we have already found the fields for the jira table
                 value = match.group(1).strip()
+                print(f"Found field definition in cell for field {value} at column index {idx}")
+
                 jira_fields.append({"value": value, "index": idx})
 
                 # also read the default value for this field if specified in this cell 
@@ -329,7 +467,7 @@ if __name__ == "__main__":
             print(f"this_row scan completed: {this_row}")
             jira_create_rows.append(this_row)
                 
-        elif fields_found:
+        elif fields_found and not jira_import_found:
             # lookup the index of the field "key"
             index_of_id = next((field['index'] for field in jira_fields if field['value'] == "key"), None)
             if index_of_id is not None:
@@ -373,6 +511,6 @@ if __name__ == "__main__":
     # close the file
     f.close()
     print("Scope file created successfully:", scope_output_file)
-    write_execsummary_yaml()
+    write_execsummary_yaml(jira_ids, filename, file_info, timestamp)        # remmember to do this for the last table found in the sheet too!
 
 
