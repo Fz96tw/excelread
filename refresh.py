@@ -25,7 +25,7 @@ resync_log = os.path.join(logs_dir, "resync.log")
 file_handler = RotatingFileHandler(
     resync_log,
     maxBytes=5 * 1024 * 1024,  # 5 MB per file
-    backupCount=0,             # keep last 3 rotated logs
+    backupCount=1,             # keep last 3 rotated logs
     encoding="utf-8"
 )
 file_handler.setFormatter(logging.Formatter(
@@ -68,7 +68,6 @@ def delete_old_folders_by_hours(path: str, hours: int):
     cutoff = now - (hours * 3600)  # seconds in an hour
     #cutoff = now - (days * 86400)  # seconds in a day
 
-
     logger.info(f"delete_old_folders_by_hours called for file path: {path}, hours:{hours}")
     
     if not os.path.exists(path):
@@ -81,7 +80,7 @@ def delete_old_folders_by_hours(path: str, hours: int):
         if os.path.isdir(item_path):
             # Get folder creation time
             ctime = os.path.getctime(item_path)
-
+            logger.info(f"Checking folder: {item_path}, created at {time.ctime(ctime)}")
             if ctime < cutoff:
                 try:
                     shutil.rmtree(item_path)
@@ -132,6 +131,8 @@ def resync(url: str, userlogin):
     scope_script = os.path.join(base_dir, "scope.py")
     read_jira_script = os.path.join(base_dir, "read_jira.py")
     create_jira_script = os.path.join(base_dir, "create_jira.py")
+    runrate_resolved_jira_script = os.path.join(base_dir, "runrate_resolved.py")
+    runrate_assignee_jira_script = os.path.join(base_dir, "runrate_assignee.py")
     update_excel_script = os.path.join(base_dir, "update_excel.py")
     update_sharepoint_script = os.path.join(base_dir, "update_sharepoint.py")
     aibrief_script = os.path.join(base_dir, "aibrief.py")
@@ -240,9 +241,12 @@ def resync(url: str, userlogin):
                     logger.info(f"Found CREATE jira file {yaml_file}")
                     run_and_log(["python", "-u", create_jira_script, yaml_file, filename, timestamp], log, f"create_jira.py {yaml_file} {filename} {timestamp}")
                 
-                #elif "ExecSummary" in yaml_file:
-                #    logger.info("skipping ExecSummary yaml - will process at the end of yaml chain")
-                #    exec_summary_yaml_file = yaml_file
+                elif "resolved.rate" in yaml_file:
+                    logger.info(f"Found RUNRATE  jira file {yaml_file}")
+                    run_and_log(["python", "-u", runrate_resolved_jira_script, yaml_file, filename, timestamp], log, f"runrate_resolved_jira.py {yaml_file} {timestamp}")
+                elif "assignee.rate" in yaml_file:
+                    logger.info(f"Found RUNRATE  jira file {yaml_file}")
+                    run_and_log(["python", "-u", runrate_assignee_jira_script, yaml_file, filename, timestamp], log, f"runrate_assignee_jira.py {yaml_file} {timestamp}")
                 else:
                     jira_csv = f"{input_file}.{substring}.jira.csv"
                     logger.info(f"Generating Jira CSV: {jira_csv}")

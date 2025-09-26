@@ -322,6 +322,8 @@ with open(changes_file, "r") as f:
             new_value, old_value = value_pair.split("||", 1)
         else:
             new_value, old_value = value_pair, ""
+
+        # if new value is too long then we want to make sure if fits in a cell and easily readable
         col_letter = ''.join(filter(str.isalpha, cell))
         row_num = int(''.join(filter(str.isdigit, cell)))
 

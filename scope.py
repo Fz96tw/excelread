@@ -13,13 +13,14 @@ def read_excel_rows(filename):
     return df.values.tolist()
 
 
-def set_output_filename(filename, table_name, timestamp, import_found=False, jira_create_found=False):
+def set_output_filename(filename, table_name, timestamp, import_found=False, jira_create_found=False, runrate_found=False) -> str:
     print(f"set_output_filename called, timestamp = {timestamp}")
     base_name = os.path.basename(filename)         # "Book1.xlsx"
     #name, ext = os.path.splitext(base_name)        # name = "Book1", ext = ".xlsx"
     outputfile = f"{base_name}.{table_name}.{timestamp}.scope.yaml"
     outputfile = f"{base_name}.{table_name}.{timestamp}.import.scope.yaml" if import_found else outputfile
     outputfile = f"{base_name}.{table_name}.{timestamp}.create.scope.yaml" if jira_create_found else outputfile
+    outputfile = f"{base_name}.{table_name}.{timestamp}.rate.scope.yaml" if runrate_found else outputfile
     return outputfile  
 
 def is_valid_jira_id(jira_id: str) -> bool:
@@ -209,6 +210,7 @@ def close_current_jira_table(jira_fields, jira_ids, jira_create_rows, scope_outp
     jira_import_found = False
     jira_create_found = False
     jira_create_rows = []
+    runrate_found = False
     #cleaned_value = str(cell).strip().replace(" ", "_")        
 
 
@@ -232,6 +234,7 @@ if __name__ == "__main__":
     jira_table_found = False
     jira_import_found = False
     jira_create_found = False
+    runrate_found = False
     scope_output_file = ""
     exec_summary_found = False  
     jira_id_exec_summary = []
@@ -286,12 +289,11 @@ if __name__ == "__main__":
                     yaml.dump({"email":email_list}, f, default_flow_style=False)
                 continue        # we may have <jira> in same row so continue processing
 
-            elif "<runrate resolved>" in cell_str:
+            elif "<rate resolved>" in cell_str or "<rate assignee>" in cell_str:
                 
                 if jira_table_found:
                     close_current_jira_table(jira_fields, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
                     jira_table_found = False
-                    #jira_table_found = False
                     jira_ids = []
                     jira_fields = []
                     jira_fields_default_value = {}
@@ -299,19 +301,25 @@ if __name__ == "__main__":
                     jira_import_found = False
                     jira_create_found = False
                     jira_create_rows = []
-                    #cleaned_value = str(cell).strip().replace(" ", "_")  
 
+                print(f"<rate resolved> or <rate assignee> found in cell_str={cell_str}")
+                runrate_found  = True
 
-                print(f"<runrate resolved> found in cell_str={cell_str}")
                 # call function to process runrate resolved now...
                 # 1. it will get jira data based on jql provided
                 # 2. get list of jira ids in result
                 # 3. bucketize them based on resolve date create data row per assignee
                 # 4. write to changes.txt file diectly. must include columns headers, and data.
 
-                cleaned_value = str(cell).rsplit("<runrate resolved>", 1)[0].strip().replace(" ", "_")
                 #scope_output_file = set_output_filename(filename, cleaned_value, timestamp, jira_import_found, jira_create_found)
-                scope_output_file = f"{filename}.{cleaned_value}.{timestamp}.rate.yaml"
+                
+                if "<rate resolved>" in cell_str:
+                    cleaned_value = str(cell).rsplit("<rate resolved>", 1)[0].strip().replace(" ", "_")
+                    scope_output_file = f"{filename}.{cleaned_value}.{timestamp}.resolved.rate.scope.yaml"
+                else:
+                    cleaned_value = str(cell).rsplit("<rate assignee>", 1)[0].strip().replace(" ", "_")
+                    scope_output_file = f"{filename}.{cleaned_value}.{timestamp}.assignee.rate.scope.yaml"
+
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
                 file_info["table"] = cleaned_value
@@ -321,6 +329,10 @@ if __name__ == "__main__":
                 rate_params_list = extract_rate_params_list(cell_str, timestamp)
                 with open(scope_output_file, 'a') as f:
                     yaml.dump({"params":rate_params_list}, f, default_flow_style=False)
+                    # save the row and col info for where this was found in the excel sheet for use by runrate_resolved.py
+                    yaml.dump({"row":row_count}, f, default_flow_style=False)
+                    yaml.dump({"col":idx}, f, default_flow_style=False)
+
             
                 break # get to next row 
 
@@ -376,6 +388,7 @@ if __name__ == "__main__":
                     jira_import_found = False
                     jira_create_found = False
                     jira_create_rows = []
+                    runrate_found = False
                     #cleaned_value = str(cell).strip().replace(" ", "_")
                 else:
                     jira_table_found = True
@@ -394,8 +407,9 @@ if __name__ == "__main__":
                     jira_create_found = True
                     print("CREATE found in table name: ", cell_str)
 
+                runrate_found = False  # just make sure this is alwayd reset to false if we had a <rate> table before this. 
                 cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
-                scope_output_file = set_output_filename(filename, cleaned_value, timestamp, jira_import_found, jira_create_found)
+                scope_output_file = set_output_filename(filename, cleaned_value, timestamp, jira_import_found, jira_create_found, runrate_found)
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
                 file_info["table"] = cleaned_value
@@ -406,7 +420,7 @@ if __name__ == "__main__":
 
             
             if not jira_table_found:
-                print(f"No 'Jira Table' found in this cell index {idx} Skipping to next cell.")
+                #print(f"No 'Jira Table' found in this cell index {idx} Skipping to next cell.")
                 continue  # continue to next cell in the row
                 
 
