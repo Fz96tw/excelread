@@ -20,7 +20,7 @@ user_cache = {}
 
 # custom prompt appended to system prompt from sheet <ai...> tag
 user_prompt = ""
-JIRA_MAX_RESULTS = 50
+JIRA_MAX_RESULTS = 200
 
 model_name = "llama3.2:1b"  # Default model name
 

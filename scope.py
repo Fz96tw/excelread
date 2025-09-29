@@ -214,6 +214,25 @@ def close_current_jira_table(jira_fields, jira_ids, jira_create_rows, scope_outp
     #cleaned_value = str(cell).strip().replace(" ", "_")        
 
 
+def get_last_data_row_from_rows(rows):
+    """
+    Given rows from read_excel_rows(), return the last row index (0-based)
+    and Excel-style row number (1-based) that has any non-empty cell.
+    
+    :param rows: List of rows (list of lists) from read_excel_rows()
+    :return: (last_row_index, last_row_number)
+    """
+    last_index = None
+    for i, row in enumerate(rows):
+        if any(cell is not None and str(cell).strip() != "" for cell in row):
+            last_index = i
+    
+    if last_index is None:
+        return None, None  # No data at all
+    
+    return last_index, last_index + 1
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Usage: python scope.py <filename> <timestamp>")
@@ -224,7 +243,10 @@ if __name__ == "__main__":
 
     print(f"argv filename={filename}  timestamp={timestamp}")    
     rows = read_excel_rows(filename)
-    
+
+    last_idx, last_excel_row = get_last_data_row_from_rows(rows)    # Find the last row where any column has a non-NaN value
+    print(f"Last data row index (0-based): {last_idx}, Excel row number (1-based): {last_excel_row}")
+
     jira_ids = []
     jira_create_rows = []
     jira_fields_default_value = {}
@@ -288,6 +310,92 @@ if __name__ == "__main__":
                 with open(scope_output_file, 'a') as f:
                     yaml.dump({"email":email_list}, f, default_flow_style=False)
                 continue        # we may have <jira> in same row so continue processing
+
+            elif "<cycletime>" in cell_str:
+                print(f"<cycletime> found in cell_str={cell_str}")
+                #cell_after_tag = cell_str.split("<cycletime>", 1)[1].strip()
+                #jira_proj_list = [s.strip().replace(" ", "_") for s in cell_after_tag.split(",") if s.strip()]
+                #print(f"Jira projects found for cycletime: {jira_proj_list}")
+
+                if jira_table_found:
+                    close_current_jira_table(jira_fields, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
+                    jira_table_found = False
+                    jira_ids = []
+                    jira_fields = []
+                    jira_fields_default_value = {}
+                    fields_found = False
+                    jira_import_found = False
+                    jira_create_found = False
+                    jira_create_rows = []
+
+                runrate_found = False #does not depend on jira_table_found
+
+                # generate quickstart scope yaml file
+                cleaned_value = str(cell).rsplit("<cycletime>", 1)[0].strip().replace(" ", "_")
+                scope_output_file = f"{filename}.{cleaned_value}.{timestamp}.cycletime.scope.yaml"
+
+                if "jql" in cell_str:
+                    jql_str = cell_str.split("jql", 1)[1].strip()
+                    if jql_str:
+                        print(f"JQL found and added to jira_ids: {jql_str}")
+                        #jira_ids.append("JQL " + import_jql)
+                else:
+                    print("ERROR: No JQL found in <cycletime> table definition")
+                    raise ValueError("ERROR: No JQL found in <cycletime> table definition")
+   
+                print(f"scope will be saved to: {scope_output_file}")
+                file_info["scope file"] = scope_output_file
+                file_info["table"] = cleaned_value
+                with open(scope_output_file, 'w') as f:
+                    yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
+                       
+                with open(scope_output_file, 'a') as f:
+                    yaml.dump({"jql":jql_str}, f, default_flow_style=False)
+                    # save the row and col info for where this was found in the excel sheet for use by runrate_resolved.py
+                    yaml.dump({"row":row_count}, f, default_flow_style=False)
+                    yaml.dump({"col":idx}, f, default_flow_style=False)
+                    yaml.dump({"lastrow":last_excel_row}, f, default_flow_style=False)
+
+                continue # get to next row
+            
+            elif "<quickstart>" in cell_str:
+                print(f"<quickstart> found in cell_str={cell_str}")
+                cell_after_tag = cell_str.split("<quickstart>", 1)[1].strip()
+                jira_proj_list = [s.strip().replace(" ", "_") for s in cell_after_tag.split(",") if s.strip()]
+                print(f"Jira projects found for quickstart: {jira_proj_list}")
+
+                if jira_table_found:
+                    close_current_jira_table(jira_fields, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
+                    jira_table_found = False
+                    jira_ids = []
+                    jira_fields = []
+                    jira_fields_default_value = {}
+                    fields_found = False
+                    jira_import_found = False
+                    jira_create_found = False
+                    jira_create_rows = []
+
+                runrate_found = False #does not depend on jira_table_found
+
+                # generate quickstart scope yaml file
+                cleaned_value = str(cell).rsplit("<quickstart>", 1)[0].strip().replace(" ", "_")
+                scope_output_file = f"{filename}.{cleaned_value}.{timestamp}.quickstart.scope.yaml"
+
+                print(f"scope will be saved to: {scope_output_file}")
+                file_info["scope file"] = scope_output_file
+                file_info["table"] = cleaned_value
+                with open(scope_output_file, 'w') as f:
+                    yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
+                       
+                with open(scope_output_file, 'a') as f:
+                    yaml.dump({"jira projects":jira_proj_list}, f, default_flow_style=False)
+                    # save the row and col info for where this was found in the excel sheet for use by runrate_resolved.py
+                    yaml.dump({"row":row_count}, f, default_flow_style=False)
+                    yaml.dump({"col":idx}, f, default_flow_style=False)
+                    yaml.dump({"lastrow":last_excel_row}, f, default_flow_style=False)
+
+
+                continue # get to next row
 
             elif "<rate resolved>" in cell_str or "<rate assignee>" in cell_str:
                 

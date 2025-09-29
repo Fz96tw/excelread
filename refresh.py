@@ -136,6 +136,9 @@ def resync(url: str, userlogin):
     update_excel_script = os.path.join(base_dir, "update_excel.py")
     update_sharepoint_script = os.path.join(base_dir, "update_sharepoint.py")
     aibrief_script = os.path.join(base_dir, "aibrief.py")
+    quickstart_script = os.path.join(base_dir, "quickstart.py")
+    cycletime_script = os.path.join(base_dir, "cycletime.py")
+    
 
     def run_and_log(cmd, log, desc):
         """Run a command and log output."""
@@ -247,6 +250,12 @@ def resync(url: str, userlogin):
                 elif "assignee.rate" in yaml_file:
                     logger.info(f"Found RUNRATE  jira file {yaml_file}")
                     run_and_log(["python", "-u", runrate_assignee_jira_script, yaml_file, filename, timestamp], log, f"runrate_assignee_jira.py {yaml_file} {timestamp}")
+                elif "cycletime.scope.yaml" in yaml_file:
+                    logger.info(f"Found CYCLETIME scope yaml file {yaml_file}")
+                    run_and_log(["python", "-u", cycletime_script, yaml_file, filename, timestamp], log, f"cycletime.py {yaml_file} {timestamp}")
+                elif "quickstart.scope.yaml" in yaml_file:
+                    logger.info(f"Found QUIKSTART scope yaml file {yaml_file}")
+                    run_and_log(["python", "-u", quickstart_script, yaml_file, filename, timestamp], log, f"quickstart.py {yaml_file} {timestamp}")
                 else:
                     jira_csv = f"{input_file}.{substring}.jira.csv"
                     logger.info(f"Generating Jira CSV: {jira_csv}")

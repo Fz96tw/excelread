@@ -454,20 +454,18 @@ if not tablename:
 
 mode = ""
 
-# I don't think this code is doing anything useful. It always sets create_mode to True?! since 
-# Determine if we will be INSERTING rows eventually vs just UPDATING existing rows in Excel/SharePoint
-if "resolved_run_rate" in yaml_file.lower():
-    print(f"runrate_resolved mode detected based on filename: {yaml_file}.")
+if "resolved.rate" in yaml_file.lower():
+    print(f"resolved.rate mode detected based on filename: {yaml_file}.")
     # You can set a flag or handle import-specific logic here if needed
     output_file = basename + "." + tablename + timestamp + ".resolved_rate.jira.csv"
     mode = "open_closed" #"resolved"
-elif "open_closed_run_rate" in yaml_file.lower():
+elif "assignee.rate" in yaml_file.lower():
     print(f"open_closed_run_rate mode detected based on filename: {yaml_file}.")
     # You can set a flag or handle import-specific logic here if needed
     output_file = basename + "." + tablename + timestamp + ".open_closed_rate.jira.csv"
     mode = "open_closed"
 else:
-    print("Error: YAML filename does not indicate 'resolved_run_rate' or 'open_closed_run_rate mode.")
+    print("Error: YAML filename does not contain 'resolved.rate' or 'assignee.rate'")
     sys.exit(1)
 
 fields = data.get('fields', [])
