@@ -150,11 +150,17 @@ def write_execsummary_yaml(jira_ids, filename, file_info, timestamp):
     if jira_ids:
         print(f"JIRA IDs found: {jira_ids}")
 
+        # This won't/doesn't work when jira_id is a JQL.  Not sure why I ever thought thsi would work?!
         # Filter out jira_ids starting with "jql" (case-insensitive) since the excel table already has processed the jql and the Jira IDs are listed here already
-        jira_ids = [jid for jid in jira_ids if not jid.lower().startswith("jql")]
+        #jira_ids = [jid for jid in jira_ids if not jid.lower().startswith("jql")]
 
+        # instead just dump the jira_ids to the scope file. read_jira.py will take care of it, ie run jql and get the jira ids.
+         
         with open(execsummary_scope_output_file, 'a') as f:
             yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
+    else:
+        print(f"ERROR: can't proceed, No JIRA IDs found to write to aisummary yaml file {execsummary_scope_output_file}")
+        sys.exit(1)
 
     f.close()
     print("ExecSummary scope yaml file created successfully:", execsummary_scope_output_file)
