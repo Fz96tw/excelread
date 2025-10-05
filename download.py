@@ -12,22 +12,93 @@ import shutil
 # -------------------------------
 # Config from environment variables
 # -------------------------------
-#load_dotenv()
-ENV_PATH = "../../../config/.env"
+#ENV_PATH = "../../../config/.env"
+ENV_PATH = "./config/.env"
 load_dotenv(dotenv_path=ENV_PATH)
 
 CLIENT_ID = os.environ["CLIENT_ID"]
-CLIENT_SECRET = os.environ["CLIENT_SECRET"]
+CLIENT_SECRET = os.environ["CLIENT_SECRET"] # only needed for app-only auth. Not used for delegated user auth.
 TENANT_ID = os.environ["TENANT_ID"]
-SCOPES = ["https://graph.microsoft.com/.default"]
+SCOPES = ["https://graph.microsoft.com/.default"] # only neded for app-only auth. Delegated user-auth needs to override SCOPES to use user-specific scopes (see SCOPES further donw) 
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 
-TOKEN_CACHE_FILE = "token_cache.json"
+TOKEN_CACHE_FILE = "./config/token_cache.json"
+
 
 # -------------------------------
-# MSAL: get application token
+# used user-specific OAuth token cache.
+# NOTE: FIX LATER - for now persistent between run across ALL files 
+#  and ALL users regardless of which user is downloading whatever file.  Not good security-wise.)
+def load_cache():
+    print("load_cache()")
+    cache = msal.SerializableTokenCache()
+    if os.path.exists(TOKEN_CACHE_FILE):
+        cache.deserialize(open(TOKEN_CACHE_FILE, "r").read())
+        print(f"loaded cache from file '{TOKEN_CACHE_FILE}'")
+    else:
+        print(f"load_cahce failed to find path '{TOKEN_CACHE_FILE}'")
+    return cache
+
 # -------------------------------
-def get_app_token():
+# used user-specific OAuth token cache.
+# NOTE: FIX LATER - for now persistent between run across ALL files 
+#  and ALL users regardless of which user is downloading whatever file.  Not good security-wise.)
+def save_cache(cache):
+    if cache.has_state_changed:
+        print(f"saved cache from file '{TOKEN_CACHE_FILE}'")
+        open(TOKEN_CACHE_FILE, "w").write(cache.serialize())
+
+
+# -------------------------------
+# used user-specific OAuth token cache.
+def get_user_token():
+    print("🔑 Acquiring delegated user token...")
+    SCOPES = ["Files.Read", "Sites.Read.All", "User.Read"]  # override default SCOPE from above to use user-specific instead of application auth
+    cache = load_cache()
+    pca = msal.PublicClientApplication(CLIENT_ID, authority=AUTHORITY, token_cache=cache)
+
+    # Try to get a cached token first
+    accounts = pca.get_accounts()
+    if accounts:
+        result = pca.acquire_token_silent(SCOPES, account=accounts[0])
+        if result and "access_token" in result:
+            print("✅ Using cached token.")
+            return result["access_token"]
+
+    # No cached token, perform interactive login
+    result = pca.acquire_token_interactive(SCOPES)
+    if "access_token" not in result:
+        raise Exception(f"❌ Failed to get delegated token: {result}")
+
+    save_cache(cache)
+    print("✅ Delegated token acquired and cached.")
+    return result["access_token"]
+
+def get_app_token_delegated():
+    print("🔑 Acquiring app token...")
+    cache = load_cache()  # ✅ Load the cache here
+
+    cca = msal.ConfidentialClientApplication(
+        CLIENT_ID,
+        authority=AUTHORITY,
+        client_credential=CLIENT_SECRET,
+        token_cache=cache  # ✅ Attach cache
+    )
+
+    accounts = cca.get_accounts()
+    if accounts:
+        print(f"Found {len(accounts)} accounts in cache. Trying silent acquire...")
+        result = cca.acquire_token_silent(SCOPES, account=accounts[0])
+        if result and "access_token" in result:
+            print("✅ Using cached user token.")
+            return result["access_token"]
+
+    raise Exception("❌ No cached user token found. Please log in through the Flask app first.")
+
+# -------------------------------
+# MSAL: get application token using CLIENT CREDENTIALS flow.  Not user-specific OAuth token.
+# -------------------------------
+'''def get_app_token():
     print("🔑 Acquiring app token...")
     cca = msal.ConfidentialClientApplication(
         CLIENT_ID, authority=AUTHORITY, client_credential=CLIENT_SECRET
@@ -37,8 +108,10 @@ def get_app_token():
         raise Exception(f"❌ Failed to get token: {result}")
     print("✅ Access token acquired.")
     return result["access_token"]
-
-# -------------------------------
+'''
+# ----------
+# 
+# ---------------------
 # Resolve site ID from SharePoint URL
 # -------------------------------
 def get_site_id(site_url, token):
@@ -61,8 +134,14 @@ def graph_encode_path(path):
 # -------------------------------
 # Download Excel file + metadata
 # -------------------------------
+
 def download_excel_with_meta(site_url, file_path):
-    token = get_app_token()
+
+    if delegated_auth:
+        token = get_app_token_delegated()
+    else:
+        token = get_app_token()
+    
     site_id = get_site_id(site_url, token)
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -140,6 +219,26 @@ if __name__ == "__main__":
 
     full_url = unquote(full_url)  # decode %20 → space
     parsed_url = urlparse(full_url)
+
+    delegated_auth = False  # set to False to use app-only auth (no user context)
+
+    if len(sys.argv) == 4:
+        auth_param = sys.argv[3]
+        if "user_auth" in auth_param:
+            print(f"detected argument '{auth_param}' so will use delegated authorization instead of app auth flow")
+            delegated_auth = True
+            CLIENT_ID = os.environ["CLIENT_ID2"]
+            CLIENT_SECRET = os.environ["CLIENT_SECRET2"] # only needed for app-only auth. Not used for delegated user auth.
+            TENANT_ID = os.environ["TENANT_ID"]
+            # Do NOT include reserved scopes here — MSAL adds them automatically
+            SCOPES = ["User.Read","Files.ReadWrite.All", "Sites.ReadWrite.All"]
+            AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+            print (f"Tenant id: {TENANT_ID}")
+            print (f"Client id: {CLIENT_ID}")
+            print (f"Client secret: {CLIENT_SECRET}")
+            print (f"Authority: {AUTHORITY}")
+    else:
+        print(f"defaulting to application authorization since user_auth argument not specified")
 
     if "http" in full_url:
         print(f"http found in full_url={full_url}")
