@@ -573,7 +573,7 @@ entry = f"{coord} = {now_str} ||"
 print (entry)
 changes_list.append(entry)
 
-changes_list.append(f"{get_column_letter(excel_col)}{r} = Average Time || ")
+changes_list.append(f"{get_column_letter(excel_col)}{r} = Status Transition || ")
 changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = Median Time || ")
 changes_list.append(f"{get_column_letter(excel_col + 2 )}{r} = Average Time || ")
 changes_list.append(f"{get_column_letter(excel_col + 3)}{r} = Range || ")
