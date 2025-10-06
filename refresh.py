@@ -91,7 +91,7 @@ def delete_old_folders_by_hours(path: str, hours: int):
 
 
 
-def resync(url: str, userlogin):
+def resync(url: str, userlogin, delegated_auth):
     """
     Full resync process with recursive handling of YAML files.
     """
@@ -207,7 +207,7 @@ def resync(url: str, userlogin):
     '''
 
 
-    def process_yaml(file_url, input_file, timestamp):
+    def process_yaml(file_url, input_file, timestamp, delegated_auth):
         logger.info(f"Running scope.py on {input_file} timestamp={timestamp}...")
         run_and_log(["python", "-u", scope_script, input_file, timestamp], log, f"scope.py {input_file} {timestamp}")
 
@@ -235,7 +235,12 @@ def resync(url: str, userlogin):
 
             while True:
                 logger.info(f"Re-downloading {file_url}...")
-                run_and_log(["python", "-u", download_script, file_url, timestamp], log, f"download.py {file_url} {timestamp}")
+#                run_and_log(["python", "-u", download_script, file_url, timestamp], log, f"download.py {file_url} {timestamp}")
+                if delegated_auth:
+                    logger.info("delegated_auth detected")
+                    run_and_log(["python", "-u", download_script, url, timestamp, "user_auth"], log, f"download.py {url} {timestamp}")
+                else:
+                    run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
 
                 logger.info(f"Re-running scope.py on {input_file}...")
                 run_and_log(["python", "-u", scope_script, input_file, timestamp], log, f"scope.py {input_file} {timestamp}")
@@ -349,16 +354,25 @@ def resync(url: str, userlogin):
 
     with open(log_file, "w", encoding="utf-8") as log:
         try:
-            run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+            if delegated_auth:
+                logger.info("delegated_auth detected")
+                run_and_log(["python", "-u", download_script, url, timestamp, "user_auth"], log, f"download.py {url} {timestamp}")
+            else:
+                run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
             logger.info("about to call process_yaml")
-            process_yaml(url, filename, timestamp)
+            process_yaml(url, filename, timestamp, delegated_auth)
             logger.info("about to call process_aibrief_yaml")
             process_aibrief_yaml(url, filename, timestamp)
 
             # need to download xlsx file again since process_yaml earlier updated
             # sharepoint and this means the meta data will not match any longer 
             logger.info(f"Re-downloading {url}...")
-            run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+#            run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+            if delegated_auth:
+                logger.info("delegated_auth detected")
+                run_and_log(["python", "-u", download_script, url, timestamp, "user_auth"], log, f"download.py {url} {timestamp}")
+            else:
+                run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
 
             logger.info("about to call process_aibrief_changes_txt")
             process_aibrief_changes_txt(url, filename, timestamp)

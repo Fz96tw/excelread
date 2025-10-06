@@ -12,8 +12,8 @@ import shutil
 # -------------------------------
 # Config from environment variables
 # -------------------------------
-#ENV_PATH = "../../../config/.env"
-ENV_PATH = "./config/.env"
+ENV_PATH = "../../../config/.env"
+#ENV_PATH = "./config/.env"
 load_dotenv(dotenv_path=ENV_PATH)
 
 CLIENT_ID = os.environ["CLIENT_ID"]
@@ -22,7 +22,8 @@ TENANT_ID = os.environ["TENANT_ID"]
 SCOPES = ["https://graph.microsoft.com/.default"] # only neded for app-only auth. Delegated user-auth needs to override SCOPES to use user-specific scopes (see SCOPES further donw) 
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 
-TOKEN_CACHE_FILE = "./config/token_cache.json"
+#TOKEN_CACHE_FILE = "./config/token_cache.json"
+TOKEN_CACHE_FILE = "../../../config/token_cache.json"
 
 
 # -------------------------------
@@ -51,7 +52,7 @@ def save_cache(cache):
 
 # -------------------------------
 # used user-specific OAuth token cache.
-def get_user_token():
+'''def get_user_token():
     print("🔑 Acquiring delegated user token...")
     SCOPES = ["Files.Read", "Sites.Read.All", "User.Read"]  # override default SCOPE from above to use user-specific instead of application auth
     cache = load_cache()
@@ -73,6 +74,7 @@ def get_user_token():
     save_cache(cache)
     print("✅ Delegated token acquired and cached.")
     return result["access_token"]
+'''
 
 def get_app_token_delegated():
     print("🔑 Acquiring app token...")

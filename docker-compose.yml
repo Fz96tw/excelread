@@ -3,7 +3,7 @@ version: "3.9"
 services:
 
   ollama:
-    image: llama3.2-1b:latest   # prebuilt Ollama image
+    image: fz96tw/llama3.2-1b:v1   # prebuilt Ollama image
     container_name: llama
     ports:
       - "11434:11434"           # default Ollama API port
@@ -12,7 +12,7 @@ services:
       - appnet
 
   ai-connector:
-    image: ai-connector:latest  # must be built/tagged ahead of time
+    image: fz96tw/ai-connector:v1  # must be built/tagged ahead of time
     ports:
       - "5000:5000"
     depends_on:
@@ -27,7 +27,7 @@ services:
       - SUMMARIZER_HOST=http://summarizer:8000
 
   summarizer:
-    image: summarizer:latest    # must be built/tagged ahead of time
+    image: fz96tw/summarizer:v1    # must be built/tagged ahead of time
     ports:
       - "8000:8000"
     depends_on:
