@@ -273,9 +273,9 @@ def resync(url: str, userlogin, delegated_auth):
                 logger.info(f"Updating SharePoint for {url} with changes from {input_file}.{substring}.changes.txt...")
                 if delegated_auth:
                     output_lines = run_and_log(
-                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin, "user_auth"],
+                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin, "--user_auth"],
                     log,
-                    f"update_sharepoint.py {url} {input_file}.{substring}.changes.txt {timestamp} {userlogin} user_auth"
+                    f"update_sharepoint.py {url} {input_file}.{substring}.changes.txt {timestamp} {userlogin} --user_auth"
                     )
                 else:
                     output_lines = run_and_log(
@@ -352,11 +352,19 @@ def resync(url: str, userlogin, delegated_auth):
 
         for changes_file in changes_files:    
             logger.info(f"Updating SharePoint for {url} with changes from {changes_file}...")
-            output_lines = run_and_log(
-                ["python", "-u", update_sharepoint_script, url, changes_file, timestamp],
+            if delegated_auth:
+                output_lines = run_and_log(
+                ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin, "--user_auth"],
                 log,
-                f"update_sharepoint.py {url} {changes_file} {timestamp}"
-            )
+                f"update_sharepoint.py {url} {input_file}.{substring}.changes.txt {timestamp} {userlogin} --user_auth"
+                )
+            else:
+                output_lines = run_and_log(
+                ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin],
+                log,
+                f"update_sharepoint.py {url} {input_file}.{substring}.changes.txt {timestamp} {userlogin}"
+                )
+           
                 
 
 
