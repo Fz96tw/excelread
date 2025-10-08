@@ -70,7 +70,7 @@ def make_job_id(userlogin: str, filename: str) -> str:
     return job_id
 
 
-def schedule_jobs(scheduler, sched_file, filename=None, userlogin=None):
+def schedule_jobs(scheduler, sched_file, delegated_auth, filename=None, userlogin=None):
     """
     Schedule all jobs from schedules.json or reschedule a specific entry.
     """
@@ -113,7 +113,7 @@ def schedule_jobs(scheduler, sched_file, filename=None, userlogin=None):
                 "interval",
                 minutes=int(s["interval"]),
 #                args=[cleaned_filename, userlogin],
-                kwargs={"url": cleaned_filename, "userlogin":userlogin},
+                kwargs={"url": cleaned_filename, "userlogin":userlogin, "delegated_auth":delegated_auth},
                 id=job_id,
                 replace_existing=True,
                 misfire_grace_time=300,  # 5 minutes to prevent skipping of jobs when delays occur)

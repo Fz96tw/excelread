@@ -174,12 +174,13 @@ def get_llm_model(llm_config_file):
 
 
 
-if len(sys.argv) != 3:
-    print("Usage: python read_jira.py <yaml_file>")
+if len(sys.argv) != 4:
+    print("Usage: python read_jira.py <yaml_file> <userlogin>")
     sys.exit(1)
 
 yaml_file = sys.argv[1]
 timestamp = sys.argv[2]
+userlogin = sys.argv[3]
 
 with open(yaml_file, 'r') as f:
     data = yaml.safe_load(f)
@@ -264,8 +265,8 @@ print(jira_filter_str)
 # -------------------------------
 #load_dotenv()
 # load .env from config folder
-ENV_PATH = "../../../config/.env"
-load_dotenv(dotenv_path=ENV_PATH)
+ENV_PATH_USER = f"../../../config/env.{userlogin}"
+load_dotenv(dotenv_path=ENV_PATH_USER)
 
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
 JIRA_URL = os.environ.get("JIRA_URL")
@@ -422,8 +423,11 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                         for comment in sorted_comments
                     ])
                     print(f"calling get_summarized_comments with: {value}")
-                    ai_summarized = get_summarized_comments(value)
-                    value = ai_summarized
+                    try:
+                        ai_summarized = get_summarized_comments(value)
+                        value = ai_summarized
+                    except Exception as e:
+                        print(f"Error in get_summarized_comments: {e}")                  
                 else:
                     value = "No comments"
             elif field == "synopsis":

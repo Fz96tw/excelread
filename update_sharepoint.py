@@ -16,7 +16,7 @@ from openpyxl.utils import column_index_from_string
 # Load env vars
 from dotenv import load_dotenv
 #load_dotenv()
-ENV_PATH = "../../../config/.env"
+ENV_PATH = "../../../config/env.system"
 load_dotenv(dotenv_path=ENV_PATH)
 
 SCOPES = ["https://graph.microsoft.com/.default"]  # Required for client credentials flow
@@ -25,6 +25,64 @@ CLIENT_SECRET = os.environ["CLIENT_SECRET"]
 TENANT_ID = os.environ["TENANT_ID"]
 SCOPES = ["https://graph.microsoft.com/.default"]
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+
+TOKEN_CACHE_FILE = "../../../config/token_cache.json"
+
+
+
+
+# -------------------------------
+# used user-specific OAuth token cache.
+# NOTE: FIX LATER - for now persistent between run across ALL files 
+#  and ALL users regardless of which user is downloading whatever file.  Not good security-wise.)
+def load_cache(userlogin=None):
+    global TOKEN_CACHE_FILE
+    if userlogin:
+        TOKEN_CACHE_FILE = f"../../../config/token_cache_{userlogin}.json"
+
+    print(f"load_cache({userlogin})")
+    cache = msal.SerializableTokenCache()
+    if os.path.exists(TOKEN_CACHE_FILE):
+        cache.deserialize(open(TOKEN_CACHE_FILE, "r").read())
+        print(f"loaded cache from file '{TOKEN_CACHE_FILE}'")
+    else:
+        print(f"load_cahce failed to find path '{TOKEN_CACHE_FILE}'")
+    return cache
+
+# -------------------------------
+# used user-specific OAuth token cache.
+# NOTE: FIX LATER - for now persistent between run across ALL files 
+#  and ALL users regardless of which user is downloading whatever file.  Not good security-wise.)
+def save_cache(cache, userLogin=None):
+    if cache.has_state_changed:
+        global TOKEN_CACHE_FILE
+        if userlogin:
+            TOKEN_CACHE_FILE = f"../../../config/token_cache_{userlogin}.json"
+        print(f"saved cache to file '{TOKEN_CACHE_FILE}'")
+        open(TOKEN_CACHE_FILE, "w").write(cache.serialize())
+
+
+def get_app_token_delegated():
+    print(f"🔑 Acquiring delegated user app token for user={userlogin}")
+    cache = load_cache(userlogin)  # ✅ Load the cache here
+
+    cca = msal.ConfidentialClientApplication(
+        CLIENT_ID,
+        authority=AUTHORITY,
+        client_credential=CLIENT_SECRET,
+        token_cache=cache  # ✅ Attach cache
+    )
+
+    accounts = cca.get_accounts()
+    if accounts:
+        print(f"Found {len(accounts)} accounts in cache. Trying silent acquire...")
+        result = cca.acquire_token_silent(SCOPES, account=accounts[0])
+        if result and "access_token" in result:
+            print("✅ Using cached user token.")
+            return result["access_token"]
+
+    raise Exception("❌ No cached user token found. Please log in through the Flask app first.")
+
 
 # -------------------------------
 # MSAL: get application token
@@ -44,17 +102,64 @@ parser = argparse.ArgumentParser(description="Update Excel file on SharePoint wi
 parser.add_argument("file_url", help="Full URL to the Excel file in SharePoint")
 parser.add_argument("changes_file", help="Path to the local changes file")
 parser.add_argument("timestamp", help="string tag (timestamp) for local output temp files")
+parser.add_argument("userlogin", help="string userlogin")
+parser.add_argument("auth_user", help="string tag to force delelated auth flow")
 
 #parser.add_argument("--access_token", required=True, help="Application-level access token for Graph API")
 parser.add_argument("--worksheet_name", default="Sheet1", help="Worksheet name to update (default: Sheet1)")
 args = parser.parse_args()
+
+auth_user = args.auth_user
+userlogin = args.userlogin
+
+delegated_auth = False  # set to False to use app-only auth (no user context)
+
+import sys
+
+if userlogin is None:
+    print("ERROR! required 'userlogin' commandline arg is missing.")
+    sys.exit(1)
+
+if "user_auth" in auth_user and userlogin:
+    userlogin = args.userlogin
+
+    print(f"detected argument '{auth_user}' for user:{userlogin} so will use delegated authorization instead of app auth flow")
+    delegated_auth = True
+    CLIENT_ID = os.environ["CLIENT_ID2"]
+    CLIENT_SECRET = os.environ["CLIENT_SECRET2"] # only needed for app-only auth. Not used for delegated user auth.
+    TENANT_ID = os.environ["TENANT_ID"]
+    # Do NOT include reserved scopes here — MSAL adds them automatically
+    SCOPES = ["User.Read","Files.ReadWrite.All", "Sites.ReadWrite.All"]
+    #AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+    AUTHORITY = "https://login.microsoftonline.com/common"   # to allow users from any tenant to authorize my app
+    print (f"Tenant id: {TENANT_ID}")
+    print (f"Client id: {CLIENT_ID}")
+    print (f"Client secret: {CLIENT_SECRET}")
+    print (f"Authority: {AUTHORITY}")
+else:
+    print(f"defaulting to application authorization since user_auth argument not specified")
+    delegated_auth = False
+
+
+# load user settings from config folder
+ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{userlogin}")
+load_dotenv(dotenv_path=ENV_PATH_USER)
+
 
 
 file_url = args.file_url
 changes_file = args.changes_file
 timestamp = args.timestamp
 #access_token = args.access_token
-access_token = get_app_token()  # Use the function to get the token
+
+#access_token = get_app_token()  # Use the function to get the token
+
+if delegated_auth:
+    access_token = get_app_token_delegated()
+else:
+    access_token = get_app_token()
+    
+
 worksheet_name = args.worksheet_name
 
 import_mode = False
@@ -302,6 +407,8 @@ def update_column(site_id, item_id, worksheet_name, start_cell, values, headers)
 
 
 print(f"parameter file_url = {file_url}")
+
+
 
 jira_base_url =  os.environ["JIRA_URL"]
 print(f"Using JIRA base URL: {jira_base_url}")

@@ -91,6 +91,7 @@ def delete_old_folders_by_hours(path: str, hours: int):
 
 
 
+
 def resync(url: str, userlogin, delegated_auth):
     """
     Full resync process with recursive handling of YAML files.
@@ -207,7 +208,7 @@ def resync(url: str, userlogin, delegated_auth):
     '''
 
 
-    def process_yaml(file_url, input_file, timestamp, delegated_auth):
+    def process_yaml(file_url, input_file, timestamp, delegated_auth, userlogin):
         logger.info(f"Running scope.py on {input_file} timestamp={timestamp}...")
         run_and_log(["python", "-u", scope_script, input_file, timestamp], log, f"scope.py {input_file} {timestamp}")
 
@@ -238,7 +239,7 @@ def resync(url: str, userlogin, delegated_auth):
 #                run_and_log(["python", "-u", download_script, file_url, timestamp], log, f"download.py {file_url} {timestamp}")
                 if delegated_auth:
                     logger.info("delegated_auth detected")
-                    run_and_log(["python", "-u", download_script, url, timestamp, "user_auth"], log, f"download.py {url} {timestamp}")
+                    run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
                 else:
                     run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
 
@@ -264,17 +265,24 @@ def resync(url: str, userlogin, delegated_auth):
                 else:
                     jira_csv = f"{input_file}.{substring}.jira.csv"
                     logger.info(f"Generating Jira CSV: {jira_csv}")
-                    run_and_log(["python", "-u", read_jira_script, yaml_file, timestamp], log, f"read_jira.py {yaml_file} {timestamp}")
+                    run_and_log(["python", "-u", read_jira_script, yaml_file, timestamp, userlogin], log, f"read_jira.py {yaml_file} {timestamp} {userlogin}")
 
                     logger.info(f"Updating Excel with {jira_csv}...")
                     run_and_log(["python", "-u", update_excel_script, jira_csv, input_file, timestamp], log, f"update_excel.py {jira_csv} {input_file} {timestamp}")
 
                 logger.info(f"Updating SharePoint for {url} with changes from {input_file}.{substring}.changes.txt...")
-                output_lines = run_and_log(
-                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp],
+                if delegated_auth:
+                    output_lines = run_and_log(
+                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin, "user_auth"],
                     log,
-                    f"update_sharepoint.py {url} {input_file}.{substring}.changes.txt {timestamp}"
-                )
+                    f"update_sharepoint.py {url} {input_file}.{substring}.changes.txt {timestamp} {userlogin} user_auth"
+                    )
+                else:
+                    output_lines = run_and_log(
+                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin],
+                    log,
+                    f"update_sharepoint.py {url} {input_file}.{substring}.changes.txt {timestamp} {userlogin}"
+                    )
 
                 if any("Aborting update" in line for line in output_lines):
                     wait_msg = f"Aborting update detected for {yaml_file}, waiting 30 seconds before retry..."
@@ -356,11 +364,12 @@ def resync(url: str, userlogin, delegated_auth):
         try:
             if delegated_auth:
                 logger.info("delegated_auth detected")
-                run_and_log(["python", "-u", download_script, url, timestamp, "user_auth"], log, f"download.py {url} {timestamp}")
+                run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
             else:
                 run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+            
             logger.info("about to call process_yaml")
-            process_yaml(url, filename, timestamp, delegated_auth)
+            process_yaml(url, filename, timestamp, delegated_auth, userlogin)
             logger.info("about to call process_aibrief_yaml")
             process_aibrief_yaml(url, filename, timestamp)
 
@@ -370,7 +379,7 @@ def resync(url: str, userlogin, delegated_auth):
 #            run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
             if delegated_auth:
                 logger.info("delegated_auth detected")
-                run_and_log(["python", "-u", download_script, url, timestamp, "user_auth"], log, f"download.py {url} {timestamp}")
+                run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
             else:
                 run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
 
