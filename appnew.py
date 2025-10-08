@@ -28,34 +28,56 @@ BANNER_PATH = '/static/banner3.jpg'  # put banner.jpg in static folder
 # TOKEN MANAGEMENT
 # -------------------------------
 #load_dotenv()
-# load .env from config folder
-ENV_PATH = os.path.join(os.path.dirname(__file__), "config", ".env")
+# load system level settings first from system.env from config folder
+ENV_PATH = os.path.join(os.path.dirname(__file__), "config", "env.system")
+
 load_dotenv(dotenv_path=ENV_PATH)
 CLIENT_ID = os.environ.get("CLIENT_ID")  # From Azure AD app registration
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET")  # From Azure AD app registration
 TENANT_ID = os.environ.get("TENANT_ID")  # From Azure AD app registration
-#SCOPES = ["Files.ReadWrite.All", "Sites.ReadWrite.All"] #, "offline_access"]
+
+# SCOPES = ["Files.ReadWrite.All", "Sites.ReadWrite.All"] #, "offline_access"]
+
+# defaults to client auth but will be changed to user_auth farther down if user_auth cmdline argument found
 SCOPES = ["https://graph.microsoft.com/.default"]
-#AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-AUTHORITY = "https://login.microsoftonline.com/common"   # to allow users from any tenant to authorize my app
+AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+#AUTHORITY = "https://login.microsoftonline.com/common"   # to allow users from any tenant to authorize my app
 REDIRECT_PATH = "/getAToken"
 REDIRECT_URI = f"http://localhost:5000{REDIRECT_PATH}"
 
+# default token cache file used when private client auth flow. 
+# file name is overwritten later if using delegated auth flow.
 TOKEN_CACHE_FILE = "./config/token_cache.json"
 
 
 
-def load_cache():
+def load_cache(userlogin=None):
+    global TOKEN_CACHE_FILE
+
     cache = msal.SerializableTokenCache()
+
+    if userlogin:
+        TOKEN_CACHE_FILE = f"./config/token_cache_{userlogin}.json"
+    else:
+        TOKEN_CACHE_FILE = "./config/token_cache.json"
+    
     if os.path.exists(TOKEN_CACHE_FILE):
-        print("Loading token cache from file...")
+        print(f"Loading token cache from file={TOKEN_CACHE_FILE}")
         cache.deserialize(open(TOKEN_CACHE_FILE, "r").read())
+    
     return cache
+    
 
-
-def save_cache(cache):
+def save_cache(cache, userlogin=None):
+    global TOKEN_CACHE_FILE
     if cache.has_state_changed:
-        print("Saving token cache to file...")
+
+        if userlogin:
+            TOKEN_CACHE_FILE = f"./config/token_cache_{userlogin}.json"
+        else:
+            TOKEN_CACHE_FILE = "./config/token_cache.json"
+
+        print(f"Saving token cache to file={TOKEN_CACHE_FILE}")
         with open(TOKEN_CACHE_FILE, "w") as f:
             f.write(cache.serialize())
 
@@ -78,12 +100,29 @@ def write_file_lines(path, lines):
 import time
 
 def is_logged_in():
+    global logged_in
+    global auth_user_info
+    global auth_user_email
+    global auth_user_name
 
+    if logged_in == False:
+        return False
+    
     # Try silent token acquisition (from cache)
     result = cca.acquire_token_silent(scopes=SCOPES, account=None)
 
     if result and "access_token" in result:
         print("Valid token found in cache.")
+
+        logged_in = True
+        session["is_logged_in"] = True
+        session["user"] = result.get("id_token_claims")
+        session["access_token"] = result["access_token"]
+        auth_user_info = session.get("user")
+        if auth_user_info:
+            auth_user_email = auth_user_info.get("preferred_username")
+            auth_user_name = auth_user_info.get("name")
+
         return True
     else:
         result = cca.acquire_token_for_client(scopes=SCOPES)
@@ -94,6 +133,15 @@ def is_logged_in():
             print("Access token acquired successfully.")
             save_cache(cache)
             print("Valid token found after acquiring new token.")
+
+            logged_in = True
+            session["is_logged_in"] = True
+            session["user"] = result.get("id_token_claims")
+            session["access_token"] = result["access_token"]
+            auth_user_info = session.get("user")
+            if auth_user_info:
+                auth_user_email = auth_user_info.get("preferred_username")
+                auth_user_name = auth_user_info.get("name")
             return True
 
 
@@ -101,7 +149,8 @@ def is_logged_in():
 # for user delegated Auth flow
 def get_app_token_delegated():
     print("🔑 Acquiring app token...")
-    cache = load_cache()  # ✅ Load the cache here
+    global userlogin
+    cache = load_cache(userlogin)  # ✅ Load the cache here
 
     cca = msal.ConfidentialClientApplication(
         CLIENT_ID,
@@ -311,17 +360,18 @@ def logout():
 # DONT GET CONFUSED.  this route is for sharepoint authorization. Not user login to IAConnector (see /home route)
 @app.route("/login")
 def login():
-
+    global logged_in
+    
     if delegated_auth:
         print ("/login endpoint using delegated_auth flow")
-        cache = load_cache()
+        cache = load_cache(userlogin)
         cca = _build_msal_app(cache)
         auth_url = cca.get_authorization_request_url(
             scopes=SCOPES,
             redirect_uri=REDIRECT_URI,  # url_for("authorized", _external=True)  <-------------------- 
             prompt="consent" # to make sure the user (or their admin) grants access the first time
         )
-        save_cache(cache)
+        save_cache(cache, userlogin)
         return redirect(auth_url)
     else:
         cache = load_cache()
@@ -339,6 +389,8 @@ def login():
             raise Exception(f"Failed to get token: {result}")
         print("Access token acquired successfully.")
         save_cache(cache)
+
+        logged_in = True
 
         if "access_token" in result:
             session["is_logged_in"] = True
@@ -493,6 +545,31 @@ else:
     print(f"Schedule file already exists {SCHEDULE_FILE}")
 
 
+
+delegated_auth = False  # set to False to use app-only auth (no user context)
+if len(sys.argv) == 2:
+    auth_param = sys.argv[1]
+    if "user_auth" in auth_param:
+        print(f"detected argument '{auth_param}' so will use delegated authorization instead of app auth flow")
+        delegated_auth = True
+        CLIENT_ID = os.environ["CLIENT_ID2"]
+        CLIENT_SECRET = os.environ["CLIENT_SECRET2"] # only needed for app-only auth. Not used for delegated user auth.
+        TENANT_ID = os.environ["TENANT_ID"]
+        # Do NOT include reserved scopes here — MSAL adds them automatically
+        SCOPES = ["User.Read","Files.ReadWrite.All", "Sites.ReadWrite.All"]
+        #AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+        AUTHORITY = "https://login.microsoftonline.com/common"   # to allow users from any tenant to authorize my app
+        print (f"Tenant id: {TENANT_ID}")
+        print (f"Client id: {CLIENT_ID}")
+        print (f"Client secret: {CLIENT_SECRET}")
+        print (f"Authority: {AUTHORITY}")
+        cache = load_cache(userlogin)
+        cca = _build_msal_app(cache)
+else:
+    print(f"defaulting to application authorization since user_auth argument not specified")    
+    cache = load_cache()
+    cca = build_msal_app(cache)
+
 # -----------------------------------------------------------------------------
 # Global scheduler
 # -----------------------------------------------------------------------------
@@ -531,7 +608,7 @@ if not scheduler.running:
     scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
     
     # Setup all the schedules since app is starting up
-    schedule_jobs(scheduler,SCHEDULE_FILE)
+    schedule_jobs(scheduler,SCHEDULE_FILE, delegated_auth)
 
 
 
@@ -554,6 +631,8 @@ user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
 logged_in = False
 
 
+# REDIRECT_PATH callback only required when using user-delegated auth flow.  
+# not needed/used for private client auth flow
 @app.route(REDIRECT_PATH)
 def authorized():
     global logged_in
@@ -562,7 +641,7 @@ def authorized():
     if not code:
         return "No code found in redirect."
 
-    cache = load_cache()
+    cache = load_cache(userlogin)
     cca = _build_msal_app(cache)
     if "code" in request.args:
         print ("received 'code' in OAuth callback")
@@ -571,46 +650,36 @@ def authorized():
             scopes=SCOPES,
             redirect_uri=REDIRECT_URI   # url_for("authorized", _external=True)
         )
-        save_cache(cache)
+        save_cache(cache, userlogin)
         if "access_token" in result:
             session["is_logged_in"] = True
             session["user"] = result.get("id_token_claims")
             session["access_token"] = result["access_token"]
             logged_in = True
-            return redirect(url_for("index"))
+            #return redirect(url_for("index"))
+            return """
+                    <html>
+                    <body style="font-family:sans-serif;text-align:center;padding:40px;">
+                        <h2>✅ Login Successful</h2>
+                        <script>
+                            // Notify opener and close
+                            try { window.opener && window.opener.postMessage('login-success', '*'); } catch(e) {}
+                            window.close();
+                        </script>
+                        <p>You may close this window if it doesn’t close automatically.</p>
+                    </body>
+                    </html>
+                    """
         else:
             return f"Error: {result.get('error_description')}"
     return "No code provided."
 
 
+auth_user_email = ""
+auth_user_name = ""
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    global logged_in
-
-    if (delegated_auth):
-        print ("/ route is using delegated_auth flow")
-        # Try silent token first
-        print("Attempting to acquire token silently...")
-        cache = load_cache()
-        print("Loaded cache, checking for accounts...")
-        cca = _build_msal_app(cache)
-        accounts = cca.get_accounts()
-        if accounts:
-            print(f"Found {len(accounts)} accounts in token cache")
-            result = cca.acquire_token_silent(SCOPES, account=accounts[0])
-            print("called 'acquire_token_silent'")
-            save_cache(cache)
-            if result:
-                print ("/ endpoint found valid user auth token")
-                logged_in = True
-                #return f"Access token ready!<br>{result['access_token'][:40]}..."
-            else:
-                return "Failed acquire_token_silent <br>"
-        else:
-            print("No existing accounts found in token cache")
-            #return '<a href="/login">Login with Microsoft</a>'
-            logged_in = False
 
     # Make sure user is logged into AI Connector before showing main page
     #userlogin = None
@@ -622,6 +691,49 @@ def index():
         print("Not logged so redirecting to home for login")
         userlogin = None
         return redirect(url_for("home"))
+
+    global logged_in
+    global auth_user_email
+    global auth_user_name
+
+    if (delegated_auth):
+        print ("/ route is using delegated_auth flow")
+        # Try silent token first
+        print("Attempting to acquire token silently...")
+        cache = load_cache(userlogin)
+        print("Loaded cache, checking for accounts...")
+        cca = _build_msal_app(cache)
+        accounts = cca.get_accounts()
+        if accounts:
+            print(f"Found {len(accounts)} accounts in token cache")
+            result = cca.acquire_token_silent(SCOPES, account=accounts[0])
+            print("called 'acquire_token_silent'")
+            save_cache(cache, userlogin)
+            if result:
+                print (f"/ endpoint found valid user auth token = {result}")
+                print(f"token claims = {result.get('token_claims')}")
+                logged_in = True
+                session["is_logged_in"] = True
+                session["user"] = result.get("id_token_claims")
+                session["access_token"] = result["access_token"]
+                auth_user_info = session.get("user")
+                
+                if auth_user_info:
+                    auth_user_email = auth_user_info.get("preferred_username")
+                    auth_user_name = auth_user_info.get("name")
+                    print(f"auth_user_info found in session, user = {auth_user_name}, email= {auth_user_email}")
+                else:
+                    print("No auth_user_info found in session!")
+
+                #return f"Access token ready!<br>{result['access_token'][:40]}..."
+            else:
+                return "Failed acquire_token_silent <br>"
+        else:
+            print("No existing accounts found in token cache")
+            #return '<a href="/login">Login with Microsoft</a>'
+            logged_in = False
+
+    
 
 
     user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
@@ -640,12 +752,15 @@ def index():
     else:
         print(f"LLM config settings file already exists {LLMCONFIG_FILE}")
 
+
     # Load saved value
+    ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{userlogin}")
+
     foo_values = {}
-    foo_values["jira_url"] = read_env("JIRA_URL", ENV_PATH)
-    foo_values["jira_user"] = read_env("JIRA_EMAIL", ENV_PATH)
-    foo_values["jira_token"] = read_env("JIRA_API_TOKEN", ENV_PATH)
-    foo_values["openai_token"] = read_env("OPENAI_API_KEY", ENV_PATH)
+    foo_values["jira_url"] = read_env("JIRA_URL", ENV_PATH_USER)
+    foo_values["jira_user"] = read_env("JIRA_EMAIL", ENV_PATH_USER)
+    foo_values["jira_token"] = read_env("JIRA_API_TOKEN", ENV_PATH_USER)
+    foo_values["openai_token"] = read_env("OPENAI_API_KEY", ENV_PATH)       # for now keep openai token in system environment. move to user specific later
 
     print(f"Loaded following foo_values from {ENV_PATH}")
     for key, value in foo_values.items():
@@ -707,9 +822,9 @@ def index():
             jira_token = request.form.get('jira_token', '')
             print(f"saving new .env values {jira_url}, {jira_user}, {jira_token}")
 #            write_file_lines(FOO_FILE, [jira_url, jira_user, jira_token])
-            write_env("JIRA_URL",jira_url,ENV_PATH)
-            write_env("JIRA_EMAIL",jira_user,ENV_PATH)
-            write_env("JIRA_API_TOKEN",jira_token,ENV_PATH)
+            write_env("JIRA_URL",jira_url,ENV_PATH_USER)
+            write_env("JIRA_EMAIL",jira_user,ENV_PATH_USER)
+            write_env("JIRA_API_TOKEN",jira_token,ENV_PATH_USER)
             # load .env from config folder
             load_dotenv(dotenv_path=ENV_PATH)
             
@@ -773,9 +888,13 @@ def index():
     
     print(f"Sharepoint Authorization status: {logged_in}")
 
-    user_info = session.get("user")
-    user_email = user_info.get("preferred_username")
-    user_name = user_info.get("name")
+    auth_user_info = session.get("user")
+    if auth_user_info:
+        auth_user_email = auth_user_info.get("preferred_username")
+        auth_user_name = auth_user_info.get("name")
+        print(f"auth_user_info found in session, user = {auth_user_name}, email= {auth_user_email}")
+    else:
+        print("No auth_user_info found in session!")
 
 
     return render_template('form.html',
@@ -787,8 +906,28 @@ def index():
                            folder_tree=folder_tree,
                            schedule_dict=schedule_dict,
                            username=userlogin,
-                           auth_username=f"{user_email}",
+                           auth_username=f"{auth_user_email}",
                            llm_default=llm_model)
+
+
+
+
+@app.route("/logout_sharepoint", methods=["POST"])
+def logout_sharepoint():
+    global logged_in
+    print("recvd /logout_sharepoint endpoint called")
+    if logged_in == True:
+        print(f"Revoking sharepoint access token for user={userlogin}")
+        token_file = f"./config/token_cache_{userlogin}.json"
+    
+        if os.path.exists(token_file):
+            os.remove(token_file)
+            print(f"Deleted token file: {token_file}")
+            logged_in = False
+        else:
+            print(f"No token file found for user={userlogin}")
+
+    return redirect(url_for('index', section="section2"))
 
 
 from flask import Flask, request, jsonify
@@ -800,10 +939,11 @@ def save_jira():
     jira_user = data.get("jira_user", "")
     jira_token = data.get("jira_token", "")
 
+    ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{userlogin}")
     print(f"Saving new .env values {jira_url}, {jira_user}, {jira_token}")
-    write_env("JIRA_URL", jira_url, ENV_PATH)
-    write_env("JIRA_EMAIL", jira_user, ENV_PATH)
-    write_env("JIRA_API_TOKEN", jira_token, ENV_PATH)
+    write_env("JIRA_URL", jira_url, ENV_PATH_USER)
+    write_env("JIRA_EMAIL", jira_user, ENV_PATH_USER)
+    write_env("JIRA_API_TOKEN", jira_token, ENV_PATH_USER)
 
     return jsonify({"success": True, "message": "Jira settings updated successfully"})
 
@@ -973,7 +1113,8 @@ def schedule_file():
         json.dump(schedules, f, indent=4)
 
     # update the scheduled jobs
-    schedule_jobs(scheduler, user_sched_file, filename, userlogin)
+    global delegated_auth
+    schedule_jobs(scheduler, user_sched_file, filename, userlogin, delegated_auth)
 
     return jsonify({"success": True, "message": "Schedule saved successfully"})
 
@@ -1012,29 +1153,6 @@ def clear_schedule():
     return jsonify({"success": True})
 
 
-delegated_auth = False  # set to False to use app-only auth (no user context)
-if len(sys.argv) == 2:
-    auth_param = sys.argv[1]
-    if "user_auth" in auth_param:
-        print(f"detected argument '{auth_param}' so will use delegated authorization instead of app auth flow")
-        delegated_auth = True
-        CLIENT_ID = os.environ["CLIENT_ID2"]
-        CLIENT_SECRET = os.environ["CLIENT_SECRET2"] # only needed for app-only auth. Not used for delegated user auth.
-        TENANT_ID = os.environ["TENANT_ID"]
-        # Do NOT include reserved scopes here — MSAL adds them automatically
-        SCOPES = ["User.Read","Files.ReadWrite.All", "Sites.ReadWrite.All"]
-        #AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-        AUTHORITY = "https://login.microsoftonline.com/common"   # to allow users from any tenant to authorize my app
-        print (f"Tenant id: {TENANT_ID}")
-        print (f"Client id: {CLIENT_ID}")
-        print (f"Client secret: {CLIENT_SECRET}")
-        print (f"Authority: {AUTHORITY}")
-        cache = load_cache()
-        cca = _build_msal_app(cache)
-else:
-    print(f"defaulting to application authorization since user_auth argument not specified")    
-    cache = load_cache()
-    cca = build_msal_app(cache)
 
 
 if __name__ == "__main__":
