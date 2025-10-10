@@ -33,7 +33,7 @@ if not basename:
 
 if not tablename:
     print("No 'table' found in fileinfo. Expecting 'table' key.")
-    sys.exit(1)
+    #sys.exit(1)
 
 
 # I don't think this code is doing anything useful. It always sets create_mode to True?! since 

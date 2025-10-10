@@ -20,7 +20,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key")  # Use a real secret in production
 
 
-FOO_FILE = './config/.env'
+#FOO_FILE = './config/.env'
 BAR_FILE = './config/.bar'
 BANNER_PATH = '/static/banner3.jpg'  # put banner.jpg in static folder
 
@@ -29,9 +29,23 @@ BANNER_PATH = '/static/banner3.jpg'  # put banner.jpg in static folder
 # -------------------------------
 #load_dotenv()
 # load system level settings first from system.env from config folder
-ENV_PATH = os.path.join(os.path.dirname(__file__), "config", "env.system")
+ENV_PATH = os.path.join(os.path.dirname(__file__), "config", "system.env")
+#ENV_PATH = os.path.join(os.path.dirname(__file__), "system.env")
+#ENV_PATH = "config/system.env"
 
-load_dotenv(dotenv_path=ENV_PATH)
+print(f"current working dir = {os.getcwd()}")
+
+print(f" {ENV_PATH} Exists? : {os.path.exists(ENV_PATH)}  Size: {os.path.getsize(ENV_PATH) if os.path.exists(ENV_PATH) else 0}")
+
+with open(ENV_PATH, "rb") as f:
+    head = f.read(100)
+print(f"First 100 bytes: {head!r}")
+
+print (f"loading environment var settings from {ENV_PATH}")
+loaded = load_dotenv(dotenv_path=ENV_PATH)
+print(f"load_dotenv returned: {loaded}")
+print(f"Loaded keys: {list(os.environ.keys())}")
+
 CLIENT_ID = os.environ.get("CLIENT_ID")  # From Azure AD app registration
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET")  # From Azure AD app registration
 TENANT_ID = os.environ.get("TENANT_ID")  # From Azure AD app registration
@@ -48,6 +62,12 @@ REDIRECT_URI = f"http://localhost:5000{REDIRECT_PATH}"
 # default token cache file used when private client auth flow. 
 # file name is overwritten later if using delegated auth flow.
 TOKEN_CACHE_FILE = "./config/token_cache.json"
+
+print (f"CLIENT_ID = {CLIENT_ID}")
+print (f"CLIENT_SECRET = {CLIENT_SECRET}")
+print (f"TENANT_ID = {TENANT_ID}")
+print (f"SCOPES = {SCOPES}")
+print (f"AUTHORITY = {AUTHORITY}")
 
 
 
@@ -148,7 +168,7 @@ def is_logged_in():
 
 # for user delegated Auth flow
 def get_app_token_delegated():
-    print("🔑 Acquiring app token...")
+    print("called get_app_token_delegated()... Acquiring app token...")
     global userlogin
     cache = load_cache(userlogin)  # ✅ Load the cache here
 
@@ -172,6 +192,9 @@ def get_app_token_delegated():
 
 # for user delegated (saas appnew)
 def _build_msal_app(cache=None):
+    print("called _build_msal_app()")
+    print(f"AUTHORITY={AUTHORITY}")
+    print(f"CLIENT_ID={CLIENT_ID}")
     return msal.ConfidentialClientApplication(
         CLIENT_ID,
         authority=AUTHORITY,
@@ -181,6 +204,9 @@ def _build_msal_app(cache=None):
 
 # client auth (on-prem appnew)
 def build_msal_app(cache=None):
+    print("called build_msap_app()")
+    print(f"AUTHORITY={AUTHORITY}")
+    print(f"CLIENT_ID={CLIENT_ID}")
     return msal.ConfidentialClientApplication(
         CLIENT_ID,
         authority=AUTHORITY,
@@ -193,6 +219,7 @@ def build_msal_app(cache=None):
 # MSAL: get application token
 # -------------------------------
 def get_app_token():
+    print("called get_app_token()")
     authority = f"https://login.microsoftonline.com/{TENANT_ID}"
     #cca = msal.ConfidentialClientApplication(
     #    CLIENT_ID, 
@@ -361,7 +388,7 @@ def logout():
 @app.route("/login")
 def login():
     global logged_in
-    
+
     if delegated_auth:
         print ("/login endpoint using delegated_auth flow")
         cache = load_cache(userlogin)
@@ -568,6 +595,7 @@ if len(sys.argv) == 2:
 else:
     print(f"defaulting to application authorization since user_auth argument not specified")    
     cache = load_cache()
+    print("calling build_msal_app(cache)")
     cca = build_msal_app(cache)
 
 # -----------------------------------------------------------------------------
@@ -927,7 +955,15 @@ def logout_sharepoint():
         else:
             print(f"No token file found for user={userlogin}")
 
-    return redirect(url_for('index', section="section2"))
+  
+        # Microsoft logout endpoint (kills AAD session cookies)
+        ms_logout_url = "https://login.microsoftonline.com/common/oauth2/v2.0/logout"
+
+        # After logout, redirect back to your app
+        post_logout_redirect = url_for('index', section="section2", _external=True)
+
+        # Redirect user through Microsoft logout then back to your app
+        return redirect(f"{ms_logout_url}?post_logout_redirect_uri={post_logout_redirect}")
 
 
 from flask import Flask, request, jsonify
@@ -938,12 +974,14 @@ def save_jira():
     jira_url = data.get("jira_url", "")
     jira_user = data.get("jira_user", "")
     jira_token = data.get("jira_token", "")
+    jira_password = data.get("jira_password")
 
     ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{userlogin}")
-    print(f"Saving new .env values {jira_url}, {jira_user}, {jira_token}")
+    print(f"Saving new .env values {jira_url}, {jira_user}, {jira_token}, {jira_password}")
     write_env("JIRA_URL", jira_url, ENV_PATH_USER)
     write_env("JIRA_EMAIL", jira_user, ENV_PATH_USER)
     write_env("JIRA_API_TOKEN", jira_token, ENV_PATH_USER)
+    write_env("JIRA_PASSWORD", jira_password, ENV_PATH_USER)
 
     return jsonify({"success": True, "message": "Jira settings updated successfully"})
 

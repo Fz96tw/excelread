@@ -317,6 +317,8 @@
                         <input type="text" name="jira_user" value="{{ foo_values.get('jira_user', '') }}">
                         <label>Jira API Token:</label>
                         <input type="text" name="jira_token" value="{{ foo_values.get('jira_token', '') }}">
+                        <label>Jira Password (if using basic auth):</label>
+                        <input type="text" name="jira_password" value="{{ foo_values.get('jira_password', '') }}">
                         <button type="submit" name="save_foo"><img src="/static/saveicontransparent.png" style="height:20px; vertical-align:middle; margin-right:6px;">Save</button>
                     </form>
                 </div>
@@ -348,6 +350,13 @@
                             {% else %}
                                 <button type="button" class="login-btn" onclick="openLoginPopup(this)" title="Login">🔐 Login Required</button>
                             {% endif %}
+                            <span>
+                                {% if logged_in %}
+                                <form method="POST" class="left-form" action="/logout_sharepoint">
+                                    <button type="submit" name="logout_sharepoint" title="logout_sharepoint">Revoke</button>
+                                </form>
+                                {% endif %}
+                            </span>
                         </div>
                     </div>
                     <br>
@@ -385,7 +394,7 @@
                                         {% if sched.time %}
                                             <span style="font-size:12px; margin-left:6px;">{{sched.mode}} at {{ sched.time }}</span>
                                         {% elif sched.interval %}
-                                            <span style="font-size:12px; margin-left:6px;">Every {{ sched.interval }} min</span>
+                                            <span style="font-size:12px; margin-left:6px;">Every {{ sched.interval }} min ({{sched.userlogin}})</span>
                                         {% endif %}
                                     {% else %}
                                         <span style="font-size:12px; margin-left:6px;">None</span>
@@ -893,7 +902,8 @@
                 const formData = {
                     jira_url: this.querySelector('input[name="jira_url"]').value,
                     jira_user: this.querySelector('input[name="jira_user"]').value,
-                    jira_token: this.querySelector('input[name="jira_token"]').value
+                    jira_token: this.querySelector('input[name="jira_token"]').value,
+                    jira_password: this.querySelector('input[name="jira_password"]').value
                 };
                 fetch('/save_jira', {
                     method: 'POST',

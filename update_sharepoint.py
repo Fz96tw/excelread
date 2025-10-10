@@ -222,7 +222,8 @@ def set_cell_hyperlink(site_id, item_id, worksheet_name, cell_address, display_t
 
 
 # --- Row-level updater (sparse cells handled) ---
-def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url):
+def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url, import_mode = False):
+    print("enter update_sparse_row(...)")
     col_letters = sorted(cols.keys(), key=lambda c: string.ascii_uppercase.index(c))
     start_col, end_col = col_letters[0], col_letters[-1]
     row_range = f"{start_col}{row_num}:{end_col}{row_num}"
@@ -383,7 +384,7 @@ import requests
 # Example usage:
 #values = ["TES-123", "TES-124", "TES-125"]
 #update_column(site_id, item_id, "Sheet1", "A2", values, headers)
-def update_column(site_id, item_id, worksheet_name, start_cell, values, headers):
+def update_column_old(site_id, item_id, worksheet_name, start_cell, values, headers):
 
     # Extract column letter and row number
     col_letter = ''.join([c for c in start_cell if c.isalpha()])
@@ -409,12 +410,107 @@ def update_column(site_id, item_id, worksheet_name, start_cell, values, headers)
 
 
 
+def update_column(site_id, item_id, worksheet_name, start_cell, values, headers):
+    print ("enter update_column(...)")
+    # Extract column letter and row number
+    col_letter = ''.join([c for c in start_cell if c.isalpha()])
+    start_row = int(''.join([c for c in start_cell if c.isdigit()]))
+
+    # Compute how many rows to insert
+    rows_to_insert = len(values)
+
+    # Define range for inserting blank rows, e.g. "5:7" for 3 rows starting at row 5
+    insert_end_row = start_row + rows_to_insert - 1
+    insert_range = f"{start_row}:{insert_end_row}"
+
+    insert_url = (
+        f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}"
+        f"/workbook/worksheets('{worksheet_name}')/range(address='{insert_range}')/insert"
+    )
+
+    # 1️⃣ Insert blank rows
+    insert_body = {"shift": "Down"}
+    insert_resp = requests.post(insert_url, headers=headers, json=insert_body)
+    if insert_resp.status_code not in (200, 201):
+        print(f"⚠️ Failed to insert blank rows: {insert_resp.status_code} {insert_resp.text}")
+        insert_resp.raise_for_status()
+    else:
+        print(f"✅ Inserted {rows_to_insert} blank rows at row {start_row}")
+
+    # 2️⃣ Compute new range (the original start_cell now refers to the top of the inserted region)
+    end_row = start_row + rows_to_insert - 1
+    range_address = f"{col_letter}{start_row}:{col_letter}{end_row}"
+
+    # 3️⃣ Write values into the blank rows
+    url = (
+        f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}"
+        f"/workbook/worksheets('{worksheet_name}')/range(address='{range_address}')"
+    )
+
+    body = {"values": [[v] for v in values]}  # Graph requires 2D list
+    resp = requests.patch(url, headers=headers, json=body)
+    if resp.status_code != 200:
+        print(f"❌ Failed to update column: {resp.status_code} {resp.text}")
+        resp.raise_for_status()
+    else:
+        print(f"✅ Successfully updated {range_address} with {len(values)} rows.")
+
+
+
+def insert_blank_rows(site_id, item_id, worksheet_name, start_row, count, headers):
+    """
+    Inserts `count` blank rows into an Excel worksheet in SharePoint using Microsoft Graph API.
+
+    Parameters:
+        site_id (str): SharePoint site ID
+        item_id (str): Drive item ID (the Excel file)
+        worksheet_name (str): Name of the worksheet
+        start_row (int): Row number before which to insert new rows
+        count (int): Number of blank rows to insert
+        headers (dict): Graph API authorization headers, e.g. {"Authorization": "Bearer <token>"}
+
+    Returns:
+        None (prints status messages)
+    """
+    print(f"enter insert_blank_rows(...) at row={start_row} count={count} ")
+    if count <= 0:
+        print("⚠️ Count must be greater than 0. No rows inserted.")
+        return
+
+    # Example: inserting 3 rows before row 5 means range "5:7"
+    end_row = start_row + count - 1
+    insert_range = f"{start_row}:{end_row}"
+
+    url = (
+        f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}"
+        f"/workbook/worksheets('{worksheet_name}')/range(address='{insert_range}')/insert"
+    )
+
+    body = {"shift": "Down"}
+
+    print(f"➡️ Inserting {count} blank rows before row {start_row} in sheet '{worksheet_name}'...")
+    resp = requests.post(url, headers=headers, json=body)
+
+    if resp.status_code in (200, 201):
+        print(f"✅ Successfully inserted {count} blank row(s) starting at row {start_row}")
+    else:
+        print(f"❌ Failed to insert rows: {resp.status_code} {resp.text}")
+        resp.raise_for_status()
+
+
 print(f"parameter file_url = {file_url}")
 
 
 
 jira_base_url =  os.environ["JIRA_URL"]
 print(f"Using JIRA base URL: {jira_base_url}")
+
+if "import.changes.txt" in changes_file:
+    print (f"import mode enabled since file = {changes_file}")
+    import_mode = True
+else:
+    print (f"import mode disabled since file = ")
+    import_mode = False
 
 # --- PARSE CHANGES FILE ---
 row_values = defaultdict(dict)
@@ -506,6 +602,7 @@ if "http" in file_url:
         print("Import mode ON")
         # Get the first row number (smallest key)
         first_row_num = min(row_values.keys())
+        insert_blank_rows(site_id, item_id, worksheet_name, first_row_num ,len(row_values), headers)  
 
         # Get the dict of column values for that row
         first_row_data = row_values[first_row_num]
@@ -537,16 +634,16 @@ if "http" in file_url:
         #update_column(site_id, item_id, "Sheet1", "A2", values, headers)
         #def update_column(site_id, item_id, worksheet_name, start_cell, values, headers):
 
-        update_column(site_id, item_id, worksheet_name, start_cell, new_values_list, headers)
+        #update_column(site_id, item_id, worksheet_name, start_cell, new_values_list, headers)
 
-    else:
-        for row_num, cols in row_values.items():
-            
+    #else:
 
-            print(f"Updating row {row_num} with values: {cols}")
-            update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url)
+    for row_num, cols in row_values.items():
+        print(f"Updating row {row_num} with values: {cols}")
+        update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url, import_mode)
 
 else:
+
     print(f"Assuming local file based on file_url={file_url}")
 
     file_url = unquote(file_url)  # decode %20 → space if there are space chars in filename    
