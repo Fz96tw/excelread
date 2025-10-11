@@ -380,12 +380,15 @@ from datetime import datetime
 from urllib.parse import unquote
 from openpyxl.utils import get_column_letter
 
-if len(sys.argv) < 3:
-    print("Usage: python cycletime.py <yaml_file> <timestamp")
+if len(sys.argv) < 4:
+    print("Usage: python cycletime.py <yaml_file> <timestamp> <userlogin>")
     sys.exit(1)
 
 yaml_file = sys.argv[1]
 timestamp = sys.argv[2]
+userlogin = sys.argv[3]
+
+print(f"cycletime parameters  yaml_file={yaml_file} timestamp={timestamp} userlogin={userlogin}")
 
 with open(yaml_file, 'r') as f:
     data = yaml.safe_load(f)
@@ -506,7 +509,7 @@ JIRA_MAX_RESULTS = 50
 # -------------------------------
 #load_dotenv()
 # load .env from config folder
-ENV_PATH = "../../../config/.env"
+ENV_PATH = f"../../../config/env.{userlogin}"
 load_dotenv(dotenv_path=ENV_PATH)
 
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
@@ -525,6 +528,8 @@ try:
 except Exception as e:
     print(f"❌ Failed to connect to Jira: {e}")
     sys.exit(1)
+
+print(f"JIRA client connected to {JIRA_URL} login:{JIRA_EMAIL} apitoken:{JIRA_API_TOKEN} ")
 
 issues = []  # global issues list to hold results from both ID and JQL searches
 
@@ -573,31 +578,31 @@ entry = f"{coord} = {now_str} ||"
 print (entry)
 changes_list.append(entry)
 
-changes_list.append(f"{get_column_letter(excel_col)}{r} = Status Transition || ")
-changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = Median Time || ")
-changes_list.append(f"{get_column_letter(excel_col + 2 )}{r} = Average Time || ")
-changes_list.append(f"{get_column_letter(excel_col + 3)}{r} = Range || ")
-changes_list.append(f"{get_column_letter(excel_col + 4)}{r} = Sample Size || ")
+changes_list.append(f"{get_column_letter(excel_col)}{r} = INSERT Status Transition || ")  # add INSERT to only first since the rest are on same row
+changes_list.append(f"{get_column_letter(excel_col + 1)}{r} =  INSERT Median Time || ")
+changes_list.append(f"{get_column_letter(excel_col + 2 )}{r} =  INSERT Average Time || ")
+changes_list.append(f"{get_column_letter(excel_col + 3)}{r} =  INSERT Range || ")
+changes_list.append(f"{get_column_letter(excel_col + 4)}{r} =  INSERT Sample Size || ")
 
 r +=1
 
 for (from_status, to_status), data in sorted_transitions:
     print(f"\n{from_status} → {to_status}")
-    changes_list.append(f"{get_column_letter(excel_col)}{r} = {from_status} -> {to_status} || ")
-    changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = {data['average_hours']:.1f} hours ({data['average_days']:.1f} days || ")
-    changes_list.append(f"{get_column_letter(excel_col + 2)}{r} = {data['median_hours']:.1f} hours || ")
-    changes_list.append(f"{get_column_letter(excel_col + 3)}{r} = {data['min_hours']:.1f} - {data['max_hours']:.1f} hours || ")
-    changes_list.append(f"{get_column_letter(excel_col + 4)}{r} = {data['count']} transitions || ")
+    changes_list.append(f"{get_column_letter(excel_col)}{r} = INSERT {from_status} -> {to_status} || ")  # add INSERT only to first row since rest are in sme row
+    changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = INSERT {data['average_hours']:.1f} hours ({data['average_days']:.1f} days) || ")
+    changes_list.append(f"{get_column_letter(excel_col + 2)}{r} = INSERT {data['median_hours']:.1f} hours || ")
+    changes_list.append(f"{get_column_letter(excel_col + 3)}{r} = INSERT {data['min_hours']:.1f} - {data['max_hours']:.1f} hours || ")
+    changes_list.append(f"{get_column_letter(excel_col + 4)}{r} = INSERT {data['count']} issues || ")
     
     r += 1
 
     print(f"  Average Time: {data['average_hours']:.1f} hours ({data['average_days']:.1f} days)")
     print(f"  Median Time:  {data['median_hours']:.1f} hours")
     print(f"  Range:        {data['min_hours']:.1f} - {data['max_hours']:.1f} hours")
-    print(f"  Sample Size:  {data['count']} transitions")
+    print(f"  Sample Size:  {data['count']} issues")
 
 
-changes_file = yaml_file.replace("scope.yaml","changes.txt")
+changes_file = yaml_file.replace("scope.yaml","import.changes.txt")
 print(f"Writing changes to {changes_file}")
 
 if changes_list:

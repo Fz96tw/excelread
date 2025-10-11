@@ -513,7 +513,14 @@ else:
     import_mode = False
 
 # --- PARSE CHANGES FILE ---
-row_values = defaultdict(dict)
+
+# will contain INSERT row. This is proceed separated below 
+#because we need to insert single BLANK rows in the sheet for each of these
+insert_row_values = defaultdict(dict)  
+
+# will contain all other rows but not INSERT.
+row_values = defaultdict(dict) 
+
 with open(changes_file, "r") as f:
     print("Parsing changes file:", changes_file)
     for line in f:
@@ -534,15 +541,20 @@ with open(changes_file, "r") as f:
         row_num = int(''.join(filter(str.isdigit, cell)))
 
         
-        if import_mode:
+        if import_mode and "INSERT" in new_value.upper():
             print("Import mode: removing the INSERT prefix from column letter read from changes file")
-            col_letter = col_letter.upper().replace("INSERT","").strip()
-
-        row_values[row_num][col_letter.upper()] = {
-            "new": new_value.strip(),
-            "old": old_value.strip()  # empty string if no old value
-        }
-        print(f"Parsed {cell}: new='{new_value.strip()}', old='{old_value.strip()}'")
+            #col_letter = col_letter.upper().replace("INSERT","").strip()
+            new_value = new_value.replace("INSERT","").strip()  # we know INSERT is in there so no need to new_value.upper() again. Don't do it here, otherwise the cells will all upper case for INSERTs!
+            insert_row_values[row_num][col_letter.upper()] = {
+                "new": new_value.strip(),
+                "old": old_value.strip()  # empty string if no old value
+            }
+        else:
+            row_values[row_num][col_letter.upper()] = {
+                "new": new_value.strip(),
+                "old": old_value.strip()  # empty string if no old value
+            }
+        print(f"Processed {cell}: new='{new_value.strip()}', old='{old_value.strip()}'")
 
 file_url = unquote(file_url)  # decode %20 → space if there are space chars in filename 
 
@@ -598,11 +610,11 @@ if "http" in file_url:
     print("✅ eTag matches. Safe to apply updates.")
 
     # --- ITERATE AND UPDATE SAFELY ---
-    if import_mode:
+    if import_mode and insert_row_values:
         print("Import mode ON")
         # Get the first row number (smallest key)
-        first_row_num = min(row_values.keys())
-        insert_blank_rows(site_id, item_id, worksheet_name, first_row_num ,len(row_values), headers)  
+        '''first_row_num = min(insert_row_values.keys())
+        #insert_blank_rows(site_id, item_id, worksheet_name, first_row_num ,len(insert_row_values), headers)  
 
         # Get the dict of column values for that row
         first_row_data = row_values[first_row_num]
@@ -635,9 +647,17 @@ if "http" in file_url:
         #def update_column(site_id, item_id, worksheet_name, start_cell, values, headers):
 
         #update_column(site_id, item_id, worksheet_name, start_cell, new_values_list, headers)
-
+        '''
     #else:
 
+    # Going to update the inserted rows first - but not sure if this really matters
+    for row_num, cols in insert_row_values.items():
+        print(f"Inserting row {row_num} with values: {cols}")
+        #first_row_num = row_num
+        insert_blank_rows(site_id, item_id, worksheet_name, row_num , 1, headers)  
+        update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url, import_mode)
+
+    # Now update the existing rows, ie not insert
     for row_num, cols in row_values.items():
         print(f"Updating row {row_num} with values: {cols}")
         update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url, import_mode)

@@ -718,7 +718,7 @@ for i, (bucket, (year, week_num, start_date, end_date)) in enumerate(zip(weekly_
     #print()
 
 
-changes_file = yaml_file.replace("scope.yaml","changes.txt")
+changes_file = yaml_file.replace("scope.yaml","import.changes.txt")
 print(f"Writing changes to {changes_file}")
 
 if changes_list:

@@ -716,7 +716,7 @@ for assignee in unique_assignee_list:
         row = row + 1   # move to next row for next assignee    
 
 
-changes_file = yaml_file.replace("scope.yaml","changes.txt")
+changes_file = yaml_file.replace("scope.yaml","import.changes.txt")
 print(f"Writing changes to {changes_file}")
 
 if changes_list:

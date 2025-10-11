@@ -233,7 +233,9 @@ def process_jira_table_blocks(filename):
                             
                             # Save coordinate + value to list
                             cv = target_cell.value.replace('\n',';')
-                            change_list.append(f"{target_cell.coordinate}={cv}||{old_value}")
+                            # enforce INSERT for this row since it is presumed to be blank. we don't want to fill up this blank row, ie preserve whatever blank rows were
+                            # left here by the author of the sheet
+                            change_list.append(f"{target_cell.coordinate}= INSERT {cv}||{old_value}")
                             #change_list.append(f"{target_cell.coordinate}={cell_value.replace('\n',';')}||{old_value}")
             
             elif not jira_data and first_cell is not None:
@@ -263,6 +265,11 @@ def process_jira_table_blocks(filename):
                         target_cell.font = target_cell.font.copy(strike=True)  # Apply strikeout
                         target_cell.alignment = Alignment(wrapText=True)                 
                         cv = target_cell.value.replace('\n',';')
+
+                        # DO NOT enforce INSERT for this row since the sheet row already contains a key
+                        # thus assumed that this was previously inserted by update_excel in this loop
+                        # this is scenario were this is not the first time this table is being populated
+                        # ie. was populated by this function in previous resync
                         change_list.append(f"{target_cell.coordinate}={cv}||{old_value}")
                         #change_list.append(f"{target_cell.coordinate}={target_cell.value.replace('\n',';')}||{old_value}")
                 else:
@@ -328,6 +335,10 @@ def process_jira_table_blocks(filename):
                                 
                                 # Save coordinate + value to list
                                 cv = target_cell.value.replace('\n',';')
+                                # DO NOT enforce INSERT for this row since the sheet row already contains a key
+                                # thus assumed that this was previously inserted by update_excel in this loop
+                                # this is scenario were this is not the first time this table is being populated
+                                # ie. was populated by this function in previous resync
                                 change_list.append(f"{target_cell.coordinate}={cv}||{old_value}")
                                 #change_list.append(f"{target_cell.coordinate}={cell_value.replace('\n',';')}||{old_value}")
 
@@ -360,6 +371,8 @@ def process_jira_table_blocks(filename):
                 break
 
     # if there are jira_id still remaining but we ran out of rows then keep going if we were in IMPORT mode
+    # this scenario only expected when the table is at the bottom of the sheet, only blank rows remaining in entire sheet
+    # otherwise the loop above would have covered all rows if table wasn't at the end of the sheet
     if printing and import_mode and printing_import_mode:
         print(f"Row count ended row = {last_known_row_num} but will continue with import_mode inserts into sheet")
         #first_cell = row[field_index_map["key"]].value
@@ -391,7 +404,9 @@ def process_jira_table_blocks(filename):
                         
                         # Save coordinate + value to list
                         cv = cell_value.replace('\n',';')
-                        change_list.append(f"{target_cell_coordinate}={cv}||{old_value}")
+                        # force INSERT for this row entry even though the table is at the end of the sheet and
+                        # there's no risk of over-writing other data in the sheet at this point.
+                        change_list.append(f"{target_cell_coordinate}= INSERT {cv}||{old_value}")
                         #change_list.append(f"{target_cell_coordinate}={cell_value.replace('\n',';')}||{old_value}")
 
 

@@ -241,47 +241,55 @@ def resync(url: str, userlogin, delegated_auth):
                     logger.info("delegated_auth detected")
                     run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
                 else:
-                    run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+                    run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp} user_auth {userlogin}")
 
                 logger.info(f"Re-running scope.py on {input_file}...")
                 run_and_log(["python", "-u", scope_script, input_file, timestamp], log, f"scope.py {input_file} {timestamp}")
 
                 if "create" in yaml_file:
                     logger.info(f"Found CREATE jira file {yaml_file}")
-                    run_and_log(["python", "-u", create_jira_script, yaml_file, filename, timestamp], log, f"create_jira.py {yaml_file} {filename} {timestamp}")
+                    run_and_log(["python", "-u", create_jira_script, yaml_file, filename, timestamp, userlogin], log, f"create_jira.py {yaml_file} {filename} {timestamp} {userlogin}")
                 
                 elif "resolved.rate" in yaml_file:
                     logger.info(f"Found RUNRATE  jira file {yaml_file}")
-                    run_and_log(["python", "-u", runrate_resolved_jira_script, yaml_file, filename, timestamp], log, f"runrate_resolved_jira.py {yaml_file} {timestamp}")
+                    run_and_log(["python", "-u", runrate_resolved_jira_script, yaml_file, timestamp, userlogin], log, f"runrate_resolved_jira.py {yaml_file} {timestamp} {userlogin}")
                 elif "assignee.rate" in yaml_file:
                     logger.info(f"Found RUNRATE  jira file {yaml_file}")
-                    run_and_log(["python", "-u", runrate_assignee_jira_script, yaml_file, filename, timestamp], log, f"runrate_assignee_jira.py {yaml_file} {timestamp}")
+                    run_and_log(["python", "-u", runrate_assignee_jira_script, yaml_file, filename, userlogin], log, f"runrate_assignee_jira.py {yaml_file} {timestamp} {userlogin}")
                 elif "cycletime.scope.yaml" in yaml_file:
                     logger.info(f"Found CYCLETIME scope yaml file {yaml_file}")
-                    run_and_log(["python", "-u", cycletime_script, yaml_file, filename, timestamp], log, f"cycletime.py {yaml_file} {timestamp}")
+                    run_and_log(["python", "-u", cycletime_script, yaml_file, timestamp, userlogin], log, f"cycletime.py {yaml_file} {timestamp} {userlogin}")
                 elif "quickstart.scope.yaml" in yaml_file:
                     logger.info(f"Found QUIKSTART scope yaml file {yaml_file}")
-                    run_and_log(["python", "-u", quickstart_script, yaml_file, filename, timestamp], log, f"quickstart.py {yaml_file} {timestamp}")
+                    run_and_log(["python", "-u", quickstart_script, yaml_file, timestamp], log, f"quickstart.py {yaml_file} {timestamp}")
                 else:
                     jira_csv = f"{input_file}.{substring}.jira.csv"
                     logger.info(f"Generating Jira CSV: {jira_csv}")
                     run_and_log(["python", "-u", read_jira_script, yaml_file, timestamp, userlogin], log, f"read_jira.py {yaml_file} {timestamp} {userlogin}")
 
                     logger.info(f"Updating Excel with {jira_csv}...")
-                    run_and_log(["python", "-u", update_excel_script, jira_csv, input_file, timestamp], log, f"update_excel.py {jira_csv} {input_file} {timestamp}")
+                    run_and_log(["python", "-u", update_excel_script, jira_csv, input_file], log, f"update_excel.py {jira_csv} {input_file}")
 
-                logger.info(f"Updating SharePoint for {url} with changes from {input_file}.{substring}.changes.txt...")
+                changes_file = f"{substring}.changes.txt"
+                k = ["cycletime", "resolved", "assignee"]
+
+                if any(s in changes_file for s in k):
+                    changes_file = changes_file.replace(".changes.txt", ".import.changes.txt")
+                    print(f"modified changes_file to include 'import' keyword =  {changes_file}")                    
+                
+                #logger.info(f"Updating SharePoint for {url} with changes from {input_file}.{substring}.changes.txt...")
+                logger.info(f"Updating SharePoint for {url} with changes from {input_file}.{changes_file}...")
                 if delegated_auth:
                     output_lines = run_and_log(
-                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin, "--user_auth"],
+                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{changes_file}", timestamp, userlogin, "--user_auth"],
                     log,
-                    f"update_sharepoint.py {url} {input_file}.{substring}.changes.txt {timestamp} {userlogin} --user_auth"
+                    f"update_sharepoint.py {url} {input_file}.{changes_file} {timestamp} {userlogin} --user_auth"
                     )
                 else:
                     output_lines = run_and_log(
-                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin],
+                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{changes_file}", timestamp, userlogin],
                     log,
-                    f"update_sharepoint.py {url} {input_file}.{substring}.changes.txt {timestamp} {userlogin}"
+                    f"update_sharepoint.py {url} {input_file}.{changes_file} {timestamp} {userlogin}"
                     )
 
                 if any("Aborting update" in line for line in output_lines):

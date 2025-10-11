@@ -20,7 +20,7 @@ user_cache = {}
 
 # custom prompt appended to system prompt from sheet <ai...> tag
 user_prompt = ""
-JIRA_MAX_RESULTS = 200
+JIRA_MAX_RESULTS = 500
 
 model_name = "llama3.2:1b"  # Default model name
 
@@ -46,6 +46,8 @@ def get_summarized_comments(comments_list_asc):
         comments_str = comments_list_asc  # already a string
 
     
+    comments_str = comments_str.replace("\n","").replace("\r", "")
+
     # comments_str was a single string before, but the service expects a list[str].
     # If you only have one string, wrap it in a list.
     comments = [comments_str]
@@ -174,6 +176,32 @@ def get_llm_model(llm_config_file):
 
 
 
+# convert any rich-text formatting in any jira field who value is retrieved with getattr()
+# jira client getattr() adds markdown for jira rich fields that contain certain text, 
+# eg. hyperlinks have a'|' char which will break out jira.csv file format! 
+def clean_jira_wiki(text):
+    if not text:
+        return ""
+
+    text = str(text)  # convert from jira object to string so we can call replace
+
+    # Replace wiki-style link markers [text|url] → url
+    # This simplistic approach assumes the link and text are similar or you don’t need to keep both.
+    text = text.replace("[", "(").replace("]", ")").replace("|", " ")
+
+    # Remove basic bold/italic markers (*bold*, _italic_)
+    text = text.replace("*", "").replace("_", "")
+
+    # Remove table/heading markers (|, ||, #)
+    text = text.replace("||", " ").replace("|", " ").replace("#", " ")
+
+    # Clean up (compact) any multiple spaces introduced by above replaces
+    text = " ".join(text.split())
+
+    return text.strip()
+
+
+
 if len(sys.argv) != 4:
     print("Usage: python read_jira.py <yaml_file> <userlogin>")
     sys.exit(1)
@@ -256,7 +284,7 @@ filtered_ids = [jid for jid in jira_ids if 'jql' not in jid.lower()]
 
 # IDs with "JQL"
 jql_ids = [jid for jid in jira_ids if 'jql' in jid.lower()]
-jira_filter_str = "id in (" + ','.join(filtered_ids) + ")" 
+jira_filter_str = "key in (" + ','.join(filtered_ids) + ")" 
 print(jira_filter_str)
 
 # Replace with your Jira Cloud credentials and URL
@@ -271,6 +299,8 @@ load_dotenv(dotenv_path=ENV_PATH_USER)
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
 JIRA_URL = os.environ.get("JIRA_URL")
 JIRA_EMAIL = os.environ.get("JIRA_EMAIL")
+JIRA_PASSWORD = os.environ.get("JIRA_PASSWORD")
+
 
 if not JIRA_API_TOKEN:
     print("Error: JIRA_API_TOKEN environment variable not set.")
@@ -285,6 +315,7 @@ except Exception as e:
     print(f"❌ Failed to connect to Jira: {e}")
     sys.exit(1)
 
+print(f"JIRA client connected to {JIRA_URL} login:{JIRA_EMAIL} apitoken:{JIRA_API_TOKEN} ")
 issues = []  # global issues list to hold results from both ID and JQL searches
 
 if import_mode:
@@ -332,6 +363,8 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
         values = [] 
         for field in field_values:
             value = getattr(issue.fields, field, None)
+            value = clean_jira_wiki(value)
+            #print(f"getattr value {field} = {value}")
             if field == "assignee":
                 value = issue.fields.assignee.displayName if issue.fields.assignee else "unassigned"
             elif field == "id":
@@ -367,7 +400,7 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                             key=lambda x: (x.key.split("-")[0], int(x.key.split("-")[1]))
                         )
                         child_summaries = [
-                            f"▫️ {linked_issue.key} {linked_issue.fields.summary[:30]}{'...' if len(linked_issue.fields.summary) > 30 else ''}:{linked_issue.fields.status.name}:{linked_issue.fields.assignee.displayName if linked_issue.fields.assignee else 'unassigned'}"
+                            f"▫️ {linked_issue.key} {linked_issue.fields.summary[:50]}{'...' if len(linked_issue.fields.summary) > 50 else ''}:{linked_issue.fields.status.name}:{linked_issue.fields.assignee.displayName if linked_issue.fields.assignee else 'unassigned'}"
                             for linked_issue in epic_linked_issues
                         ]
                         value = ";".join(child_summaries)
@@ -408,6 +441,9 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                         for comment in sorted_comments
                     ])
 
+#                    value = value.replace("\n","")
+                    value = str(value).replace("\r", "").replace("\n", "")
+                    print(f"AFTER CALLING REPLACE IN COMMENTS = {value}")
                     from datetime import datetime
                     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     value = "As of " + now_str + ";" + value
@@ -422,6 +458,9 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                         f"{comment.created[:10]} - {comment.author.displayName} wrote: {replace_account_ids_with_names(comment.body)}"
                         for comment in sorted_comments
                     ])
+#                    value = str(value).replace("\n","") 
+                    value = str(value).replace("\r", "").replace("\n", "")
+ 
                     print(f"calling get_summarized_comments with: {value}")
                     try:
                         ai_summarized = get_summarized_comments(value)
@@ -445,7 +484,9 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
             #    if value is None: # don't want to set this to None, so make it blank
             #        value = ""
 
-            value_str =str(value).replace("\n","")
+#            value_str =str(value).replace("\n","")
+            value_str =str(value).replace("\r", "").replace("\n", "")
+
             values.append(value_str)
 
         print(','.join(values))
@@ -505,6 +546,8 @@ if jql_ids:
                     comments_list_asc = [] 
                     
                     value = getattr(issue.fields, field, None)
+                    value = clean_jira_wiki(value)
+
                     if field == "assignee":
                         temp = (issue.fields.assignee.displayName) if issue.fields.assignee else "unassigned"
                         assignee_list.append(temp + "▫️ [" + issue.key + "]")
@@ -533,15 +576,29 @@ if jql_ids:
                             sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
                             comments_list.append("▫️ [" + issue.key +"] ")
                             comments_list_asc.append("▫️ [" + issue.key +"] ")
-                            comments_list.append("; ".join([
-                                f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
-                                for comment in sorted_comments
-                            ]))
-                            comments_list_asc.append("; ".join([
-                                f"{comment.created[:10]} - {comment.author.displayName} wrote: {replace_account_ids_with_names(comment.body)}"
-                                for comment in sorted_comments_asc
-                            ]))
+
+                            for comment in sorted_comments:
+                                comments_str = comment.body
+                                comments_str = comments_str.replace("\n","").replace("\r","")
+                                comments_list.append("; ".join([
+                                    f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comments_str)}"
+                                #    f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
+                                #    for comment in sorted_comments
+                                ]))
+                                
+                            for comment in sorted_comments_asc:
+                                comments_str = comment.body
+                                comments_str = comments_str.replace("\n","").replace("\r","")
+                                comments_list_asc.append("; ".join([
+                                    f"{comment.created[:10]} - {comment.author.displayName} wrote: {replace_account_ids_with_names(comments_str)}"
+                                    #f"{comment.created[:10]} - {comment.author.displayName} wrote: {replace_account_ids_with_names(comment.body)}"
+                                    #for comment in sorted_comments_asc
+                                ]))
                             
+                            # won't work since these are list types.  so i replaced with for loops above
+                            #comments_list = comments_list.replace("\n","").replace("\n", "")
+                            #comments_list_asc= comments_list_asc.replace("\n","").replace("\n", "")
+                           
                             print(f"*****comments_list_asc = {comments_list_asc}")
                             #comments_list.append(";")  # Add a semicolon after final comment for this issue
                             #comments_list_asc.append(";")  # Add a semicolon after final comment for this issue
