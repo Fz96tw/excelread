@@ -158,6 +158,9 @@ def write_execsummary_yaml(jira_ids, filename, file_info, timestamp):
          
         with open(execsummary_scope_output_file, 'a') as f:
             yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
+            print(f"Fieldname args found for: {jira_fields_default_value}")
+            yaml.dump({"field_args": jira_fields_default_value}, f, default_flow_style=False)
+
     else:
         print(f"ERROR: can't proceed, No JIRA IDs found to write to aisummary yaml file {execsummary_scope_output_file}")
         sys.exit(1)
@@ -181,6 +184,9 @@ def close_current_jira_table(jira_fields, jira_ids, jira_create_rows, scope_outp
         print(f"JIRA IDs found: {jira_ids}")
         with open(scope_output_file, 'a') as f:
             yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
+            print(f"Fieldname args found for: {jira_fields_default_value}")
+            yaml.dump({"field_args": jira_fields_default_value}, f, default_flow_style=False)
+
 
         print("JIRA rows have been written to output file:", scope_output_file)
         print("Total rows processed:", row_count)
@@ -286,6 +292,9 @@ if __name__ == "__main__":
         if len(row) < 1:
             print("skipping blank row")
             continue
+
+
+        value_counts = {}  # used to avoid field name clashes when using field_args in field name
 
         for idx, cell in enumerate(row):
             cell_str = str(cell).replace("\n", " ").replace("\r", " ").strip().lower()
@@ -456,7 +465,7 @@ if __name__ == "__main__":
                     print("Found a NEW <jira> table or <ai brief> table")
 
                     if jira_fields and jira_create_rows:
-                            jira_fields.append({"value": "row", "index": -1})
+                            jira_fields.append({"value": "row", "index": -1})   # add custom field that will contain the sheet row number of table
 
                     if jira_fields:
                         with open(scope_output_file, 'a') as f:
@@ -467,6 +476,9 @@ if __name__ == "__main__":
                         print(f"JIRA IDs found: {jira_ids}")
                         with open(scope_output_file, 'a') as f:
                             yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
+                            print(f"Fieldname args found for: {jira_fields_default_value}")
+                            yaml.dump({"field_args": jira_fields_default_value}, f, default_flow_style=False)
+
 
                         print("JIRA rows have been written to output file:", scope_output_file)
                         print("Total rows processed:", row_count)
@@ -547,17 +559,35 @@ if __name__ == "__main__":
                 value = match.group(1).strip()
                 print(f"Found field definition in cell for field {value} at column index {idx}")
 
-                jira_fields.append({"value": value, "index": idx})
+                #jira_fields.append({"value": value, "index": idx})
 
-                # also read the default value for this field if specified in this cell 
-                # Match everything after <...>
+                # dual-use of default values here. pay attention...
+                # scenario 1 
+                # create mode. treated as default value for this field if specified in this cell 
+                # Match everything after <...> if create mode then used as default value
+                # 
+                # scenario 2
+                # for all other tables default_value is treated as the prompt for llm
+                print(f"checking for fieldname args for {cell_str}...")
                 match2 = re.search(r"<[^>]+>\s+(.+)", cell_str)
+                value_counts = {}
                 if match2:
                     default_value = match2.group(1)  
-                    default_value = default_value.replace(",","|").replace(" ","")
+                    default_value = default_value.replace(",",";")#.replace(" ","")
+                                    
+                    # initialize or increment the counter
+                    value_counts[value] = value_counts.get(value, 0) + 1
+                    value = f"{value}_{value_counts[value]}"  # add numeric suffix
+                    
                     jira_fields_default_value[value] = default_value
                     print(f"Found default value in cell for field {match} = {default_value}")
                     print(f"set jira_fields_default_value({value}) = {jira_fields_default_value.get(value)}")
+                    
+                else:
+                    print(f"No fieldname arg found in {cell_str}")
+
+                # at this point value may have been updated if there was a prompt string found above
+                jira_fields.append({"value": value, "index": idx})
 
 
         if jira_fields and not fields_found:
@@ -625,6 +655,10 @@ if __name__ == "__main__":
         print(f"JIRA IDs found: {jira_ids}")
         with open(scope_output_file, 'a') as f:
             yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
+#            if len(jira_fields_default_value):
+            print(f"Fieldname args found for: {jira_fields_default_value}")
+            yaml.dump({"field_args": jira_fields_default_value}, f, default_flow_style=False)
+
     elif jira_create_rows:
         print(f"JIRA create rows found: {jira_create_rows}")
         with open(scope_output_file, 'a') as f:

@@ -31,7 +31,7 @@ SUMMARIZER_HOST = os.getenv("SUMMARIZER_HOST", "http://localhost:8000")
 LLMCONFIG_FILE = "../../../config/llmconfig.json"
 
 
-def get_summarized_comments(comments_list_asc):
+'''def get_summarized_comments_old(comments_list_asc, field_arg=None):
     """
     Summarize comments for LLM processing.
     This function takes a list of comments in ascending order and returns a summarized version.
@@ -75,7 +75,57 @@ def get_summarized_comments(comments_list_asc):
     #print(now_str)
 
     return  full_response
+'''
 
+def get_summarized_comments(comments_list_asc, field_arg=None):
+    """
+    Summarize comments for LLM processing.
+    This function takes a list of comments in ascending order and returns a summarized version.
+    Optionally, a specific field name can be passed via `field_arg`.
+    """
+    try:
+        if not comments_list_asc:
+            return "No comments available."
+
+        # Only join if it's a list or tuple
+        if isinstance(comments_list_asc, (list, tuple)):
+            comments_str = "; ".join(comments_list_asc)
+        else:
+            comments_str = comments_list_asc  # already a string
+
+        comments_str = comments_str.replace("\n", "").replace("\r", "")
+
+        # Prepare the payload for the service
+        payload = {
+            "comments": [comments_str]  # service expects a list[str]
+        }
+        if field_arg:
+            payload["field"] = field_arg  # include field if provided
+
+        # Determine endpoint
+        ENDPOINT = "/summarize_openai_ex" if llm_model == "OpenAI" else "/summarize_local_ex"
+
+        # Make the POST request
+        resp = requests.post(f"{SUMMARIZER_HOST}{ENDPOINT}", json=payload)
+
+        if resp.status_code == 200:
+            full_response = resp.json().get("summary", "")
+            print(f"LLM endpoint returned {resp.status_code} OK")
+        else:
+            print(f"error LLM endpoint returned {resp.status_code}")
+            full_response = f"[ERROR] Service call failed: {resp.text}"
+
+        # Clean up response
+        full_response = full_response.rstrip("\n").replace("\n", "; ").replace("|", "/")
+
+        print(f"Full response: {full_response}")
+
+        return full_response
+    
+    except Exception as e:
+        # Log the exception and return a safe default
+        print(f"[ERROR] get_summarized_comments failed: {e}")
+        return "[ERROR] Summary could not be generated."
 
 def get_user_display_name(account_id):
     if account_id in user_cache:
@@ -203,7 +253,7 @@ def clean_jira_wiki(text):
 
 
 if len(sys.argv) != 4:
-    print("Usage: python read_jira.py <yaml_file> <userlogin>")
+    print("Usage: python read_jira.py <yaml_file> <timestamp> <userlogin>")
     sys.exit(1)
 
 yaml_file = sys.argv[1]
@@ -229,6 +279,10 @@ if not basename:
 if not tablename:
     print("No 'table' found in fileinfo. Expecting 'table' key.")
     sys.exit(1)
+
+field_args = data.get('field_args', {})
+if (field_args):
+    print(f"Found field_args={field_args} in {yaml_file}")
 
 import_mode = False
 execsummary_mode = False
@@ -355,24 +409,33 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
             print(f"❌ Failed to search issues: {e}")
 
 
-    print(f"Found {len(issues)} issues matching the filter:")
+    print(f"Found {len(issues)} issues matching the filter:{jira_filter_str}")
 
 
     # Print only the fields specified in field_values_str for each issue
     for issue in issues:
         values = [] 
         for field in field_values:
-            value = getattr(issue.fields, field, None)
+            #value = getattr(issue.fields, field, None)
+            
+            # get field name without any field_arg for llm prompt - if present
+            field2 = re.sub(r"_\d$", "", field)
+
+            # use regex to remove any _d prefix that may have been 
+            # created by scope.py to prevent field name clashes with llm prompt
+            value = getattr(issue.fields, re.sub(r"_\d$", "", field), None)
+
             value = clean_jira_wiki(value)
             #print(f"getattr value {field} = {value}")
-            if field == "assignee":
+            
+            if field2 == "assignee":
                 value = issue.fields.assignee.displayName if issue.fields.assignee else "unassigned"
-            elif field == "id":
+            elif field2 == "id":
                 value = issue.id
-            elif field == "timestamp":
+            elif field2 == "timestamp":
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 value = now_str
-            elif field == "headline":
+            elif field2 == "headline":
                 #value = "[" + issue.key + "] " + issue.fields.summary[:10] | "..."
                 value = f"[{issue.key}] {issue.fields.summary[:25]}{'...' if len(issue.fields.summary) > 10 else ''}" 
                 value += "  Status: " + issue.fields.status.name  
@@ -380,11 +443,11 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                 value += "  Type: " + issue.fields.issuetype.name  
                 value += "  Created: " + issue.fields.created[:10] 
                 print(f"headline value: {value}")
-            elif field == "key":
+            elif field2 == "key":
                 value = issue.key
-            elif field == "url":
+            elif field2 == "url":
                 value = "URL " + getattr(issue, 'key', None)     # set it to the issue key for now. will be converted to hyperlink by update_sharepoint.py
-            elif field == "children":
+            elif field2 == "children":
                 issuetype = getattr(issue.fields, "issuetype", None)
                 if issuetype and getattr(issuetype, "name", "") == "Epic":
                     # Get all issues linked to this epic
@@ -408,7 +471,7 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                         value = ""
                 else:
                     value = ""
-            elif field == "links":
+            elif field2 == "links":
                 #outward_links = []
                 #inward_links = []
                 linked_jira_str = []
@@ -433,7 +496,7 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                 value = ";".join(links) if links else ""
                 '''
 
-            elif field == "comments":
+            elif field2 == "comments":
                 if issue.fields.comment.comments:
                     sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
                     value = ";".join([
@@ -449,27 +512,8 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                     value = "As of " + now_str + ";" + value
                 else:
                     value = "No comments"
-            #elif field == "ai":
-            elif field.lower().startswith("ai"):
-                user_prompt = field.replace("ai ","") # just extract the user prompt after the ai tag
-                if issue.fields.comment.comments:
-                    sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=False)
-                    value = ";".join([
-                        f"{comment.created[:10]} - {comment.author.displayName} wrote: {replace_account_ids_with_names(comment.body)}"
-                        for comment in sorted_comments
-                    ])
-#                    value = str(value).replace("\n","") 
-                    value = str(value).replace("\r", "").replace("\n", "")
- 
-                    print(f"calling get_summarized_comments with: {value}")
-                    try:
-                        ai_summarized = get_summarized_comments(value)
-                        value = ai_summarized
-                    except Exception as e:
-                        print(f"Error in get_summarized_comments: {e}")                  
-                else:
-                    value = "No comments"
-            elif field == "synopsis":
+            
+            elif field2 == "synopsis":
                 value_parts = []
                 issuetype = getattr(issue.fields, 'issuetype', None)
                 if issuetype and hasattr(issuetype, 'name'):
@@ -485,7 +529,17 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
             #        value = ""
 
 #            value_str =str(value).replace("\n","")
-            value_str =str(value).replace("\r", "").replace("\n", "")
+            value_str =str(value).replace("\r", "").replace("\n", "")   
+
+            if field in field_args:
+                print(f"found field_args[{field}] = {field_args.get(field)}")
+                print(f"about to call get_summarized_comments(value_str={value_str}, field_args={field_args[field]}")
+                value_from_llm = get_summarized_comments(value_str, field_args[field])
+                if (value_from_llm):
+                    value_str = value_from_llm
+            else:
+                print(f"field_args[{field}] not found")
+        
 
             values.append(value_str)
 
@@ -527,6 +581,9 @@ if jql_ids:
         
             values = []
 
+            # we iterate over fields in outer loop, and iterate over issue in inner loop by design
+            # for jql query row we want to assemble each field with values from all issues to get our bullet list value for each field.
+            print(f"about to start field hunt to build jql result.  field_values={','.join(field_values)}")
             for field in field_values:
                 print(f"Processing field: {field}")
                 generic_fields_list = []
@@ -539,22 +596,31 @@ if jql_ids:
                 #TODO?? not sure if this is needed to avoid a latent bug?
                 # values_list = []  # Reset for each field
                 
+                # get field name without any field_arg for llm prompt - if present
+                field2 = re.sub(r"_\d$", "", field)
+
                 for issue in issues:
-                    print(f"Processing issue: {issue.key}")
+                    print(f"Processing issue: {issue.key}, field = {field}, field2 = {field2}")
 
                     # reset so it contains comments for thsi issue only. But do not reset comments_list here!
                     comments_list_asc = [] 
                     
-                    value = getattr(issue.fields, field, None)
+                    #value = getattr(issue.fields, field, None)
+
+                     # use regex to remove any _d prefix that may have been 
+                    # created by scope.py to prevent field name clashes with llm prompt
+                    value = getattr(issue.fields, field2, None)
+
                     value = clean_jira_wiki(value)
 
-                    if field == "assignee":
+
+                    if field2 == "assignee":
                         temp = (issue.fields.assignee.displayName) if issue.fields.assignee else "unassigned"
                         assignee_list.append(temp + "▫️ [" + issue.key + "]")
-                    elif field == "summary":
+                    elif field2 == "summary":
                         temp = issue.fields.summary if issue.fields.summary else "No summary"
                         summary_list.append("▫️ [" + issue.key + "] " + temp)
-                    elif field == "headline":
+                    elif field2 == "headline":
                         #temp = "[" + issue.key + "] " + issue.fields.summary[:10] 
                         temp = f"▫️ {issue.key} {issue.fields.summary[:15]}{'...' if len(issue.fields.summary) > 10 else ''}"
                         temp += "  Status: " + issue.fields.status.name  
@@ -563,14 +629,14 @@ if jql_ids:
                         temp += "  Created: " + issue.fields.created[:10] 
                         headline_list.append(temp)
                         print(f"headline value: {temp}")
-                    elif field == "status":
+                    elif field2 == "status":
                         temp = issue.fields.status.name if issue.fields.status else "unknown"
                         status_list.append(temp + "▫️ [" + issue.key + "]")
-                    elif field == "id":
+                    elif field2 == "id":
                         id_list.append(issue.id)
-                    elif field == "key":
+                    elif field2 == "key":
                         key_list.append("▫️ " + issue.key)
-                    elif field == "comments" or field == "ai" :   # always need to process comments even when only AI is requested in excel sheet
+                    elif field2 == "comments" or field == "ai" :   # always need to process comments even when only AI is requested in excel sheet
                         if issue.fields.comment.comments:   
                             sorted_comments_asc = sorted(issue.fields.comment.comments, key=lambda c: c.created) # ascending order for LLM   
                             sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
@@ -602,18 +668,21 @@ if jql_ids:
                             print(f"*****comments_list_asc = {comments_list_asc}")
                             #comments_list.append(";")  # Add a semicolon after final comment for this issue
                             #comments_list_asc.append(";")  # Add a semicolon after final comment for this issue
-                            ai_summarized = get_summarized_comments(comments_list_asc)
-                            print(f"+++++ ai_summarized = {ai_summarized}")
-                            comments_summarized_list.append("▫️ [" + issue.key + "] " + ai_summarized + ";")
+                            
+                            #<ai> no longer supported since field_arg for prompt was added
+                            #ai_summarized = get_summarized_comments(comments_list_asc)
+                            
+                            #print(f"+++++ ai_summarized = {ai_summarized}")
+                            #comments_summarized_list.append("▫️ [" + issue.key + "] " + ai_summarized + ";")
                         
                         else:
                             comments_list.append("▫️ [" + issue.key + "] ")
                             comments_list.append("No comments;")
                             comments_list_asc.append("▫️ [" + issue.key + "] ")
                             comments_list_asc.append("No comments;")
-                            comments_summarized_list.append("▫️ [" + issue.key + "]" + " No comments")
+                            #comments_summarized_list.append("▫️ [" + issue.key + "]" + " No comments")
                     
-                    elif field == "synopsis":
+                    elif field2 == "synopsis":
                         value_parts = []
                         issuetype = getattr(issue.fields, 'issuetype', None)
                         if issuetype and hasattr(issuetype, 'name'):
@@ -631,13 +700,16 @@ if jql_ids:
                     
 
                     #values.append(str(value))
-                if field == "assignee":
+                # make sure we rest the value 
+                value = ""
+
+                if field2 == "assignee":
                     print(f"Assignee list: {assignee_list}")
                     assignee_list.sort()
                     assignee_list = move_brackets_to_front(assignee_list)
                     assignee_str = ";".join(assignee_list)
                     value = assignee_str
-                elif field == "headline":
+                elif field2 == "headline":
                     print(f"Headline list: {headline_list}")
                     headline_list.sort()
                     headline_str = f"Total Issues: {len(headline_list)}"
@@ -651,56 +723,66 @@ if jql_ids:
                     #headline_str += "   Issues: " + str(len([h for h in headline_list if "Type: Issue" in h]))
                     headline_str += ";".join(headline_list)
                     value = headline_str
-                elif field == "timestamp":
+                elif field2 == "timestamp":
                     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     value = now_str
-                elif field == "url":
+                elif field2 == "url":
                     #jql_id = jql_id.tolower().replace("jql","")
                     value = "URL " + jql_id    # set it to the issue key for now. will be converted to hyperlink by update_sharepoint.py
                     #value = jql_query     # set it to the issue key for now. will be converted to hyperlink by update_sharepoint.py
-                elif field == "status":
+                elif field2 == "status":
                     print(f"status list: {status_list}")
                     status_list.sort()
                     status_list = move_brackets_to_front(status_list)
                     status_str = ";".join(status_list)
                     value = status_str
-                elif field == "summary":
+                elif field2 == "summary":
                     summary_list.sort()
                     summary_str = ";".join(summary_list)
                     value = summary_str
-                elif field == "id":
+                elif field2 == "id":
                     print(f"ID list: {id_list}")
                     id_str = ",".join(id_list)
                     value = id_str
-                elif field == "key":
+                elif field2 == "key":
                     print(f"Key list: {key_list}")
                     #synopsis_str = ", ".join(key_list)  # put key into synopsis field, do not over
                     value = jql_id
-                elif field == "comments":
+                elif field2 == "comments":
                     # Flatten the list
                     cleaned_comments = ";".join(comments_list)
                     print(f"Comments list: {cleaned_comments}")
                     value = cleaned_comments
-                elif field == "ai":
+                #elif field == "ai":
                     #print(f"Comments for AI summarization: {comments_list_asc}")
                     #value = comments_summarized_list
-                    value = ";".join(comments_summarized_list)
-                    print(f"AI summarized comments: {value}")
-                elif field == "synopsis":
+                #    value = ";".join(comments_summarized_list)
+                #    print(f"AI summarized comments: {value}")
+                elif field2 == "synopsis":
                     print(f"Synopsis list: {synopsis_list}")
                     final_value = ";".join(key_list) if key_list else ""
                     value = final_value + "; " + synopsis_list if synopsis_list else final_value
                     #value = synopsis_list
                 else:
-                    print(f"Field {field} is considered generic_field and will be processed as such.")
+                    print(f"Field {field} and field2 {field2} is considered generic_field and will be processed as such.")
                     generic_fields_list.sort()
                     value = ";".join(generic_fields_list) if generic_fields_list else "NA"
                 
                 print(f"Final value for field {field}: {value}")
 
+                value_str = value.replace("\r", "").replace("\n", "")   
+                if field in field_args:
+                    print(f"found field_args[{field}] = {field_args.get(field)}")
+                    print(f"about to call get_summarized_comments(value_str={value_str}, field_args={field_args[field]}")
+                    value_from_llm = get_summarized_comments(value_str, field_args[field])
+                    if (value_from_llm):
+                        value_str = value_from_llm
+                else:
+                    print(f"field_args[{field}] not found")
+            
 
 
-                values.append(str(value))
+                values.append(value_str)
                 
                 
                 

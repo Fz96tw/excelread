@@ -2,12 +2,15 @@ from fastapi import FastAPI
 import ollama
 import os
 from datetime import datetime
+from typing import List, Optional
+
 
 app = FastAPI()
 MODEL_NAME = "llama3.2:1b"
 
 # used with running in Docker
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+
 
 class OllamaSummarizer:
     def __init__(self, model_name=MODEL_NAME):
@@ -73,8 +76,58 @@ class OllamaSummarizer:
         return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
 
+    def summarize_ex(self, comments: List[str], field: Optional[str] = None) -> str:
+        if not comments:
+            return "No comments available."
+
+        # Use the field as the prompt if provided
+        if field:
+            prompt = f"{field}. Here's the text: {comments}"
+        else:
+            prompt = f"The following is the content you need to summarize:\n{comments}"
+
+        # Call the LLM
+        response = ollama.chat(
+            model=self.model_name,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        summary = response["message"]["content"]
+
+        return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+
 # Create one global summarizer instance (warm-up runs here)
 local_summarizer = OllamaSummarizer(MODEL_NAME)
+
+from fastapi import FastAPI
+from pydantic import BaseModel
+from typing import List, Optional
+
+app = FastAPI()
+
+# Define a Pydantic model for the expected JSON payload
+class SummarizeRequest(BaseModel):
+    comments: List[str]
+    field: Optional[str] = None
+
+@app.post("/summarize_local_ex")
+def summarize_local_ex(payload: SummarizeRequest):
+    comments = payload.comments
+    field_arg = payload.field
+
+    print(f"/summarize_local_ex recvd")
+    print(f"field_arg={field_arg}") if field_arg else None
+    print(f"comments={comments}")
+
+
+    # Optionally, you could pass field_arg to your summarizer if needed
+    # For now, we just include it in the call if supported:
+    summary = local_summarizer.summarize_ex(comments, field=field_arg) if field_arg else local_summarizer.summarize(comments)
+
+    print(f"llm response={summary}")
+
+    return {"summary": summary}
 
 
 @app.post("/summarize_local")
@@ -143,16 +196,58 @@ class OpenAISummarizer:
         return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
 
+    #def summarize_ex(self, comments: list[str]) -> str:
+    def summarize_ex(self, comments: List[str], field: Optional[str] = None) -> str:
+        if not comments:
+            return "No comments available."
+
+        # Convert list to a string for summarization
+        comments_text = "\n".join(comments)
+
+         # Use the field as the prompt if provided
+        if field:
+            prompt = f"{field}. Here's the text: {comments}"
+        else:
+            #prompt = f"The following is the content you need to summarize:\n{comments_text}"
+            prompt = self._summarize_prompt(comments_text)
+        
+        response = client.chat.completions.create(
+            model=self.model_name,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        summary = response.choices[0].message.content
+        #summary = summary.replace("\n", "; ").replace("|", "/")
+        return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    
+
 # Create one global summarizer instance
 openai_summarizer = OpenAISummarizer(MODEL_NAME2)
 
+
+@app.post("/summarize_openai_ex")
+def summarize_openai_ex(payload: SummarizeRequest):
+    comments = payload.comments
+    field_arg = payload.field
+
+    print(f"/summarize_openai_ex recvd")
+    print(f"field_arg={field_arg}") if field_arg else None
+    print(f"comments={comments}")
+
+
+    # Optionally, you could pass field_arg to your summarizer if needed
+    # For now, we just include it in the call if supported:
+    summary = openai_summarizer.summarize_ex(comments, field=field_arg) if field_arg else local_summarizer.summarize(comments)
+
+    print(f"llm response={summary}")
+
+    return {"summary": summary}
 
 @app.post("/summarize_openai")
 def summarize_openai(comments: list[str]):
     return {"summary": openai_summarizer.summarize(comments)}
 
-# this isn't used, so delete it at some point
+'''# this isn't used, so delete it at some point
 @app.post("/summarize_openai_str")
 def summarize_openai_str(comments: str):
     return {"summary": openai_summarizer.summarize_str(comments)}
-
+'''
