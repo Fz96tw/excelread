@@ -156,13 +156,13 @@ def bucketize_issues_by_interval(issues, mode, interval="weeks", assignee_filter
     
     # Group issues by period and collect resolution dates
     for issue in issues:
-        a = issue.fields.assignee.displayName if issue.fields.assignee else "Unassigned"   
+        #a = issue.fields.assignee.displayName if issue.fields.assignee else "Unassigned"  
+        a = get_resolved_by_user(issue) 
 
         if assignee_filter is not None and assignee_filter not in a:
             continue  # skip issues not matching assignee filter
 
-
-        print(f"Processing issue {issue.key} assigned to {a}")
+        #print(f"Processing issue {issue.key} resolved by {a}")
 
         try:
             # Get resolution date - try different field names based on mode
@@ -189,9 +189,11 @@ def bucketize_issues_by_interval(issues, mode, interval="weeks", assignee_filter
                 period_key = get_period_key(resolved_date, interval)
                 issues_by_period[period_key].append(issue)
                 resolution_dates.append(resolved_date)
+                print(f"created period_key={period_key}")
+                print(f"created resolved_date={resolved_date}")
                 
                 period_label = get_period_label(period_key, interval)
-                print(f"  📅 {issue.key}: {mode} {resolved_date.strftime('%Y-%m-%d')} ({period_label})")
+                print(f"  📅 {issue.key}: {mode} {resolved_date.strftime('%Y-%m-%d')} (period_label={period_label})")
             else:
                 print(f"  ⚠️  {issue.key}: No {mode} date found - skipping")
                 
@@ -235,16 +237,16 @@ def bucketize_issues_by_interval(issues, mode, interval="weeks", assignee_filter
             year_month = get_year_month(current_date)
             period_info.append((year_month[0], year_month[1], period_start, period_end))
         elif interval == "years":
-            period_info.append((current_date.year, period_start, period_end))
-        elif interval == "days":
-            period_info.append((current_date.year, current_date.month, current_date.day, period_start, period_end))
+            period_info.append((current_date.year, -1, period_start, period_end))  #return a fake -1 param to keep return count consistent
+        #elif interval == "days":
+        #    period_info.append((current_date.year, current_date.month, current_date.day, period_start, period_end))
         
         # Move to next period
         current_date = advance_period(current_date, interval)
         
         # Safety check to prevent infinite loops
-        if len(period_buckets) > 10000:
-            print("⚠️  Warning: Generated more than 10,000 periods. Stopping.")
+        if len(period_buckets) > 100:
+            print(f"⚠️  Warning: Generated {period_buckets} which more than max 100 periods. Stopping.")
             break
     
     print(f"\n✅ Created {len(period_buckets)} {interval} buckets")
@@ -269,18 +271,18 @@ def get_year_week(date):
 
 
 def print_weekly_summary(weekly_buckets, week_info):
-    """Print a summary of issues bucketized by weeks"""
+    """Print a summary of issues bucketized by interval"""
     
-    print(f"\n📈 WEEKLY BUCKETIZATION SUMMARY")
+    print(f"\n📈 INTERVAL BUCKETIZATION SUMMARY")
     print(f"{'='*60}")
     
     total_issues = sum(len(bucket) for bucket in weekly_buckets)
     print(f"Total issues processed: {total_issues}")
-    print(f"Total weeks in range: {len(weekly_buckets)}")
+    print(f"Total intervals in range: {len(weekly_buckets)}")
     print(f"{'='*60}")
     
     for i, (bucket, (year, week_num, start_date, end_date)) in enumerate(zip(weekly_buckets, week_info)):
-        week_str = f"Week {i+1} ({year}-W{week_num:02d})"
+        week_str = f"Interval {i+1} ({year}-{week_num:02d})"
         date_range = f"{start_date.strftime('%m/%d')} - {end_date.strftime('%m/%d/%Y')}"
         issue_count = len(bucket)
         
@@ -386,13 +388,17 @@ def bucketize_issues_by_weeks_foo(issues, mode):
 
 
 def parse_runrate_params(runrate_params_list):
+    print(f"entered parse_runrate_params(...) with arg={runrate_params_list} ")
     params = {}
+    params["mode"] = "weeks"  # default mode
+
     for entry in runrate_params_list:
         entry = str(entry).strip()
 
-        params["mode"] = "weeks"  # default mode
         
+        print(f"checking entry={entry.lower()}")
         if entry.lower().startswith("weeks"):
+            print("entry startswith weeks")
             # e.g. "weeks 6"
             params["mode"] = "weeks"
 
@@ -404,41 +410,129 @@ def parse_runrate_params(runrate_params_list):
                 params["weeks"] = parts[1] if len(parts) == 2 else None
         '''
         elif entry.lower().startswith("days"):
+            print("entry startswith days")
             # e.g. "days 30"
             params["mode"] = "days"
         elif entry.lower().startswith("months"):
-            # e.g. "months 3"
+            print("entry startswith months")
+             # e.g. "months 3"
             params["mode"] = "months"
         elif entry.lower().startswith("years"):
-            # e.g. "years 1"
+            print("entry startswith years")
+             # e.g. "years 1"
             params["mode"] = "years"
         elif entry.lower().startswith("jql"):
-            # e.g. "JQL project = tes and assignee = nadeem"
+            print("entry startswith jql")
+             # e.g. "JQL project = tes and assignee = nadeem"
             jql_query = entry[3:].strip()  # remove "JQL"
             params["jql"] = jql_query
 
+    print(f"exiting parse_runrate_params(...) return mode:{params['mode']}, jql:{params['jql']}")
     return params
 
 
 
-
+# Without escaping, Excel would see the unescaped quote as the end of the string, breaking the formula:
+# So _excel_escape_quotes() prevents that by doubling the quotes inside the formula string
+# the correct way to represent quotes inside Excel string literals.
 def _excel_escape_quotes(s: str) -> str:
     # Excel doubles double-quotes inside string literals
     return s.replace('"', '""')
 
+# use TinyURL when hyperlink length exceeds 255 which break excel hyperlinks
+import requests
+def shorten_url(url: str) -> str:
+    """Shorten a URL using TinyURL."""
+    try:
+        api_url = f"http://tinyurl.com/api-create.php?url={url}"
+        response = requests.get(api_url, timeout=5)
+        if response.status_code == 200:
+            return response.text.strip()
+    except Exception as e:
+        print(f"⚠️ URL shortening failed for {url}: {e}")
+    return url  # fallback to original if shortening fails
+
+
 def _make_hyperlink_formula(url: str, text: str) -> str:
-    # Keep it simple: replace newlines for display; wrap handles line breaks visually
+    """Create an Excel HYPERLINK formula; shorten URL only if it's too long."""
     text = text.replace("\n", " ")
-    return f'=HYPERLINK("{_excel_escape_quotes(url)}","{_excel_escape_quotes(text)}")'
+
+    # Excel's HYPERLINK() formula limit for URLs is ~255 characters
+    short_url = url
+    if len(url) > 255:
+        print(f"URL too long ({len(url)} chars), shortening with TinyURL...")
+        short_url = shorten_url(url)
+
+    return f'=HYPERLINK("{_excel_escape_quotes(short_url)}","{_excel_escape_quotes(text)}")'
 
 
-if len(sys.argv) < 3:
-    print("Usage: python runrate_resolved.py <yaml_file> <timestamp")
+# takes jira issue object (that include changelog) previously returned by jira client search. this new function will 
+# search the changelog history in the issue and return the username that changed the issue status to resolved status
+from datetime import datetime
+def get_resolved_by_user(issue):
+    """
+    Extract the username or display name of the user who changed the issue status to 'Resolved'.
+
+    Args:
+        issue: A JIRA Issue object (must include changelog, e.g., retrieved with expand='changelog').
+
+    Returns:
+        str: The display name or username of the user who resolved the issue,
+             or 'Unknown' if not found.
+    """
+    if not hasattr(issue, "changelog") or not issue.changelog:
+        print(f"⚠️ Issue {getattr(issue, 'key', 'Unknown')} has no changelog data.")
+        return "Unknown"
+
+    histories = getattr(issue.changelog, "histories", [])
+    if not histories:
+        print(f"⚠️ Issue {issue.key} changelog has no histories.")
+        return "Unknown"
+
+    for history in sorted(histories, key=lambda h: getattr(h, "created", "")):
+        # Extract author (safe for JIRA objects)
+        author = None
+        if hasattr(history, "author"):
+            author = getattr(history.author, "displayName", None) or getattr(history.author, "name", None)
+        elif isinstance(history, dict):
+            author_data = history.get("author", {})
+            author = author_data.get("displayName") or author_data.get("name")
+
+        # Loop through all items in this history
+        items = getattr(history, "items", [])
+        for item in items:
+            # Handle both object and dict
+            if hasattr(item, "field"):
+                field = getattr(item, "field", None)
+                from_status = getattr(item, "fromString", None)
+                to_status = getattr(item, "toString", None)
+            elif isinstance(item, dict):
+                field = item.get("field")
+                from_status = item.get("fromString")
+                to_status = item.get("toString")
+            else:
+                continue  # unexpected type
+
+            if field == "status" and to_status and to_status.lower() == "resolved":
+                #print(f"✅ Issue {issue.key} resolved by {author or 'Unknown'} "
+                #      f"at {getattr(history, 'created', 'unknown time')}")
+                return author or "Unknown"
+                                
+    # it's possible issue went straight to close without a resolved statue.
+    # we will make resolved by UNKNOWN in this case.  Alternatively you can use CLOSED author but leave that for future if needed.
+    print(f"ℹ️ Issue {issue.key} was never transitioned to 'Resolved'.")
+    return "Unknown"
+
+
+
+if len(sys.argv) < 4:
+    print("Usage: python runrate_resolved.py <yaml_file> <timestamp> <userlogin>")
     sys.exit(1)
 
 yaml_file = sys.argv[1]
 #filename = sys.argv[2]
 timestamp = sys.argv[2]
+userlogin = sys.argv[3]
 
 with open(yaml_file, 'r') as f:
     data = yaml.safe_load(f)
@@ -513,6 +607,8 @@ print("Field values,", field_values_str)
 runrate_params_list = data.get('params',[])
 runrate_table_row = data.get('row', None)
 runrate_table_col = data.get('col', None)
+scan_ahead_nonblank_rows = data.get('scan_ahead_nonblank_rows', 0)
+
 
 runrate_params = parse_runrate_params(runrate_params_list)
 print("Runrate params:", runrate_params)
@@ -539,7 +635,7 @@ if runrate_params.get("mode", "") == "":
 
 # Load environment variables from a .env file if present
 #load_dotenv()
-ENV_PATH = "../../../config/.env"
+ENV_PATH = f"../../../config/env.{userlogin}"
 load_dotenv(dotenv_path=ENV_PATH)
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
 JIRA_URL = os.environ.get("JIRA_URL")
@@ -560,8 +656,8 @@ except Exception as e:
 
 
 try:
-    issues = jira.search_issues(jira_filter_str, maxResults=JIRA_MAX_RESULTS)
-    print(f"✅ Found {len(issues)} issue(s) matching the filter.")
+    issues = jira.search_issues(jira_filter_str, maxResults=False, expand='changelog')
+    print(f"✅ Found {len(issues)} issue(s) matching the filter={jira_filter_str}")
     for i, issue in enumerate(issues, start=1):
         print(f"{i}. {issue.key} — {issue.fields.summary}")
 except Exception as e:
@@ -580,7 +676,14 @@ from openpyxl.utils import get_column_letter
 
 # write out the headers first
 coord = f"{get_column_letter(col + 1)}{row}"
-entry = f"{coord} = Assignee ||"
+
+if scan_ahead_nonblank_rows:
+    prefix = ""
+    scan_ahead_nonblank_rows -= 1
+else:
+    prefix = "INSERT"
+
+entry = f"{coord} = {prefix} Resolved By ||"
 print (entry)
 changes_list.append(entry)
 
@@ -597,10 +700,14 @@ assignee_list = []
 
 # need list of all unique assignee since they will be in the excel cells table
 for issue in issues:
-    assignee  = issue.fields.assignee.displayName if issue.fields.assignee else "Unassigned"   
+    #assignee  = issue.fields.assignee.displayName if issue.fields.assignee else "Unassigned"   
+    assignee = get_resolved_by_user(issue)
     assignee_list.append(assignee)
-    
+
 unique_assignee_list = list(set(assignee_list))  # unique values
+
+unique_assignee_list = sorted(set(assignee_list))  # unique values, sorted
+
 print(f"Found {len(unique_assignee_list)} unique assignees: {unique_assignee_list}")
 
 
@@ -608,7 +715,14 @@ print(f"Found {len(unique_assignee_list)} unique assignees: {unique_assignee_lis
 for index, assignee in enumerate(unique_assignee_list):
     print(f"{index}: Processing assignee {assignee}")    
     coord = f"{get_column_letter(col + 1)}{row + 1 + index}"
-    entry = f"{coord} = {assignee} ||"
+
+    if scan_ahead_nonblank_rows:
+        prefix = ""
+        scan_ahead_nonblank_rows -= 1
+    else:
+        prefix = "INSERT"
+
+    entry = f"{coord} = {prefix} {assignee} ||"
     print (entry)
     changes_list.append(entry)
 
@@ -638,8 +752,41 @@ week_to_col = {}
 #for year, week_num, start_date, end_date in week_info:
 #    week_to_col[week_num] = None
 
-for year, week_num, start_date, end_date in week_info_resolved:
-    week_to_col[week_num] = None
+
+''' # week_info_resolved list contains different tuple-size given interval type. see this excerpt from bucketize function below
+    # Store period information with appropriate metadata
+        if interval == "weeks":
+            year_week = get_year_week(current_date)
+            period_info.append((year_week[0], year_week[1], period_start, period_end))
+        elif interval == "months":
+            year_month = get_year_month(current_date)
+            period_info.append((year_month[0], year_month[1], period_start, period_end))
+        elif interval == "years":
+            period_info.append((current_date.year, period_start, period_end))
+        elif interval == "days":
+            period_info.append((current_date.year, current_date.month, current_date.day, period_start, period_end))
+'''
+
+'''interval = runrate_params.get("mode", "weeks")  
+
+# see above comment why "years" is treated differently in for loop
+if interval == "years":
+    for year, start_date, end_date in week_info_resolved:
+        week_to_col[year] = f"{year}"
+elif interval == "months":
+    for year, week_num, start_date, end_date in week_info_resolved:
+        week_to_col[week_num] = f"{year}-{week_num}"
+elif interval == "weeks":
+    for year, week_num, start_date, end_date in week_info_resolved:
+        week_to_col[week_num] = f"week of {start_date}"
+# commentng out "days" for now since the week_to_col indexing is complicated. can't use week_num since it is not unique. 
+# see how the bucketize function is returning period_info for "days".  needs to be revised
+# elif interval == "days":
+#    for year, week_num, day_num, start_date, end_date in week_info_resolved:
+#        week_to_col[week_num] = f"{start_date}"
+else:
+    print(f"Error: unrecognized period interval found in runrate_params mode={interval}")
+    sys.exit(1)
 
 
 # Fill in any gaps in the week sequence
@@ -652,22 +799,84 @@ if week_to_col:
     # Add missing weeks in the range
     for week_num in range(min_week, max_week + 1):
         if week_num not in week_to_col:
-            week_to_col[week_num] = None
+            week_to_col[week_num] = week_num    # for now just set it to number of the interval that's missing. maybe best we can do? 
             print(f"  Added missing week {week_num}")
 
 # Sort week numbers in ascending order
 sorted_week_to_col = sorted(week_to_col.keys())
 print(f"Sorted week numbers: {sorted_week_to_col}")
+'''
+
+from collections import OrderedDict
+
+interval = runrate_params.get("mode", "weeks")  
+
+week_to_col = {}
+
+# Populate week_to_col
+if interval == "years":
+    for year, dud, start_date, end_date in week_info_resolved:
+        week_to_col[year] = f"{year}"
+
+elif interval == "months":
+    for year, month_num, start_date, end_date in week_info_resolved:
+        # ensure two-digit month formatting
+        month_str = f"{month_num:02d}"
+        week_to_col[f"{year}-{month_str}"] = f"{year}-{month_str}"
+
+elif interval == "weeks":
+    for year, week_num, start_date, end_date in week_info_resolved:
+        # BUG! BUG!  week_num needs to be crafted like "months" - it's multipart not single number
+        week_to_col[f"{str(start_date.date())}"] = f"{str(start_date.date())}"
+
+else:
+    print(f"Error: unrecognized period interval found in runrate_params mode={interval}")
+    sys.exit(1)
+
+# Fill in any gaps in the sequence (only makes sense for numeric keys)
+# works for years only whenere key is numeric.   weeks did not work because keys are strings
+if interval in ("years") and week_to_col:
+    min_week = min(week_to_col.keys())
+    max_week = max(week_to_col.keys())
+    print(f"Week range: {min_week} to {max_week}")
+    
+    for week_num in range(min_week, max_week + 1):
+        if week_num not in week_to_col:
+            week_to_col[week_num] = week_num
+            print(f"  Added missing week {week_num}")
+
+# Sort week_to_col properly
+if interval == "months":
+    # Sort "YYYY-MM" strings as (year, month) tuples
+    def parse_year_month(key: str):
+        y, m = key.split("-")
+        return int(y), int(m)
+
+    sorted_keys = sorted(week_to_col.keys(), key=parse_year_month)
+else:
+    # numeric sort for weeks or years
+    sorted_keys = sorted(week_to_col.keys())
+
+# Create ordered dict
+sorted_week_to_col = OrderedDict((k, week_to_col[k]) for k in sorted_keys)
+
+print(f"Sorted keys: {list(sorted_week_to_col.keys())}")
+
+
+week_to_label = {}  
 
 # Now assign column numbers in order
 for col_index, week_num in enumerate(sorted_week_to_col):
     print(f"week_to_col({week_num}) -> Column {col + 1 + col_index + 1}")
+    week_to_label[week_num] = week_to_col[week_num]
     week_to_col[week_num] = col + 1 + col_index + 1
 
 # now write out the week headers
 for i in sorted_week_to_col:
+    label = week_to_label.get(i)
     coord = f"{get_column_letter(week_to_col.get(i))}{row}"
-    entry = f"{coord} = Week {i} || "
+    #entry = f"{coord} = {runrate_params['mode']} {i} || "
+    entry = f"{coord} = {label} || "
     print(entry)
     changes_list.append(entry)
 
@@ -675,7 +884,7 @@ for i in sorted_week_to_col:
 # now loop through each assignee and write out their counts per week
 for assignee in unique_assignee_list:
     weekly_buckets_resolved, week_info_resolved = bucketize_issues_by_interval(issues,"resolved",runrate_params.get("mode", "weeks"), assignee_filter=assignee)
-    #weekly_buckets_closed, week_info_closed = bucketize_issues_by_weeks(issues,"closed")
+    #weekly_buckets_closedrun, week_info_closed = bucketize_issues_by_weeks(issues,"closed")
 
     print(f"Here's the weekly breakdown for assignee={assignee}:")
 
@@ -700,8 +909,42 @@ for assignee in unique_assignee_list:
             print (f"Skipping week {week_num} since no OPEN issues")
             continue
 
-        print (f"Looking up week {week_num} in sorted_week_to_col, found column {week_to_col.get(week_num,'None')}")
-        coord = f"{get_column_letter(week_to_col.get(week_num))}{row + 1}"
+        # Populate week_to_col
+        if interval == "years":
+#            for year, dud, start_date, end_date in week_info_resolved:
+            week_num = year
+
+        elif interval == "months":
+ #           for year, month_num, start_date, end_date in week_info_resolved:
+                # ensure two-digit month formatting
+                month_str = f"{week_num:02d}"
+                week_num = f"{year}-{month_str}"
+
+        elif interval == "weeks":
+#            for year, week_num1, start_date, end_date in week_info_resolved:
+                # BUG! BUG!  week_num needs to be crafted like "months" - it's multipart not single number
+                week_num= f"{str(start_date.date())}"    # start date of the week
+
+        else:
+            print(f"Error: unrecognized period interval found in runrate_params mode={interval}")
+            sys.exit(1)
+
+
+        #print (f"Looking up week {week_num} in sorted_week_to_col, found column {week_to_col.get(week_num,'None')}")
+        #coord = f"{get_column_letter(week_to_col.get(week_num))}{row + 1}"
+
+        print(f"week_num={week_num!r} ({type(week_num)}), "
+        f"keys={[ (k, type(k)) for k in week_to_col.keys() ]}")
+
+        print(f"checking if week_num={week_num} exists week_to_col keys={week_to_col}")
+        if week_num in week_to_col:
+            print(f"Looking up week {week_num} in sorted_week_to_col, found column {week_to_col[week_num]}")
+            coord = f"{get_column_letter(week_to_col[week_num])}{row + 1}"
+        else:
+            print(f"WARNING: Week {week_num} not found in sorted_week_to_col. Possibly because number of intervals exceeded hardcoded max")
+            continue
+            #coord = None  # or handle it however you want
+
 
         jql = "key in ("
         for issue in bucket:
@@ -709,11 +952,17 @@ for assignee in unique_assignee_list:
         jql = jql.rstrip(",") + ")"
 
         #entry = f"{coord} = {len(bucket)} || "
-        hyperlink = _make_hyperlink_formula(f"https://fz96tw.atlassian.net/issues/?jql={jql}", f"{len(bucket)}") + " || "
+        hyperlink = _make_hyperlink_formula(f"{JIRA_URL}/issues/?jql={jql}", f"{len(bucket)}") + " || "
         entry = f"{coord} = {hyperlink} || " 
         print (entry)
         changes_list.append(entry)
-        row = row + 1   # move to next row for next assignee    
+    
+    row = row + 1   # move to next row for next assignee    
+
+
+
+    # FUTURE: delete rows to remove data from previous resync
+    # if scan_ahead_nonblank_rows > 0:
 
 
 changes_file = yaml_file.replace("scope.yaml","import.changes.txt")

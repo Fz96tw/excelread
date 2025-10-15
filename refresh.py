@@ -362,15 +362,16 @@ def resync(url: str, userlogin, delegated_auth):
             logger.info(f"Updating SharePoint for {url} with changes from {changes_file}...")
             if delegated_auth:
                 output_lines = run_and_log(
-                ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin, "--user_auth"],
+                #["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin, "--user_auth"],
+                ["python", "-u", update_sharepoint_script, url, changes_file, timestamp, userlogin, "--user_auth"],
                 log,
-                f"update_sharepoint.py {url} {input_file}.{substring}.changes.txt {timestamp} {userlogin} --user_auth"
+                f"update_sharepoint.py {url} {changes_file} {timestamp} {userlogin} --user_auth"
                 )
             else:
                 output_lines = run_and_log(
-                ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin],
+                ["python", "-u", update_sharepoint_script, url, changes_file, timestamp, userlogin],
                 log,
-                f"update_sharepoint.py {url} {input_file}.{substring}.changes.txt {timestamp} {userlogin}"
+                f"update_sharepoint.py {url} {changes_file} {timestamp} {userlogin}"
                 )
            
                 

@@ -222,17 +222,22 @@ def set_cell_hyperlink(site_id, item_id, worksheet_name, cell_address, display_t
 
 
 # --- Row-level updater (sparse cells handled) ---
-def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url, import_mode = False):
+def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url, import_mode = False, runrates=False):
     print("enter update_sparse_row(...)")
+    print("some of the function args:")
+    print(f"row_num={row_num}")
+    print(f"cols={cols}")
+
     col_letters = sorted(cols.keys(), key=lambda c: string.ascii_uppercase.index(c))
     start_col, end_col = col_letters[0], col_letters[-1]
     row_range = f"{start_col}{row_num}:{end_col}{row_num}"
 
     # --- 1. GET the full row range ---
     url_get = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{item_id}/workbook/worksheets('{worksheet_name}')/range(address='{row_range}')"
-    resp_get = requests.get(url_get, headers=headers)
-    resp_get.raise_for_status()
-    current_values = resp_get.json().get("values", [[]])[0]
+    if not runrates:  # avoid unnecessary rest call to sharepoint
+        resp_get = requests.get(url_get, headers=headers)
+        resp_get.raise_for_status()
+        current_values = resp_get.json().get("values", [[]])[0]
 
     strikeout = False
     # --- 2. Merge in updates ---
@@ -261,7 +266,12 @@ def update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, 
                 print(f"   ⚠ Warning: '!!' found in new value for {col_letter}{row_num}. Need to strikeout cell")
                 strikeout = True
         else:
-            new_values.append(current_values[i])
+            if not runrates:
+                new_values.append(current_values[i])
+            else:
+                # for runrate tables we do not want to blank about any cells that we are not writing to
+                # incase they have old data from previous runrate resync
+                new_values.append(" ")
 
     # --- 3. PATCH back the updated row ---
     payload = {"values": [new_values]}
@@ -512,6 +522,11 @@ else:
     print (f"import mode disabled since file = ")
     import_mode = False
 
+if "rate.import.changes.txt" in changes_file:
+    runrate_mode = True
+else:
+    runrate_mode = False
+
 # --- PARSE CHANGES FILE ---
 
 # will contain INSERT row. This is proceed separated below 
@@ -660,7 +675,11 @@ if "http" in file_url:
     # Now update the existing rows, ie not insert
     for row_num, cols in row_values.items():
         print(f"Updating row {row_num} with values: {cols}")
-        update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url, import_mode)
+        update_sparse_row(site_id, item_id, worksheet_name, row_num, cols, headers, jira_base_url, import_mode, runrate_mode)
+    
+    if runrate_mode:
+        # insert blank rows until i figure out way to delete the remaining rows of old data rows
+        insert_blank_rows(site_id, item_id, worksheet_name, row_num + 1 , 2, headers)  
 
 else:
 

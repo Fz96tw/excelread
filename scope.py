@@ -285,7 +285,7 @@ if __name__ == "__main__":
     }
     
     row_count = 0
-    for row in rows:
+    for outer_idx, row in enumerate(rows):
         row_count += 1
         print(f"row count {row_count} is:{row}")
 
@@ -456,7 +456,29 @@ if __name__ == "__main__":
                     yaml.dump({"row":row_count}, f, default_flow_style=False)
                     yaml.dump({"col":idx}, f, default_flow_style=False)
 
-            
+                #import pandas as pd  # or import numpy as np
+                def is_row_blank(row):
+                    return all(cell is None or pd.isna(cell) or str(cell).strip() == "" for cell in row)
+
+
+                # Look ahead from the next row
+                nonblank_count = 0
+                print(f"start scan ahead at outer_idx={outer_idx}")
+                for inner_idx in range(outer_idx + 1, len(rows)):
+                    print(f"scan ahead rows[{inner_idx}]={rows[inner_idx]}")
+                    if not is_row_blank(rows[inner_idx]):
+                        nonblank_count += 1
+                        print(f"not blank, incrementing nonblank_count to {nonblank_count}")
+                    else:
+                        print("blank row found, breaking out of scan ahead")
+                        break  # Stop at the first non-blank row
+
+                print(f"Row {outer_idx+1} has {nonblank_count} contiguous blank row(s) below it.")
+
+                with open(scope_output_file, 'a') as f:
+                    yaml.dump({"scan_ahead_nonblank_rows":nonblank_count}, f, default_flow_style=False)
+
+
                 break # get to next row 
 
             elif ("<jira>" in cell_str and len(str(cell_str)) > 6):  # greater than 6 because a table name is expected
