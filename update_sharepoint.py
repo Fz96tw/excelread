@@ -103,19 +103,24 @@ parser.add_argument("file_url", help="Full URL to the Excel file in SharePoint")
 parser.add_argument("changes_file", help="Path to the local changes file")
 parser.add_argument("timestamp", help="string tag (timestamp) for local output temp files")
 parser.add_argument("userlogin", help="string userlogin")
+parser.add_argument("worksheet", help="string worksheet name")
 
 # Optional flag (no value needed — just true/false)
 parser.add_argument("--user_auth", action="store_true", help="Enable delgated user auth flow output")
 #parser.add_argument("--auth_user", help="string tag to force delelated auth flow")
 
 #parser.add_argument("--access_token", required=True, help="Application-level access token for Graph API")
-parser.add_argument("--worksheet_name", default="Sheet1", help="Worksheet name to update (default: Sheet1)")
+#parser.add_argument("--worksheet", default="Sheet1", help="Worksheet name to update (default: Sheet1)")
 args = parser.parse_args()
 
 auth_user = args.user_auth
 userlogin = args.userlogin
+worksheet_name = args.worksheet
+
+print (f"worksheet name = {worksheet_name}")
 
 delegated_auth = False  # set to False to use app-only auth (no user context)
+
 
 import sys
 
@@ -163,7 +168,6 @@ else:
     access_token = get_app_token()
     
 
-worksheet_name = args.worksheet_name
 
 import_mode = False
 

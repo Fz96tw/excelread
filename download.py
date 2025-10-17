@@ -265,12 +265,50 @@ if __name__ == "__main__":
         site_url = f"{parsed_url.scheme}://{parsed_url.netloc}/{path_parts[0]}/{path_parts[1]}"
         file_path = "/".join(path_parts[2:])
 
+        '''     
+        if ":" in file_path:
+            filename, sheet = file_path.split(":", 1)
+            sheet = sheet if sheet.strip() else 0
+        else:
+            filename = file_path
+            sheet = 0
+    
+        print("filename:",filename)   # → "assignee-velocity.xlsx"
+        print("sheet name", sheet) # → "sheet1"
+        '''
         print("site_url:", site_url)
         print("file_path:", file_path)
+
+        '''fileinfo = {}
+        fileinfo["filename"] = filename
+        fileinfo["sheet"] = sheet
+        fileinfo["url"] = full_url
+        fileinfo["siteurl"] = site_url
+        with open("fileinfo.json", "w") as f:
+            json.dump(fileinfo, f, indent=4)
+        '''
 
         download_excel_with_meta(site_url, file_path)
     else:
         # assume local file
         print(f"assumed to be local file, full_url={full_url}")
+
+
+        '''
+        if ":" in full_url:
+            filename, sheet = full_url.split(":", 1)
+            sheet = sheet if sheet.strip() else 0
+        else:
+            filename = full_url
+            sheet = 0
+        '''
+        
         copy_excel_to_working_directory(full_url)
 
+        '''fileinfo = {}
+        fileinfo["filename"] = filename
+        fileinfo["sheet"] = sheet
+        fileinfo["url"] = full_url
+        with open("fileinfo.json", "w") as f:
+            json.dump(fileinfo, f, indent=4)
+        '''

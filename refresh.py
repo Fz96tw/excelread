@@ -100,6 +100,16 @@ def resync(url: str, userlogin, delegated_auth):
     import uuid
     run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
 
+    # do this right here instead of later to limit the number of changes
+    # i need to make to add support for sheet name
+    sheet = "Sheet1"
+    if "#" in url:
+        sheet = url.split("#")[1]
+        url = url.split("#")[0]
+
+
+    sheet = unquote(sheet) #replace any %20 with space character 
+
     parsed_url = urlparse(url)
     filename = os.path.basename(parsed_url.path)  # e.g., Milestones.xlsx
     filename = unquote(filename)  # decode %20 → space if there are space chars in filename
@@ -117,8 +127,19 @@ def resync(url: str, userlogin, delegated_auth):
     logs_dir = work_dir  # os.path.join(base_dir, f"logs/{userlogin}")  # keep log in the user folder same place as yaml and other temp fiels
     os.makedirs(logs_dir, exist_ok=True) 
 
-
     log_file= os.path.join(logs_dir, f"{basename}_{timestamp}.log")
+
+    fileinfo = {}
+    fileinfo["filename"] = filename
+    fileinfo["sheet"] = sheet
+    fileinfo["url"] = url
+    fileinfo["base_dir"] = base_dir
+    fileinfo["basename"] = basename
+    fileinfo["work_dir"] = work_dir
+    fileinfo["logs_dir"] = logs_dir
+    import json
+    with open(f"{work_dir}/fileinfo.json", "w") as f:
+        json.dump(fileinfo, f, indent=4)
 
     # Persistent rolling resync.log
     #resync_log = os.path.join(logs_dir, "resync.log")
@@ -208,9 +229,9 @@ def resync(url: str, userlogin, delegated_auth):
     '''
 
 
-    def process_yaml(file_url, input_file, timestamp, delegated_auth, userlogin):
-        logger.info(f"Running scope.py on {input_file} timestamp={timestamp}...")
-        run_and_log(["python", "-u", scope_script, input_file, timestamp], log, f"scope.py {input_file} {timestamp}")
+    def process_yaml(file_url, input_file, sheet, timestamp, delegated_auth, userlogin):
+        logger.info(f"Running scope.py on {input_file} {sheet} timestamp={timestamp}...")
+        run_and_log(["python", "-u", scope_script, input_file, sheet, timestamp], log, f"scope.py {input_file} {timestamp}")
 
         yaml_pattern = os.path.join(work_dir, f"{input_file}.*.{timestamp}.*scope.yaml")
         yaml_files = glob.glob(yaml_pattern)
@@ -241,10 +262,10 @@ def resync(url: str, userlogin, delegated_auth):
                     logger.info("delegated_auth detected")
                     run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
                 else:
-                    run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp} user_auth {userlogin}")
+                    run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
 
                 logger.info(f"Re-running scope.py on {input_file}...")
-                run_and_log(["python", "-u", scope_script, input_file, timestamp], log, f"scope.py {input_file} {timestamp}")
+                run_and_log(["python", "-u", scope_script, input_file, sheet, timestamp], log, f"scope.py {input_file} {sheet} {timestamp}")
 
                 if "create" in yaml_file:
                     logger.info(f"Found CREATE jira file {yaml_file}")
@@ -255,7 +276,7 @@ def resync(url: str, userlogin, delegated_auth):
                     run_and_log(["python", "-u", runrate_resolved_jira_script, yaml_file, timestamp, userlogin], log, f"runrate_resolved_jira.py {yaml_file} {timestamp} {userlogin}")
                 elif "assignee.rate" in yaml_file:
                     logger.info(f"Found RUNRATE  jira file {yaml_file}")
-                    run_and_log(["python", "-u", runrate_assignee_jira_script, yaml_file, filename, userlogin], log, f"runrate_assignee_jira.py {yaml_file} {timestamp} {userlogin}")
+                    run_and_log(["python", "-u", runrate_assignee_jira_script, yaml_file, timestamp, userlogin], log, f"runrate_assignee_jira.py {yaml_file} {timestamp} {userlogin}")
                 elif "cycletime.scope.yaml" in yaml_file:
                     logger.info(f"Found CYCLETIME scope yaml file {yaml_file}")
                     run_and_log(["python", "-u", cycletime_script, yaml_file, timestamp, userlogin], log, f"cycletime.py {yaml_file} {timestamp} {userlogin}")
@@ -268,7 +289,7 @@ def resync(url: str, userlogin, delegated_auth):
                     run_and_log(["python", "-u", read_jira_script, yaml_file, timestamp, userlogin], log, f"read_jira.py {yaml_file} {timestamp} {userlogin}")
 
                     logger.info(f"Updating Excel with {jira_csv}...")
-                    run_and_log(["python", "-u", update_excel_script, jira_csv, input_file], log, f"update_excel.py {jira_csv} {input_file}")
+                    run_and_log(["python", "-u", update_excel_script, jira_csv, input_file, sheet], log, f"update_excel.py {jira_csv} {input_file} {sheet}")
 
                 changes_file = f"{substring}.changes.txt"
                 k = ["cycletime", "resolved", "assignee"]
@@ -281,15 +302,15 @@ def resync(url: str, userlogin, delegated_auth):
                 logger.info(f"Updating SharePoint for {url} with changes from {input_file}.{changes_file}...")
                 if delegated_auth:
                     output_lines = run_and_log(
-                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{changes_file}", timestamp, userlogin, "--user_auth"],
+                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{changes_file}", timestamp, userlogin, sheet, "--user_auth"],
                     log,
-                    f"update_sharepoint.py {url} {input_file}.{changes_file} {timestamp} {userlogin} --user_auth"
+                    f"update_sharepoint.py {url} {input_file}.{changes_file} {timestamp} {userlogin} '{sheet}' --user_auth"
                     )
                 else:
                     output_lines = run_and_log(
-                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{changes_file}", timestamp, userlogin],
+                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{changes_file}", timestamp, userlogin, sheet],
                     log,
-                    f"update_sharepoint.py {url} {input_file}.{changes_file} {timestamp} {userlogin}"
+                    f"update_sharepoint.py {url} {input_file}.{changes_file} {timestamp} {userlogin} '{sheet}'"
                     )
 
                 if any("Aborting update" in line for line in output_lines):
@@ -311,7 +332,7 @@ def resync(url: str, userlogin, delegated_auth):
                     
                     # all files are process now so end the loop
                     break
-
+ 
     def process_aibrief_yaml(file_url, input_file, timestamp):
         yaml_pattern = os.path.join(work_dir, f"{input_file}.*.{timestamp}.aisummary.yaml")
         yaml_files = glob.glob(yaml_pattern)
@@ -338,7 +359,7 @@ def resync(url: str, userlogin, delegated_auth):
         
 
 
-    def process_aibrief_changes_txt(file_url, input_file, timestamp):
+    def process_aibrief_changes_txt(file_url, sheet, input_file, timestamp):
         file_pattern = os.path.join(work_dir, f"{input_file}.*.aisummary.changes.txt")
         changes_files = glob.glob(file_pattern)
         if not changes_files:
@@ -363,15 +384,15 @@ def resync(url: str, userlogin, delegated_auth):
             if delegated_auth:
                 output_lines = run_and_log(
                 #["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin, "--user_auth"],
-                ["python", "-u", update_sharepoint_script, url, changes_file, timestamp, userlogin, "--user_auth"],
+                ["python", "-u", update_sharepoint_script, url, changes_file, timestamp, userlogin, sheet, "--user_auth"],
                 log,
-                f"update_sharepoint.py {url} {changes_file} {timestamp} {userlogin} --user_auth"
+                f"update_sharepoint.py {url} {changes_file} {timestamp} {userlogin} {sheet} --user_auth"
                 )
             else:
                 output_lines = run_and_log(
-                ["python", "-u", update_sharepoint_script, url, changes_file, timestamp, userlogin],
+                ["python", "-u", update_sharepoint_script, url, changes_file, timestamp, userlogin, sheet],
                 log,
-                f"update_sharepoint.py {url} {changes_file} {timestamp} {userlogin}"
+                f"update_sharepoint.py {url} {changes_file} {timestamp} {userlogin} {sheet}"
                 )
            
                 
@@ -379,14 +400,16 @@ def resync(url: str, userlogin, delegated_auth):
 
     with open(log_file, "w", encoding="utf-8") as log:
         try:
+
             if delegated_auth:
                 logger.info("delegated_auth detected")
                 run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
             else:
                 run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
             
+
             logger.info("about to call process_yaml")
-            process_yaml(url, filename, timestamp, delegated_auth, userlogin)
+            process_yaml(url, filename, sheet, timestamp, delegated_auth, userlogin)
             logger.info("about to call process_aibrief_yaml")
             process_aibrief_yaml(url, filename, timestamp)
 

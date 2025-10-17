@@ -1,6 +1,40 @@
 import re
 
 
+# Without escaping, Excel would see the unescaped quote as the end of the string, breaking the formula:
+# So _excel_escape_quotes() prevents that by doubling the quotes inside the formula string
+# the correct way to represent quotes inside Excel string literals.
+def excel_escape_quotes(s: str) -> str:
+    # Excel doubles double-quotes inside string literals
+    return s.replace('"', '""')
+
+# use TinyURL when hyperlink length exceeds 255 which break excel hyperlinks
+import requests
+def shorten_url(url: str) -> str:
+    """Shorten a URL using TinyURL."""
+    try:
+        api_url = f"http://tinyurl.com/api-create.php?url={url}"
+        response = requests.get(api_url, timeout=5)
+        if response.status_code == 200:
+            return response.text.strip()
+    except Exception as e:
+        print(f"⚠️ URL shortening failed for {url}: {e}")
+    return url  # fallback to original if shortening fails
+
+
+def make_hyperlink_formula(url: str, text: str) -> str:
+    """Create an Excel HYPERLINK formula; shorten URL only if it's too long."""
+    text = text.replace("\n", " ")
+
+    # Excel's HYPERLINK() formula limit for URLs is ~255 characters
+    short_url = url
+    if len(url) > 255:
+        print(f"URL too long ({len(url)} chars), shortening with TinyURL...")
+        short_url = shorten_url(url)
+
+    return f'=HYPERLINK("{excel_escape_quotes(short_url)}","{excel_escape_quotes(text)}")'
+
+
 def clean_sharepoint_url(url: str) -> str:
     """
     Cleans a SharePoint file URL by removing 'Shared Documents' or 'Shared Folders'

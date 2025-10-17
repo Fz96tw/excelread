@@ -124,7 +124,7 @@ def get_summarized_comments(comments_list_asc, field_arg=None):
     
     except Exception as e:
         # Log the exception and return a safe default
-        print(f"[ERROR] get_summarized_comments failed: {e}")
+        print(f"[EXCEPTION THROWN ERROR] get_summarized_comments failed: {e}")
         return "[ERROR] Summary could not be generated."
 
 def get_user_display_name(account_id):

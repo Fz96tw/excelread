@@ -556,6 +556,15 @@ if not tablename:
 
 mode = ""
 
+
+import json
+
+with open("fileinfo.json", "r") as f:
+    fileinfo = json.load(f)
+
+print("read fileinfo.json file:", fileinfo)
+
+
 # I don't think this code is doing anything useful. It always sets create_mode to True?! since 
 # Determine if we will be INSERTING rows eventually vs just UPDATING existing rows in Excel/SharePoint
 if "assignee.rate" in yaml_file.lower():
@@ -669,7 +678,7 @@ except Exception as e:
 # Now we need to write out the changes to a text file that can be picked up by update_sharepoint.py
 changes_list = []
 
-row = runrate_table_row + 1  # skip to next row after <> tag cell
+row = runrate_table_row + 2  # skip to next row after <> tag cell
 col = runrate_table_col # integer! and will need to be convered to letter for openpyxl
 
 from openpyxl.utils import get_column_letter
@@ -970,6 +979,7 @@ print(f"Writing changes to {changes_file}")
 
 if changes_list:
     with open(changes_file, "w") as f:
+        #f.write("sheet = ", sheet)  #save sheet name for update_sharepoint downstream
         for entry in changes_list:
             if "||None" in entry:
                 entry = entry.replace("||None", "||")

@@ -6,10 +6,15 @@ import yaml
 import re
 
 
-def read_excel_rows(filename):
+'''def read_excel_rows(filename):
     df = pd.read_excel(filename, header=None)  # Treat all rows as data
     # Remove rows where all cells are NaN (i.e., completely blank)
     #df = df.dropna(how='all')
+    return df.values.tolist()
+'''
+
+def read_excel_rows(filename, sheet_name=0):
+    df = pd.read_excel(filename, sheet_name=sheet_name)
     return df.values.tolist()
 
 
@@ -244,17 +249,32 @@ def get_last_data_row_from_rows(rows):
     
     return last_index, last_index + 1
 
+#import pandas as pd  # or import numpy as np
+def is_row_blank(row):
+    return all(cell is None or pd.isna(cell) or str(cell).strip() == "" for cell in row)
+
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python scope.py <filename> <timestamp>")
+    if len(sys.argv) < 4:
+        print("Usage: python scope.py <filename> <sheet> <timestamp>")
         sys.exit(1)
 
     filename = sys.argv[1]
-    timestamp = sys.argv[2]
+    sheet = sys.argv[2]
+    timestamp = sys.argv[3]
 
-    print(f"argv filename={filename}  timestamp={timestamp}")    
-    rows = read_excel_rows(filename)
+    '''if ":" in filename_ex:
+        filename, sheet = filename_ex.split(":", 1)
+        # Use first sheet if sheet_name is empty
+        sheet = sheet if sheet.strip() else 0
+        filename_ex = filename_ex.replace(":",".")   # save for filename allowable character
+    else:
+        filename = filename_ex
+        sheet = 0
+    '''
+
+    print(f"argv filename={filename} worksheet={sheet} timestamp={timestamp}")   
+    rows = read_excel_rows(filename, sheet_name=sheet)
 
     last_idx, last_excel_row = get_last_data_row_from_rows(rows)    # Find the last row where any column has a non-NaN value
     print(f"Last data row index (0-based): {last_idx}, Excel row number (1-based): {last_excel_row}")
@@ -371,6 +391,25 @@ if __name__ == "__main__":
                     yaml.dump({"col":idx}, f, default_flow_style=False)
                     yaml.dump({"lastrow":last_excel_row}, f, default_flow_style=False)
 
+
+                # Look ahead from the next row
+                nonblank_count = 0
+                print(f"start scan ahead at outer_idx={outer_idx}")
+                for inner_idx in range(outer_idx + 1, len(rows)):
+                    print(f"scan ahead rows[{inner_idx}]={rows[inner_idx]}")
+                    if not is_row_blank(rows[inner_idx]):
+                        nonblank_count += 1
+                        print(f"not blank, incrementing nonblank_count to {nonblank_count}")
+                    else:
+                        print("blank row found, breaking out of scan ahead")
+                        break  # Stop at the first non-blank row
+
+                print(f"Row {outer_idx+1} has {nonblank_count} contiguous blank row(s) below it.")
+
+                with open(scope_output_file, 'a') as f:
+                    yaml.dump({"scan_ahead_nonblank_rows":nonblank_count}, f, default_flow_style=False)
+
+
                 continue # get to next row
             
             elif "<quickstart>" in cell_str:
@@ -455,11 +494,6 @@ if __name__ == "__main__":
                     # save the row and col info for where this was found in the excel sheet for use by runrate_resolved.py
                     yaml.dump({"row":row_count}, f, default_flow_style=False)
                     yaml.dump({"col":idx}, f, default_flow_style=False)
-
-                #import pandas as pd  # or import numpy as np
-                def is_row_blank(row):
-                    return all(cell is None or pd.isna(cell) or str(cell).strip() == "" for cell in row)
-
 
                 # Look ahead from the next row
                 nonblank_count = 0
