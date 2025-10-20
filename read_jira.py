@@ -271,6 +271,7 @@ basename = fileinfo.get('basename')
 tablename = fileinfo.get('table').replace(" ", "_") if fileinfo.get('table') else ""
 source = fileinfo.get('source')
 scope_file = fileinfo.get('scope file')
+sheet = fileinfo.get('sheet')
 
 if not basename:
     print("No 'basename'found in fileinfo. Expecting 'basename' key.")
@@ -292,17 +293,17 @@ if "import" in yaml_file.lower():
     print("Import mode detected based on filename containing 'import'.")
     # You can set a flag or handle import-specific logic here if needed
     import_mode = True
-    output_file = basename + "." + tablename + "." + timestamp + ".import.jira.csv"
+    output_file = basename + "." + sheet + "." + tablename + "." + timestamp + ".import.jira.csv"
 # Determine if we are dealing wiht ExecSummary table here
 elif "aisummary" in yaml_file.lower():
     print(f"ai summary mode detected based on filename = {yaml_file}")
     # You can set a flag or handle import-specific logic here if needed
     execsummary_mode = True
-    output_file = basename + "." + tablename + "." + timestamp + ".aisummary.jira.csv"
+    output_file = basename + "." + sheet + "." + tablename + "." + timestamp + ".aisummary.jira.csv"
 else:
     import_mode = False
     execsummary_mode = False
-    output_file = basename + "." + tablename + "." + timestamp + ".jira.csv"
+    output_file = basename + "." + sheet + "." + tablename + "." + timestamp + ".jira.csv"
 
 
 llm_model = get_llm_model(LLMCONFIG_FILE)

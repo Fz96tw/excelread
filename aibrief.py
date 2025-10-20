@@ -105,12 +105,16 @@ def get_llm_model(llm_config_file):
     return None
 
 
-if len(sys.argv) < 3:
-    print("Usage: python aisummary.py <yaml_file> <timestamp>")
+if len(sys.argv) < 5:
+    print("Usage: python aibrief.py <url> <yaml_file> <timestamp> <userlogin> optional[delegated_auth]")
     sys.exit(1)
 
-yaml_file = sys.argv[1]
-timestamp = sys.argv[2]
+url = sys.argv[1]
+yaml_file = sys.argv[2]
+timestamp = sys.argv[3]
+userlogin = sys.argv[4] if len(sys.argv) > 4 else None
+delegated_auth = "--user_auth" in sys.argv
+
 
 
 
@@ -130,6 +134,7 @@ basename = fileinfo.get('basename')
 tablename = fileinfo.get('table').replace(" ", "_") if fileinfo.get('table') else ""
 source = fileinfo.get('source')
 scope_file = fileinfo.get('scope file') # in this case this will match the yaml_file param passed to this script
+sheet = fileinfo.get('sheet')
 
 if not basename:
     print("No 'basename'found in fileinfo. Expecting 'basename' key.")
@@ -140,8 +145,8 @@ if not tablename:
     sys.exit(1)
 
 # Determine if we will be INSERTING rows eventually vs just UPDATING existing rows in Excel/SharePoint
-if "aisummary.yaml" not in yaml_file.lower():
-    print(f"ERROR: {yaml_file} is not a aisummary.yaml file, exiting without action.")
+if "aibrief.scope.yaml" not in yaml_file.lower():
+    print(f"ERROR: {yaml_file} is not a aibrief.scope.yaml file, exiting without action.")
     sys.exit(1)
 
 
@@ -155,6 +160,20 @@ print("Table,", tablename)
 
 refer_tables = data.get('tables',[])
 print(f"{yaml_file} contains refer_tables: {refer_tables}")
+
+for ref_table in refer_tables:
+    print(f"Checking refer_tables: {ref_table} for unwanted worksheet prefix...")
+    # there may be a worksheet prefix with dotted notation 
+    # need to remove worksheet prefix if both sheet and aibrief are on the same sheet
+    if "." in ref_table:
+        possible_sheet, possible_table = ref_table.split(".", 1)
+        print(f"Found . in refer_tables, possible_sheet={possible_sheet}, possible_table={possible_table}")
+        if possible_sheet == sheet:
+            # remove the prefix
+            refer_tables.remove(ref_table)
+            refer_tables.append(possible_table)
+            print(f"removed worksheet prefix '{possible_table}' leaving tablename={possible_table} in refer_tables")
+
 
 email_list = data.get('email',[])
 print(f"{yaml_file} contain email: {email_list}")
@@ -171,45 +190,52 @@ def get_summarized_comments(context, sysprompt):
     Summarize comments for LLM processing.
     This function takes a list of comments in ascending order and returns a summarized version.
     """
-    if not context:
-        return "No context provided."
+    try:
+        if not context:
+            return "No context provided."
 
-    # Only join if it's a list or tuple
-    if isinstance(context, (list, tuple)):
-        comments_str = "; ".join(context)
-    else:
-        comments_str = context  # already a string
+        # Only join if it's a list or tuple
+        if isinstance(context, (list, tuple)):
+            comments_str = "; ".join(context)
+        else:
+            comments_str = context  # already a string
 
-    # comments_str was a single string before, but the service expects a list[str].
-    # If you only have one string, wrap it in a list.
-    #context = [comments_str]
+        # comments_str was a single string before, but the service expects a list[str].
+        # If you only have one string, wrap it in a list.
+        #context = [comments_str]
 
-    prompt = sysprompt + ".\n\n" + context
-    #prompt = sysprompt + "\n\n" + "\n".join(context)
+        prompt = sysprompt + ".\n\n" + context
+        #prompt = sysprompt + "\n\n" + "\n".join(context)
 
-    prompt_list = [prompt]
-    print(f"calling LLM with prompt = {prompt_list[0][:255]}...")
+        prompt_list = [prompt]
+        print(f"calling LLM with prompt = {prompt_list[0][:255]}...")
 
-    if llm_model == "OpenAI":
-        ENDPOINT = "/summarize_openai"
-    else:
-        ENDPOINT = "/summarize_local"
+        if llm_model == "OpenAI":
+            ENDPOINT = "/summarize_openai"
+        else:
+            ENDPOINT = "/summarize_local"
 
-    #resp = requests.post("http://localhost:8000/summarize", json=prompt_list)
-    resp = requests.post(f"{SUMMARIZER_HOST}{ENDPOINT}", json=prompt_list)
+        #resp = requests.post("http://localhost:8000/summarize", json=prompt_list)
+        resp = requests.post(f"{SUMMARIZER_HOST}{ENDPOINT}", json=prompt_list)
 
-    if resp.status_code == 200:
-        full_response = resp.json()["summary"]
-    else:
-        full_response = f"[ERROR] Service call failed: {resp.text}"    
+        if resp.status_code == 200:
+            full_response = resp.json()["summary"]
+        else:
+            full_response = f"[ERROR] Service call failed: {resp.text}"    
+        
+        
+        print(f"Full response: {full_response}")
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return  full_response   
+    except Exception as e:
+        # Log the exception and return a safe default
+        print(f"[EXCEPTION THROWN ERROR] get_summarized_comments failed: {e}")
+        #return "[ERROR] Summary could not be generated."
+        return f"[EXCEPTION THROWN ERROR] get_summarized_comments failed: {e}"
     
-    
-    print(f"Full response: {full_response}")
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return  full_response
-
-
-
+# Build LLM context from table rows and corresponding jiracsv file
+# so yes, it combines excel table rows (all cells including non-jira ones)
+# and combines with the aisummary.jira.csv file contents
 def build_llm_context(table_rows, table_name, timestamp):
     
     context = ""
@@ -219,7 +245,7 @@ def build_llm_context(table_rows, table_name, timestamp):
         context += " | ".join(str(cell) for cell in r) + "\n"
 
      # now append the jiracsv contents
-    jiracsv_pattern = f"{basename}.{table_name}.{timestamp}.aisummary.jira.csv"
+    jiracsv_pattern = f"{basename}.{sheet}.{table_name}.{timestamp}.aisummary.jira.csv"
     dir_path = os.getcwd()  # or the folder where your CSVs live
 
     # case-insensitive search
@@ -241,7 +267,170 @@ def build_llm_context(table_rows, table_name, timestamp):
 
 
 
+def check_missing_table_files(refer_tables, folder_path='.'):
+    """
+    Check which table names from refer_tables don't have corresponding .jira.csv files.
+    
+    Args:
+        refer_tables: List of table names to check
+        folder_path: Path to the folder to search (default is current directory)
+    
+    Returns:
+        List of table names that don't have matching .jira.csv files
+    """
+    import os
+    
+    # Get all filenames in the folder that end with .jira.csv
+    files = [f for f in os.listdir(folder_path) if f.endswith('.jira.csv')]
+    
+    # Track tables without matching files
+    missing_tables = []
+    
+    # Check each table name
+    for table in refer_tables:
+        # Check if any .jira.csv file contains the table name
+        found = any(table in filename for filename in files)
+        
+        if not found:
+            print(f"Table '{table}' is missing corresponding .jira.csv file. Added to missing_tables={missing_tables}")
+            missing_tables.append(table)
+        else:
+            print(f"Table '{table}' has corresponding .jira.csv file so no need to add to missing_tables={missing_tables}")
+    
+    return missing_tables
+
+
+def get_unique_sheet_names(missing_tables):
+    """
+    Extract unique sheet names from missing table list.
+    
+    Args:
+        missing_tables: List of table names in format 'sheet.tablename'
+    
+    Returns:
+        List of unique sheet names
+    """
+    sheet_names = set()
+    
+    for table_name in missing_tables:
+        if '.' in table_name:
+            sheet = table_name.split('.', 1)[0]
+            sheet_names.add(sheet)
+        else:
+            # If no dot, treat entire string as sheet name
+            print(f"Warning: table name '{table_name}' does not contain sheet name")
+
+    return list(sheet_names)
+
+
 from openpyxl import load_workbook
+
+def extract_table_rows(basename, worksheet_name=None, tablename=None):
+    """
+    Extract table rows from a specific worksheet in an Excel workbook.
+    
+    Parameters:
+    -----------
+    basename : str
+        Path to the Excel workbook file
+    worksheet_name : str
+        Name of the worksheet to process
+    tablename : str, optional
+        Specific table name to search for in <ai brief> tags
+        
+    Returns:
+    --------
+    dict
+        Dictionary mapping table_name -> list of rows
+    """
+    wb = load_workbook(basename)
+    ws = wb.active
+    
+    if worksheet_name:
+        ws = wb[worksheet_name]  # Access worksheet by name instead of wb.active
+
+    table_rows = {}     # maps table_name -> list of rows
+    curr_table = None
+
+    SPECIAL_TAGS = ("<jira>", "<ai brief>", "<run rate>", "<cycletime>")
+    aibrief_cells = []   # list to store coordinates of <aibrief> cells
+
+    # Iterate with cell objects, not just values
+    for row in ws.iter_rows(values_only=False):
+        row_values = [str(cell.value).strip() if cell.value is not None else "" for cell in row]
+
+        print(f"reading row = {row_values}")
+
+        # skip the row if all cells are blank
+        if all(v == "" for v in row_values):
+            continue
+
+        # check each cell for special tags (only if tablename is provided)
+        if tablename:
+            for cell in row:
+                print(f"checking cell_value: {cell.value}")
+                if cell.value and any(tag in str(cell.value) for tag in SPECIAL_TAGS):
+                    if "<ai brief>" in str(cell.value):
+                        print(f"found <ai brief> {cell.value} at coordinate={cell.coordinate} in row={row_values}")
+                        print(f"checking if tablename: {tablename} present")
+                        if tablename.replace("_", " ") in str(cell.value):
+                            print(f"found target tablename")
+                            # Get the cell one row below in the same column
+                            below_cell = ws.cell(row=cell.row + 1, column=cell.column)
+
+                            print(f"Cell below is at {below_cell.coordinate} with value: {below_cell.value}")
+
+                            aibrief_cells.append({
+                                "coordinate": cell.coordinate,
+                                "row": cell.row,
+                                "column": cell.column,
+                                "below_coordinate": below_cell.coordinate,
+                                "below_value": below_cell.value
+                            })
+
+                            break
+
+        # find if this row contains any special tag
+        tag_cells = [v for v in row_values if any(tag in v for tag in SPECIAL_TAGS)]
+
+        if tag_cells:
+            # close current table if we were collecting
+            if curr_table:
+                print(f"Finished collecting rows for table '{curr_table}'")
+
+            # check if this is a <jira> start
+            jira_cells = [v for v in tag_cells if "<jira>" in v]
+            if jira_cells:
+                #curr_table = jira_cells[0].rsplit("<jira>", 1)[0].rstrip().replace(" ", "_").lower()
+                curr_table = jira_cells[0].rsplit("<jira>", 1)[0].rstrip().replace(" ", "_")  # keep case as-is
+                print(f"curr_table set to {curr_table}")                
+                print(f"checking worksheet_name={worksheet_name} against sheet={sheet}")
+                if worksheet_name and worksheet_name != sheet:
+                    # we are extracting from specific worksheet, prefix table name with sheet name
+                    # because this will be lookup with with refer_tables which have sheet.tablename format
+                    curr_table = f"{worksheet_name}.{curr_table}"
+                    print(f"updating currtable to {curr_table} because sheet {worksheet_name} is different from active sheet {sheet}")
+
+                table_rows[curr_table] = []   # start fresh list
+                print(f"Found <jira> table '{curr_table}'")
+            else:
+                # other tag encountered: stop collecting
+                curr_table = None
+
+            continue  # skip storing this header row itself
+
+        # if inside a <jira> table, add rows
+        if curr_table:
+            table_rows[curr_table].append(row_values)
+
+    if curr_table:
+        print(f"Finished collecting rows for table '{curr_table}'")
+
+    return table_rows, aibrief_cells
+
+
+
+'''from openpyxl import load_workbook
 
 wb = load_workbook(basename)
 ws = wb.active
@@ -249,7 +438,7 @@ ws = wb.active
 table_rows = {}     # maps table_name -> list of rows
 curr_table = None
 
-SPECIAL_TAGS = ("<jira>", "<ai brief>")   # extend this if you have more tags
+SPECIAL_TAGS = ("<jira>", "<ai brief>", "<run rate>","<cycletime>")   # extend this if you have more tags
 aibrief_cells = []   # list to store coordinates of <aibrief> cells
 
 # Iterate with cell objects, not just values
@@ -284,6 +473,11 @@ for row in ws.iter_rows(values_only=False):
                         "below_value": below_cell.value
                     })
 
+                    # no need to check other tags in this cell since we found the table
+                    # note that aibrief.py is called for single aibrief.scope.yaml at a time by refresh.py
+                    # so we don't need to search for other aibrief tags in this run
+                    break  
+
     # find if this row contains any special tag
     tag_cells = [v for v in row_values if any(tag in v for tag in SPECIAL_TAGS)]
 
@@ -307,8 +501,15 @@ for row in ws.iter_rows(values_only=False):
     # if inside a <jira> table, add rows
     if curr_table:
         table_rows[curr_table].append(row_values)
+'''
+
+
+# we pass tablename in this case to identify which <aibrief> tag to process
+table_rows, aibrief_cells = extract_table_rows(basename, sheet, tablename)
 
 # Debug: print collected <aibrief> positions
+# not sure why this is needed but leaving it in for now.
+# we will only have single aibrief tag per yaml_file processed i don't below is needed or makes sense
 print("Found <aibrief> tags at:")
 for cell in aibrief_cells:
     print(f" - {cell['coordinate']} (row {cell['row']}, col {cell['column']})")
@@ -321,17 +522,65 @@ for cell in aibrief_cells:
 context = ""
 aibrief_context = ""
 
-print("\n=== Dump of collected tables ===")
+
+# Refresh.py calls aibrief.py after processing all other tables in the seet.
+# So make sure all the refer_tables have data files in this folder
+# if not then assume the table is from a different sheet and
+# we need to run resync on that sheet before proceeding.
+# Once we have generated data files for other sheets we will
+# also have to update table_rows by scanning those sheets too to
+# collect the rows for those tables.
+
+
+
+from refresh import *
+from my_utils import *  
+
+missing_tables = check_missing_table_files(refer_tables, os.getcwd())
+
+sheets_to_resync = get_unique_sheet_names(missing_tables)
+
+
+if sheets_to_resync:
+    print(f"Warning: The following tables do not have matching .jira.csv files in the folder: {missing_tables}")
+    #print("Please run resync on the corresponding sheets to generate the required data files before proceeding.")
+    #sys.exit(1)
+    for wsheet in sheets_to_resync:
+        url = url + "#" + wsheet # append sheet fragment to URL because that's the format resync expects
+        print(f"Running resync on sheet '{url}' to generate data for sheet '{wsheet}'")
+        val= clean_sharepoint_url(url)  
+        cwd = os.getcwd()
+        resync(val,userlogin, delegated_auth, cwd, timestamp)  # call your function with the string value file URL and userlogin (used for working folder for script)
+
+        # After resync, extract table rows from this sheet and update table_rows
+        print(f"Extracting table rows from sheet '{wsheet}' after resync")
+        # in this case we do not care about the aibrief_cells returned because we already have them from the original sheet
+        # _ variable is used to ignore the second return value
+        new_table_rows, _ = extract_table_rows(basename, wsheet)
+        if (new_table_rows):
+            print(f"Extracted tables from sheet '{wsheet}': {list(new_table_rows.keys())}")
+            table_rows.update(new_table_rows)
+        else:
+            print(f"Warning: No tables extracted from sheet '{wsheet}' after resync.")
+
+# At this point we should have all the data from all the sheets needed to proceed.
+# if some tables are still missing then there must be some other issue in resync and we can skip those files
+# not fatal but are missing context data for LLM
+
+
+print("\n=== Aggregating data from all the collected tables that are referred by this <aibrief> ===")
 for table_name, rows in table_rows.items():
     print(f"\nTable: {table_name}")
     if (table_name in refer_tables):
+        print(f"{table_name} is in refer_tables={refer_tables}, generating context")
         for r in rows:
             print("  ", r)
         context = build_llm_context(table_rows[table_name], table_name, timestamp)
         print(f"context generated = {context}")
 
         # Compose filename
-        filename = f"{source}.{tablename}.{table_name}.aisummary.context.txt"
+        #filename = f"{source}.{sheet}.{tablename}.{table_name}.aisummary.context.txt"
+        filename = f"{source}.{table_name}.aisummary.context.txt"
         # Save context to file
         with open(filename, "w", encoding="utf-8") as f:
             f.write(context)
@@ -342,22 +591,24 @@ for table_name, rows in table_rows.items():
         print(f"{table_name} is not referred in {yaml_file} -> {refer_tables}")
 
 # Compose filename
-filename = f"{source}.{tablename}.aisummary.context.txt"
+filename = f"{source}.{sheet}.{tablename}.aibrief.context.txt"
 # Save context to file
 with open(filename, "w", encoding="utf-8") as f:
     f.write(aibrief_context)
-print(f"Context saved to {filename}")
+
+print(f"<aibrief> Context saved to {filename}")
 
 sysprompt = f"The following text is a csv data separated by | character. Refer to this project as Project {tablename}.  Read all of it and briefly as possible in the form of project status report for executive summary. highlight all milestones,  risks or blocking issues. Also add a paragraph of titled 'Executive Summary' at the top of your response with very brief business executive summary. Provide your summary in HTML format. Convert an items that have corresponding Jira id into URL link for that jira id listed below"
 
 if isinstance(aibrief_context, list):
     aibrief_context = "\n".join(aibrief_context)
 
+print(f"Calling get_summarized_comments with aibrief_context={aibrief_context[:255]}... and sysprompt={sysprompt[:255]}...")
 report = get_summarized_comments(aibrief_context, sysprompt)
 
 # Compose filename
 #filename = f"{os.path.splitext(source)[0]}.{tablename}.llm.txt"
-filename = f"{source}.{tablename}.aisummary.llm.txt"
+filename = f"{source}.{sheet}.{tablename}.aibrief.llm.txt"
 # Save context to file
 with open(filename, "w", encoding="utf-8") as f:
     f.write(report)
@@ -372,9 +623,13 @@ cleaned_response = cleaned_response.replace("|", "^")
 
 if aibrief_cells:
     #changes = f"{aibrief_cells[0]["coordinate"]} = {report} || "
-    changes = f"{below_cell.coordinate} = {timestamp}:{cleaned_response} || "
+    first_abrief =  aibrief_cells[0]
+    below_cell = first_abrief["below_coordinate"]
+
+    changes = f"{below_cell} = {timestamp}:{cleaned_response} || "
+    #changes = f"{below_coordinate} = {timestamp}:{cleaned_response} || "
     #filename = f"{os.path.splitext(source)[0]}.{tablename}.changes.txt"
-    filename = f"{source}.{tablename}.aisummary.changes.txt"
+    filename = f"{source}.{sheet}.{tablename}.aibrief.changes.txt"
     # Save context to file
     with open(filename, "w", encoding="utf-8") as f:
         f.write(changes)
@@ -382,7 +637,7 @@ if aibrief_cells:
 
     for email_id in email_list:
         print(f"Sending email to {email_id}")
-        send_markdown_email(f"AI Connector update {basename}.{tablename}","fz96tw@gmail.com", email_id, report )
+        send_markdown_email(f"AI Connector update {basename}.{sheet}.{tablename}","fz96tw@gmail.com", email_id, report )
 
 else:
     print(f"aibrief_cells is empty so no changes.txt to write")

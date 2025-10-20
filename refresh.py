@@ -92,13 +92,15 @@ def delete_old_folders_by_hours(path: str, hours: int):
 
 
 
-def resync(url: str, userlogin, delegated_auth):
+def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
     """
     Full resync process with recursive handling of YAML files.
     """
 
     import uuid
     run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+    logger.info(f"run_id set to {run_id}")        
+
 
     # do this right here instead of later to limit the number of changes
     # i need to make to add support for sheet name
@@ -115,19 +117,31 @@ def resync(url: str, userlogin, delegated_auth):
     filename = unquote(filename)  # decode %20 → space if there are space chars in filename
 
     basename, _ = os.path.splitext(filename)      # e.g., Milestones
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    logger.info(f"timestamp not provided, so generated new timestamp {timestamp}")        
+
+    if ts is not None:
+        timestamp = ts
+        logger.info(f"timestamp provided, re-using {timestamp} instead")        
+
     logger.info(f"resync: timestamp = {timestamp}")
     base_dir = os.path.dirname(__file__)
 
-    work_dir = os.path.join(base_dir, "logs", userlogin, run_id)
-    os.makedirs(work_dir, exist_ok=True)
+    if workdir is None:
+        work_dir = os.path.join(base_dir, "logs", userlogin, run_id)
+        os.makedirs(work_dir, exist_ok=True)
+        logger.info(f"workdir not provided, creating a new workdir {work_dir}")        
+    else:
+        logger.info(f"workdir provided: {workdir}")
+        work_dir = workdir
+
 
 #    logs_dir = os.path.join(base_dir, "logs")
     logs_dir = work_dir  # os.path.join(base_dir, f"logs/{userlogin}")  # keep log in the user folder same place as yaml and other temp fiels
     os.makedirs(logs_dir, exist_ok=True) 
 
-    log_file= os.path.join(logs_dir, f"{basename}_{timestamp}.log")
+    # keep sheet specific log files, makes it easuer to find log with resync is called for specific sheet
+    log_file= os.path.join(logs_dir, f"{basename}.{sheet}.{timestamp}.log")
 
     fileinfo = {}
     fileinfo["filename"] = filename
@@ -191,8 +205,7 @@ def resync(url: str, userlogin, delegated_auth):
 
         return output_lines
 
-    '''
-    def run_post_import_resync_chain(csv_files, file_url, input_file):
+    '''def run_post_import_resync_chain(csv_files, file_url, input_file):
         def extract_substring_from_csv(path):
             m = re.match(rf"{re.escape(input_file)}\.(.+)\.jira\.csv", os.path.basename(path))
             return m.group(1) if m else ""
@@ -249,7 +262,11 @@ def resync(url: str, userlogin, delegated_auth):
 
         exec_summary_yaml_file = ""
         for yaml_file in yaml_files:
+            if sheet.lower() not in yaml_file.lower():
+                logger.info(f"Skipping YAML file {yaml_file} as it does not match sheet {sheet}")
+                continue
             logger.info(f"Processing YAML file: {yaml_file}")
+
             match = re.match(rf"{re.escape(input_file)}\.(.+)\.scope\.yaml", os.path.basename(yaml_file))
             if not match:
                 continue
@@ -283,6 +300,10 @@ def resync(url: str, userlogin, delegated_auth):
                 elif "quickstart.scope.yaml" in yaml_file:
                     logger.info(f"Found QUIKSTART scope yaml file {yaml_file}")
                     run_and_log(["python", "-u", quickstart_script, yaml_file, timestamp], log, f"quickstart.py {yaml_file} {timestamp}")
+                elif "aibrief.scope.yaml" in yaml_file:
+                    # skip aibrief here since we will process them separately later
+                    logger.info(f"Skipping aibrief scope yaml file {yaml_file} here, will process later separately")
+                    break
                 else:
                     jira_csv = f"{input_file}.{substring}.jira.csv"
                     logger.info(f"Generating Jira CSV: {jira_csv}")
@@ -333,11 +354,14 @@ def resync(url: str, userlogin, delegated_auth):
                     # all files are process now so end the loop
                     break
  
-    def process_aibrief_yaml(file_url, input_file, timestamp):
-        yaml_pattern = os.path.join(work_dir, f"{input_file}.*.{timestamp}.aisummary.yaml")
+
+
+    def process_aibrief_yaml(file_url, input_file, timestamp, userlogin, delegated_auth):
+        yaml_pattern = os.path.join(work_dir, f"{input_file}.*.{timestamp}.aibrief.scope.yaml")
         yaml_files = glob.glob(yaml_pattern)
+        
         if not yaml_files:
-            msg = f"No aisummary.yaml files found matching pattern {yaml_pattern}"
+            msg = f"No aibrief.scope.yaml files found matching pattern {yaml_pattern}"
             logger.warning(msg)
             log.write(msg + "\n")
             return
@@ -349,58 +373,103 @@ def resync(url: str, userlogin, delegated_auth):
         yaml_files.sort(key=extract_substring)
 
         if yaml_files:
-            logger.info(f"aisummary.yaml files found =  {yaml_files}")
+            logger.info(f"aibrief.scope.yaml files found =  {yaml_files}")
         else:
-            logger.info("No aisummary.yaml files found")
+            logger.info("No aibrief.scope.yaml files found")
 
         for yaml_file in yaml_files:
+            if sheet.lower() not in yaml_file.lower():
+                logger.info(f"Skipping YAML file {yaml_file} as it does not match sheet {sheet}")
+                continue
+
             logger.info(f"Start processing {yaml_file}")
-            run_and_log(["python", "-u", aibrief_script, yaml_file, timestamp], log, f"aibrief.py {yaml_file} {timestamp}")
-        
+            cmd = ["python", "-u", aibrief_script, file_url, yaml_file, timestamp, userlogin]
+            if delegated_auth:
+                logger.info("delegated_auth detected, adding --user_auth to aibrief.py call")
+                cmd.append("--user_auth")
+            #run_and_log(["python", "-u", aibrief_script, file_url, yaml_file, timestamp, userlogin], log, f"aibrief.py {yaml_file} {timestamp} {userlogin}")
+            run_and_log(cmd, log, f"aibrief.py {yaml_file} {timestamp} {userlogin}")
+  
 
 
     def process_aibrief_changes_txt(file_url, sheet, input_file, timestamp):
-        file_pattern = os.path.join(work_dir, f"{input_file}.*.aisummary.changes.txt")
+        file_pattern = os.path.join(work_dir, f"{input_file}.*.aibrief.changes.txt")
         changes_files = glob.glob(file_pattern)
         if not changes_files:
-            msg = f"No aisummary.changes.txt files found matching pattern {file_pattern}"
+            msg = f"No aibrief.changes.txt files found matching pattern {file_pattern}"
             logger.warning(msg)
             log.write(msg + "\n")
             return
 
         def extract_substring(path):
-            m = re.match(rf"{re.escape(input_file)}\.(.+)\.aisummary\.yaml", os.path.basename(path))
+            m = re.match(rf"{re.escape(input_file)}\.(.+)\.aibrief\.scope\.yaml", os.path.basename(path))
             return m.group(1) if m else ""
 
         changes_files.sort(key=extract_substring)
 
         if changes_files:
-            logger.info(f"aisummary.changes.txt files found =  {changes_files}")
+            logger.info(f"aibrief.changes.txt files found =  {changes_files}")
         else:
-            logger.info("No aisummary.changes.txt files found")
+            logger.info("No aibrief.changes.txt files found")
 
-        for changes_file in changes_files:    
-            logger.info(f"Updating SharePoint for {url} with changes from {changes_file}...")
-            if delegated_auth:
-                output_lines = run_and_log(
-                #["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin, "--user_auth"],
-                ["python", "-u", update_sharepoint_script, url, changes_file, timestamp, userlogin, sheet, "--user_auth"],
-                log,
-                f"update_sharepoint.py {url} {changes_file} {timestamp} {userlogin} {sheet} --user_auth"
-                )
-            else:
-                output_lines = run_and_log(
-                ["python", "-u", update_sharepoint_script, url, changes_file, timestamp, userlogin, sheet],
-                log,
-                f"update_sharepoint.py {url} {changes_file} {timestamp} {userlogin} {sheet}"
-                )
-           
+        for changes_file in changes_files:   
+            while True:    
+                if sheet.lower() not in changes_file.lower():
+                    logger.info(f"Skipping changes file {changes_file} as it does not match sheet {sheet}")
+                    continue
+
+                logger.info(f"Updating SharePoint for {url} with changes from {changes_file}...")
+                if delegated_auth:
+                    output_lines = run_and_log(
+                    #["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin, "--user_auth"],
+                    ["python", "-u", update_sharepoint_script, url, changes_file, timestamp, userlogin, sheet, "--user_auth"],
+                    log,
+                    f"update_sharepoint.py {url} {changes_file} {timestamp} {userlogin} {sheet} --user_auth"
+                    )
+                else:
+                    output_lines = run_and_log(
+                    ["python", "-u", update_sharepoint_script, url, changes_file, timestamp, userlogin, sheet],
+                    log,
+                    f"update_sharepoint.py {url} {changes_file} {timestamp} {userlogin} {sheet}"
+                    )
+            
+                if any("Aborting update" in line for line in output_lines):
+                    wait_msg = f"Aborting update detected for {changes_file}, waiting 30 seconds before retry..."
+                    logger.warning(wait_msg)
+                    log.write(wait_msg + "\n")
+
+                    #commented out possible bug. read_jira and update_excel were cusing diff timestamps after an Abort. ?!
+                    # prob ok to re-use the same timestamp because files will be overwritten anyway.
+                    #timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")   #commented out possible bug. read_jira and update_excel were cusing diff timestamps after an Abort. ?!
+                    
+                    time.sleep(30)
+                    
+                    # we had tag mismatch so let's download again to update file and tag
+                    logger.info(f"Re-downloading {file_url}...")
+        #                run_and_log(["python", "-u", download_script, file_url, timestamp], log, f"download.py {file_url} {timestamp}")
+                    if delegated_auth:
+                        logger.info("delegated_auth detected")
+                        run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
+                    else:
+                        run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+
+                    continue
+
+                else:
+                    
+                    # now process exec_summary yaml file if one was present
+                    #if (exec_summary_yaml_file):
+                        #print(f"About to process exec summary file = {exec_summary_yaml_file}")    
+                    
+                    # all files are process now so end the loop
+                    break
                 
 
 
     with open(log_file, "w", encoding="utf-8") as log:
         try:
 
+            logger.info(f"Downloading {url}...")
             if delegated_auth:
                 logger.info("delegated_auth detected")
                 run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
@@ -410,8 +479,9 @@ def resync(url: str, userlogin, delegated_auth):
 
             logger.info("about to call process_yaml")
             process_yaml(url, filename, sheet, timestamp, delegated_auth, userlogin)
+            
             logger.info("about to call process_aibrief_yaml")
-            process_aibrief_yaml(url, filename, timestamp)
+            process_aibrief_yaml(url, filename, timestamp, userlogin, delegated_auth)
 
             # need to download xlsx file again since process_yaml earlier updated
             # sharepoint and this means the meta data will not match any longer 
@@ -424,10 +494,10 @@ def resync(url: str, userlogin, delegated_auth):
                 run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
 
             logger.info("about to call process_aibrief_changes_txt")
-            process_aibrief_changes_txt(url, filename, timestamp)
+            process_aibrief_changes_txt(url, sheet, filename, timestamp)
 
         except Exception as e:
-            err_msg = f"Error running resync: {e}"
+            err_msg = f"Error while running resync: {e}"
             logger.exception(err_msg)
             log.write(err_msg + "\n")
 

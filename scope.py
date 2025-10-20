@@ -14,18 +14,18 @@ import re
 '''
 
 def read_excel_rows(filename, sheet_name=0):
-    df = pd.read_excel(filename, sheet_name=sheet_name)
+    df = pd.read_excel(filename, sheet_name=sheet_name, header=None)
     return df.values.tolist()
 
 
-def set_output_filename(filename, table_name, timestamp, import_found=False, jira_create_found=False, runrate_found=False) -> str:
+def set_output_filename(filename, sheet, table_name, timestamp, import_found=False, jira_create_found=False, runrate_found=False) -> str:
     print(f"set_output_filename called, timestamp = {timestamp}")
     base_name = os.path.basename(filename)         # "Book1.xlsx"
     #name, ext = os.path.splitext(base_name)        # name = "Book1", ext = ".xlsx"
-    outputfile = f"{base_name}.{table_name}.{timestamp}.scope.yaml"
-    outputfile = f"{base_name}.{table_name}.{timestamp}.import.scope.yaml" if import_found else outputfile
-    outputfile = f"{base_name}.{table_name}.{timestamp}.create.scope.yaml" if jira_create_found else outputfile
-    outputfile = f"{base_name}.{table_name}.{timestamp}.rate.scope.yaml" if runrate_found else outputfile
+    outputfile = f"{base_name}.{sheet}.{table_name}.{timestamp}.scope.yaml"
+    outputfile = f"{base_name}.{sheet}.{table_name}.{timestamp}.import.scope.yaml" if import_found else outputfile
+    outputfile = f"{base_name}.{sheet}.{table_name}.{timestamp}.create.scope.yaml" if jira_create_found else outputfile
+    outputfile = f"{base_name}.{sheet}.{table_name}.{timestamp}.rate.scope.yaml" if runrate_found else outputfile
     return outputfile  
 
 def is_valid_jira_id(jira_id: str) -> bool:
@@ -126,7 +126,7 @@ def write_execsummary_yaml(jira_ids, filename, file_info, timestamp):
     # step 4 read_jira will process this yaml downstream
     print("ExecSumamry processing now")
     #cleaned_value = "ExecSummary"
-    execsummary_scope_output_file = f"{filename}.{file_info['table']}.{timestamp}.aisummary.scope.yaml"
+    execsummary_scope_output_file = f"{filename}.{sheet}.{file_info['table']}.{timestamp}.aisummary.scope.yaml"
 
 
     file_info["scope file"] = execsummary_scope_output_file
@@ -301,6 +301,7 @@ if __name__ == "__main__":
     file_info = {
         "source": filename,
         "basename": os.path.basename(filename),
+        "sheet": sheet
         #"scope file": scope_output_file
     }
     
@@ -317,6 +318,7 @@ if __name__ == "__main__":
         value_counts = {}  # used to avoid field name clashes when using field_args in field name
 
         for idx, cell in enumerate(row):
+            orig_case_cell_str = str(cell).replace("\n", " ").replace("\r", " ").strip() # save original case for export to scope file
             cell_str = str(cell).replace("\n", " ").replace("\r", " ").strip().lower()
             #print(f"****** cell_str = {cell_str}")
             if ("<ai brief>" in cell_str and len(str(cell_str)) > 9): 
@@ -326,14 +328,14 @@ if __name__ == "__main__":
                 exec_summary_cell = "";
                 cleaned_value = str(cell).rsplit("<ai brief>", 1)[0].strip().replace(" ", "_")
                 #scope_output_file = set_output_filename(filename, cleaned_value, timestamp, jira_import_found, jira_create_found)
-                scope_output_file = f"{filename}.{cleaned_value}.{timestamp}.aisummary.yaml"
+                scope_output_file = f"{filename}.{sheet}.{cleaned_value}.{timestamp}.aibrief.scope.yaml"
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
                 file_info["table"] = cleaned_value
                 with open(scope_output_file, 'w') as f:
                     yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
        
-                ai_table_list = extract_ai_summary_table_list(cell_str, timestamp)
+                ai_table_list = extract_ai_summary_table_list(orig_case_cell_str, timestamp)
                 with open(scope_output_file, 'a') as f:
                     yaml.dump({"tables":ai_table_list}, f, default_flow_style=False)
 
@@ -367,7 +369,7 @@ if __name__ == "__main__":
 
                 # generate quickstart scope yaml file
                 cleaned_value = str(cell).rsplit("<cycletime>", 1)[0].strip().replace(" ", "_")
-                scope_output_file = f"{filename}.{cleaned_value}.{timestamp}.cycletime.scope.yaml"
+                scope_output_file = f"{filename}.{sheet}.{cleaned_value}.{timestamp}.cycletime.scope.yaml"
 
                 if "jql" in cell_str:
                     jql_str = cell_str.split("jql", 1)[1].strip()
@@ -433,7 +435,7 @@ if __name__ == "__main__":
 
                 # generate quickstart scope yaml file
                 cleaned_value = str(cell).rsplit("<quickstart>", 1)[0].strip().replace(" ", "_")
-                scope_output_file = f"{filename}.{cleaned_value}.{timestamp}.quickstart.scope.yaml"
+                scope_output_file = f"{filename}.{sheet}.{cleaned_value}.{timestamp}.quickstart.scope.yaml"
 
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
@@ -477,10 +479,10 @@ if __name__ == "__main__":
                 
                 if "<rate resolved>" in cell_str:
                     cleaned_value = str(cell).rsplit("<rate resolved>", 1)[0].strip().replace(" ", "_")
-                    scope_output_file = f"{filename}.{cleaned_value}.{timestamp}.resolved.rate.scope.yaml"
+                    scope_output_file = f"{filename}.{sheet}.{cleaned_value}.{timestamp}.resolved.rate.scope.yaml"
                 else:
                     cleaned_value = str(cell).rsplit("<rate assignee>", 1)[0].strip().replace(" ", "_")
-                    scope_output_file = f"{filename}.{cleaned_value}.{timestamp}.assignee.rate.scope.yaml"
+                    scope_output_file = f"{filename}.{sheet}.{cleaned_value}.{timestamp}.assignee.rate.scope.yaml"
 
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
@@ -591,7 +593,7 @@ if __name__ == "__main__":
 
                 runrate_found = False  # just make sure this is alwayd reset to false if we had a <rate> table before this. 
                 cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
-                scope_output_file = set_output_filename(filename, cleaned_value, timestamp, jira_import_found, jira_create_found, runrate_found)
+                scope_output_file = set_output_filename(filename, sheet, cleaned_value, timestamp, jira_import_found, jira_create_found, runrate_found)
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
                 file_info["table"] = cleaned_value
@@ -729,6 +731,11 @@ if __name__ == "__main__":
     # close the file
     f.close()
     print("Scope file created successfully:", scope_output_file)
-    write_execsummary_yaml(jira_ids, filename, file_info, timestamp)        # remmember to do this for the last table found in the sheet too!
+    
+    # remmember to do this for the last table found in the sheet too!
+    # but if this scope was being done on <ai brief> then no need
+    # to make a aisummary.scope.yaml since it doesn't have any content on its own.
+    if not exec_summary_found:
+        write_execsummary_yaml(jira_ids, filename, file_info, timestamp)        
 
 
