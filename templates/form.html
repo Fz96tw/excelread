@@ -251,6 +251,70 @@
             width: 100%;              /* span full menu width */
         }
 
+    /* Task Queue Status Styles */
+        .task-item {
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 4px;
+            border-left: 4px solid #ccc;
+            background: #f9f9f9;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .task-item.pending {
+            border-left-color: #f39c12;
+            background: #fff3cd;
+        }
+
+        .task-item.running {
+            border-left-color: #3498db;
+            background: #d1ecf1;
+        }
+
+        .task-item.completed {
+            border-left-color: #27ae60;
+            background: #d4edda;
+        }
+
+        .task-item.failed {
+            border-left-color: #e74c3c;
+            background: #f8d7da;
+        }
+
+        .task-info {
+            flex: 1;
+        }
+
+        .task-filename {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 4px;
+            word-break: break-all;
+        }
+
+        .task-times {
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .task-status-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-left: 10px;
+        }
+
+        .status-pending { background: #f39c12; color: white; }
+        .status-running { background: #3498db; color: white; }
+        .status-completed { background: #27ae60; color: white; }
+        .status-failed { background: #e74c3c; color: white; }
 
     </style>
 
@@ -303,9 +367,17 @@
 
             <div class="page-content">
  
-                <!-- NEW: Status message area -->
-                <div id="statusMessage" style="display: none; padding: 12px 20px; border-radius: 4px; margin-bottom: 15px;"></div>
+           
+                <!-- Task Queue Status Display -->
+                <div id="taskQueueStatus" style="display: none; background: #fff; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px; padding: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 2px solid #eee; padding-bottom: 8px;">
+                        <h3 style="margin: 0; font-size: 16px; color: #2c3e50;">📋 Active Tasks</h3>
+                        <button onclick="clearCompletedTasks()" style="padding: 4px 12px; font-size: 12px; cursor: pointer;">Clear Completed</button>
+                    </div>
+                    <div id="taskList"></div>
+                </div>
 
+                
                 <!-- Section 1: Jira -->
                 <div id="section1" class="section-content">
                     <div style="display:flex; align-items:center; gap:6px;">
@@ -418,7 +490,7 @@
                                 <td style="text-align:center; padding:1px;">
                                     <button type="button" onclick="handleResync('{{ val }}', event)">
                                         <img src="/static/sync-icon.png" alt="Resync">
-                                    </button>
+                                    </button>                                
                                 </td>
                                 <td style="text-align:center; padding:1px;">
                                     <form method="POST" action="/remove_sharepoint">
@@ -491,13 +563,9 @@
                                     </button>
                                 </td>
                                 <td style="text-align:center; padding:1px;">
-                                    <form method="POST">
-                                        <input type="hidden" name="resync_bar" value="{{ val }}">
-                                        <button type="submit" name="resync_bar" class="table-btn" onclick="return confirm('Resync {{ val }}?')">
-                                            <img src="/static/sync-icon.png" alt="Resync">
-                                        </button>
-                                    </form>
-
+                                    <button type="button" onclick="handleResync('{{ val }}', event)">
+                                        <img src="/static/sync-icon.png" alt="Resync">
+                                    </button>
                                 </td>
                                 <td style="text-align:center; padding:1px;">
                                     <form method="POST"  action="/remove_local">
@@ -1015,61 +1083,143 @@
         });
         */
 
-        /* ---------- Async Resync with Task Queue ---------- */
+         /* ========== Multi-Task Queue Status Display ========== */
 
-        function showNotification(message, type = 'info') {
-            const statusDiv = document.getElementById('statusMessage');
-            if (!statusDiv) {
-                console.log(`[${type}] ${message}`);
+        // Global task tracking
+        const activeTasks = new Map();
+        let globalPollInterval = null;
+
+        function formatTime(dateString) {
+            if (!dateString) return '--:--:--';
+            const date = new Date(dateString);
+            return date.toLocaleTimeString('en-US', { hour12: false });
+        }
+
+        function getShortFilename(url) {
+            const parts = url.split('/');
+            return parts[parts.length - 1] || url.substring(0, 50);
+        }
+
+        function updateTaskDisplay() {
+            const taskQueueDiv = document.getElementById('taskQueueStatus');
+            const taskListDiv = document.getElementById('taskList');
+            
+            if (activeTasks.size === 0) {
+                taskQueueDiv.style.display = 'none';
                 return;
             }
             
-            statusDiv.textContent = message;
-            statusDiv.style.display = 'block';
+            taskQueueDiv.style.display = 'block';
             
-            // Set background color based on type
-            const colors = {
-                'info': '#d1ecf1',
-                'success': '#d4edda',
-                'error': '#f8d7da',
-                'warning': '#fff3cd'
-            };
-            const borderColors = {
-                'info': '#bee5eb',
-                'success': '#c3e6cb',
-                'error': '#f5c6cb',
-                'warning': '#ffeaa7'
-            };
-            const textColors = {
-                'info': '#0c5460',
-                'success': '#155724',
-                'error': '#721c24',
-                'warning': '#856404'
-            };
+            let html = '';
+            activeTasks.forEach((task, taskId) => {
+                const shortFilename = getShortFilename(task.fileUrl);
+                const statusClass = task.status.toLowerCase();
+                const statusIcon = {
+                    'pending': '⏳',
+                    'running': '🔄',
+                    'completed': '✅',
+                    'failed': '❌'
+                }[task.status.toLowerCase()] || '•';
+                
+                html += `
+                    <div class="task-item ${statusClass}" data-task-id="${taskId}">
+                        <div class="task-info">
+                            <div class="task-filename">${statusIcon} ${shortFilename}</div>
+                            <div class="task-times">
+                                Created: ${formatTime(task.created_at)} | 
+                                Started: ${formatTime(task.started_at)} | 
+                                Completed: ${formatTime(task.completed_at)}
+                            </div>
+                            ${task.error ? `<div style="color: #e74c3c; font-size: 11px; margin-top: 4px;">Error: ${task.error}</div>` : ''}
+                        </div>
+                        <span class="task-status-badge status-${statusClass}">${task.status}</span>
+                    </div>
+                `;
+            });
             
-            statusDiv.style.backgroundColor = colors[type] || colors.info;
-            statusDiv.style.border = `1px solid ${borderColors[type] || borderColors.info}`;
-            statusDiv.style.color = textColors[type] || textColors.info;
-            
-            // Auto-hide success messages after 5 seconds
-            if (type === 'success') {
-                setTimeout(() => {
-                    statusDiv.style.display = 'none';
-                }, 5000);
+            taskListDiv.innerHTML = html;
+        }
+
+        function removeCompletedTask(taskId) {
+            const task = activeTasks.get(taskId);
+            if (task && (task.status === 'completed' || task.status === 'failed')) {
+                activeTasks.delete(taskId);
+                updateTaskDisplay();
+                console.log(`[Task] Removed completed task ${taskId.substring(0, 8)}`);
             }
+        }
+
+        function clearCompletedTasks() {
+            const toRemove = [];
+            activeTasks.forEach((task, taskId) => {
+                if (task.status === 'completed' || task.status === 'failed') {
+                    toRemove.push(taskId);
+                }
+            });
+            
+            toRemove.forEach(taskId => activeTasks.delete(taskId));
+            updateTaskDisplay();
+            console.log(`[Task] Cleared ${toRemove.length} completed tasks`);
+        }
+
+        async function pollAllTasks() {
+            try {
+                const response = await fetch('/tasks/status');
+                const data = await response.json();
+                
+                if (!data.success) {
+                    console.error('Failed to fetch task status');
+                    return;
+                }
+                
+                // Update all tracked tasks
+                data.tasks.forEach(task => {
+                    if (activeTasks.has(task.task_id)) {
+                        const localTask = activeTasks.get(task.task_id);
+                        localTask.status = task.status;
+                        localTask.started_at = task.started_at;
+                        localTask.completed_at = task.completed_at;
+                        localTask.progress = task.progress;
+                        localTask.error = task.error;
+                        
+                        // Auto-remove completed/failed tasks after 1 minute
+                        if ((task.status === 'completed' || task.status === 'failed') && !localTask.removeScheduled) {
+                            localTask.removeScheduled = true;
+                            setTimeout(() => removeCompletedTask(task.task_id), 60000);
+                        }
+                    }
+                });
+                
+                updateTaskDisplay();
+                
+            } catch (error) {
+                console.error('Error polling tasks:', error);
+            }
+        }
+
+        function startGlobalPolling() {
+            if (globalPollInterval) return; // Already polling
+            
+            globalPollInterval = setInterval(() => {
+                if (activeTasks.size > 0) {
+                    pollAllTasks();
+                } else {
+                    // Stop polling if no active tasks
+                    clearInterval(globalPollInterval);
+                    globalPollInterval = null;
+                }
+            }, 3000); // Poll every 3 seconds
         }
 
         async function handleResync(fileUrl, event) {
             if (event) event.preventDefault();
             
-            // Confirm before starting
             if (!confirm(`Start resync for ${fileUrl}?`)) {
                 return;
             }
             
             try {
-                showNotification('⏳ Starting resync...', 'info');
-                
                 const formData = new FormData();
                 formData.append('resync_bar', fileUrl);
                 
@@ -1081,68 +1231,48 @@
                 const data = await response.json();
                 
                 if (!data.success) {
-                    showNotification('❌ Failed to start resync: ' + data.message, 'error');
+                    alert('Failed to start resync: ' + data.message);
                     return;
                 }
                 
                 const taskId = data.task_id;
-                const shortId = taskId.substring(0, 8);
-                showNotification(`⏳ Resync queued (Task: ${shortId}...)`, 'info');
                 
-                // Start polling for completion
-                pollTaskStatus(taskId, fileUrl);
+                // Add to tracked tasks
+                activeTasks.set(taskId, {
+                    taskId: taskId,
+                    fileUrl: fileUrl,
+                    status: 'pending',
+                    created_at: new Date().toISOString(),
+                    started_at: null,
+                    completed_at: null,
+                    progress: 0,
+                    error: null,
+                    removeScheduled: false
+                });
+                
+                updateTaskDisplay();
+                startGlobalPolling();
+                
+                console.log(`[Task] Queued resync for ${fileUrl} (${taskId.substring(0, 8)})`);
                 
             } catch (error) {
                 console.error('Resync error:', error);
-                showNotification('❌ Error starting resync: ' + error.message, 'error');
+                alert('Error starting resync: ' + error.message);
             }
         }
 
-        function pollTaskStatus(taskId, fileUrl) {
-            let pollCount = 0;
-            const maxPolls = 150; // 5 minutes at 2-second intervals
-            
-            const pollInterval = setInterval(async () => {
-                pollCount++;
-                
-                try {
-                    const response = await fetch(`/tasks/status?task_id=${taskId}`);
-                    //const response = await fetch(`/tasks/status`);
-                    const data = await response.json();
-                    
-                    if (!data.success) {
-                        clearInterval(pollInterval);
-                        showNotification('❌ Error checking task status', 'error');
-                        return;
-                    }
-                    
-                    const task = data.task;
-                    
-                    if (task.status === 'completed') {
-                        clearInterval(pollInterval);
-                        showNotification(`✅ Resync completed successfully for ${fileUrl}`, 'success');
-                    } 
-                    else if (task.status === 'failed') {
-                        clearInterval(pollInterval);
-                        showNotification(`❌ Resync failed: ${task.error}`, 'error');
-                    } 
-                    else if (task.status === 'running') {
-                        showNotification(`⏳ Resync in progress... (${task.progress}%)`, 'info');
-                    }
-                    
-                    // Timeout after max polls
-                    if (pollCount >= maxPolls) {
-                        clearInterval(pollInterval);
-                        showNotification('⚠️ Resync is taking longer than expected. Check logs.', 'warning');
-                    }
-                    
-                } catch (error) {
-                    clearInterval(pollInterval);
-                    console.error('Polling error:', error);
-                    showNotification('❌ Error checking task status', 'error');
-                }
-            }, 2000); // Poll every 2 seconds
-        }
+
+        window.addEventListener('beforeunload', () => {
+            localStorage.setItem('activeTasks', JSON.stringify([...activeTasks]));
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = JSON.parse(localStorage.getItem('activeTasks') || '[]');
+            saved.forEach(([id, task]) => activeTasks.set(id, task));
+            updateTaskDisplay();
+            startGlobalPolling();
+        });
+
     </script>
 </body>
 </html>
