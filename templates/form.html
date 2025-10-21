@@ -302,6 +302,10 @@
             <!--img src="{{ banner_path }}" alt="Banner" class="banner"-->
 
             <div class="page-content">
+ 
+                <!-- NEW: Status message area -->
+                <div id="statusMessage" style="display: none; padding: 12px 20px; border-radius: 4px; margin-bottom: 15px;"></div>
+
                 <!-- Section 1: Jira -->
                 <div id="section1" class="section-content">
                     <div style="display:flex; align-items:center; gap:6px;">
@@ -405,11 +409,16 @@
                                         <img src="/static/schedule-icon.png" alt="Schedule">
                                     </button>
                                 </td>
-                                <td style="text-align:center; padding:1px;">
+                                <!---td style="text-align:center; padding:1px;">
                                     <form method="POST">
                                         <input type="hidden" name="resync_bar" value="{{ val }}">
                                         <button type="submit"  name="resync_bar" onclick="return confirm('Resync {{ val }}?')"><img src="/static/sync-icon.png" alt="Resync"></button>
                                     </form>
+                                </td--->
+                                <td style="text-align:center; padding:1px;">
+                                    <button type="button" onclick="handleResync('{{ val }}', event)">
+                                        <img src="/static/sync-icon.png" alt="Resync">
+                                    </button>
                                 </td>
                                 <td style="text-align:center; padding:1px;">
                                     <form method="POST" action="/remove_sharepoint">
@@ -997,13 +1006,143 @@
             });
         });
 
+        /*      
         document.querySelectorAll("form input[name='resync_bar']").forEach(input => {
-        const form = input.closest("form");
-        form.addEventListener("submit", () => {
-            document.getElementById("loadingModal").style.display = "block";
+            const form = input.closest("form");
+            form.addEventListener("submit", () => {
+                document.getElementById("loadingModal").style.display = "block";
+            });
         });
-        });
+        */
 
+        /* ---------- Async Resync with Task Queue ---------- */
+
+        function showNotification(message, type = 'info') {
+            const statusDiv = document.getElementById('statusMessage');
+            if (!statusDiv) {
+                console.log(`[${type}] ${message}`);
+                return;
+            }
+            
+            statusDiv.textContent = message;
+            statusDiv.style.display = 'block';
+            
+            // Set background color based on type
+            const colors = {
+                'info': '#d1ecf1',
+                'success': '#d4edda',
+                'error': '#f8d7da',
+                'warning': '#fff3cd'
+            };
+            const borderColors = {
+                'info': '#bee5eb',
+                'success': '#c3e6cb',
+                'error': '#f5c6cb',
+                'warning': '#ffeaa7'
+            };
+            const textColors = {
+                'info': '#0c5460',
+                'success': '#155724',
+                'error': '#721c24',
+                'warning': '#856404'
+            };
+            
+            statusDiv.style.backgroundColor = colors[type] || colors.info;
+            statusDiv.style.border = `1px solid ${borderColors[type] || borderColors.info}`;
+            statusDiv.style.color = textColors[type] || textColors.info;
+            
+            // Auto-hide success messages after 5 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        async function handleResync(fileUrl, event) {
+            if (event) event.preventDefault();
+            
+            // Confirm before starting
+            if (!confirm(`Start resync for ${fileUrl}?`)) {
+                return;
+            }
+            
+            try {
+                showNotification('⏳ Starting resync...', 'info');
+                
+                const formData = new FormData();
+                formData.append('resync_bar', fileUrl);
+                
+                const response = await fetch('/resync_sharepoint', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    showNotification('❌ Failed to start resync: ' + data.message, 'error');
+                    return;
+                }
+                
+                const taskId = data.task_id;
+                const shortId = taskId.substring(0, 8);
+                showNotification(`⏳ Resync queued (Task: ${shortId}...)`, 'info');
+                
+                // Start polling for completion
+                pollTaskStatus(taskId, fileUrl);
+                
+            } catch (error) {
+                console.error('Resync error:', error);
+                showNotification('❌ Error starting resync: ' + error.message, 'error');
+            }
+        }
+
+        function pollTaskStatus(taskId, fileUrl) {
+            let pollCount = 0;
+            const maxPolls = 150; // 5 minutes at 2-second intervals
+            
+            const pollInterval = setInterval(async () => {
+                pollCount++;
+                
+                try {
+                    const response = await fetch(`/tasks/status?task_id=${taskId}`);
+                    //const response = await fetch(`/tasks/status`);
+                    const data = await response.json();
+                    
+                    if (!data.success) {
+                        clearInterval(pollInterval);
+                        showNotification('❌ Error checking task status', 'error');
+                        return;
+                    }
+                    
+                    const task = data.task;
+                    
+                    if (task.status === 'completed') {
+                        clearInterval(pollInterval);
+                        showNotification(`✅ Resync completed successfully for ${fileUrl}`, 'success');
+                    } 
+                    else if (task.status === 'failed') {
+                        clearInterval(pollInterval);
+                        showNotification(`❌ Resync failed: ${task.error}`, 'error');
+                    } 
+                    else if (task.status === 'running') {
+                        showNotification(`⏳ Resync in progress... (${task.progress}%)`, 'info');
+                    }
+                    
+                    // Timeout after max polls
+                    if (pollCount >= maxPolls) {
+                        clearInterval(pollInterval);
+                        showNotification('⚠️ Resync is taking longer than expected. Check logs.', 'warning');
+                    }
+                    
+                } catch (error) {
+                    clearInterval(pollInterval);
+                    console.error('Polling error:', error);
+                    showNotification('❌ Error checking task status', 'error');
+                }
+            }, 2000); // Poll every 2 seconds
+        }
     </script>
 </body>
 </html>
