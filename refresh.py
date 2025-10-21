@@ -416,7 +416,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
             while True:    
                 if sheet.lower() not in changes_file.lower():
                     logger.info(f"Skipping changes file {changes_file} as it does not match sheet {sheet}")
-                    continue
+                    break
 
                 logger.info(f"Updating SharePoint for {url} with changes from {changes_file}...")
                 if delegated_auth:

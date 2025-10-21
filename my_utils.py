@@ -2,6 +2,35 @@ import re
 
 
 
+# convert any rich-text formatting in any jira field who value is retrieved with getattr()
+# jira client getattr() adds markdown for jira rich fields that contain certain text, 
+# eg. hyperlinks have a'|' char which will break out jira.csv file format! 
+def clean_jira_wiki(text):
+
+    print(f"Original text before cleaning jira rich text formatting: {text}")
+    if not text:
+        print("Empty text, returning empty string") 
+        return ""
+
+    text = str(text)  # convert from jira object to string so we can call replace
+
+    # Replace wiki-style link markers [text|url] → url
+    # This simplistic approach assumes the link and text are similar or you don’t need to keep both.
+    text = text.replace("[", "(").replace("]", ")").replace("|", " ")
+
+    # Remove basic bold/italic markers (*bold*, _italic_)
+    text = text.replace("*", "").replace("_", "")
+
+    # Remove table/heading markers (|, ||, #)
+    text = text.replace("||", " ").replace("|", " ").replace("#", " ")
+
+    # Clean up (compact) any multiple spaces introduced by above replaces
+    text = " ".join(text.split())
+
+    print(f"Cleaned text after removing jira rich text formatting: {text}")    
+    return text.strip()
+
+
 def clean_sharepoint_url(url: str) -> str:
     """
     Cleans a SharePoint file URL by removing 'Shared Documents' or 'Shared Folders'

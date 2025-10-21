@@ -3,6 +3,10 @@ from openpyxl.styles import Alignment
 
 import re
 
+
+from my_utils import *
+
+
 #def is_valid_jira_id(jira_id):
 #    return re.match(r'^[A-Z][A-Z0-9]+-\d+$', jira_id) is not None or "JQL" not in jira_id
 
@@ -52,7 +56,7 @@ def load_jira_file(filename):
     field_names = [v.strip() for v in value_line.split(',')]
 
     if len(index_values) != len(field_names):
-        raise ValueError("Mismatch between number of field indexes and field names.")
+        raise ValueError(f"Mismatch between number of field indexes ({len(index_values)}) and field names ({len(field_names)}).")
 
     # Create a mapping of field names to their respective indexes.
     field_index_map = dict(zip(field_names, index_values))
@@ -63,11 +67,19 @@ def load_jira_file(filename):
         line = line.strip()
         if not line:
             continue  # skip blank lines
+
+        # never clean_jira_wiki in this module because it will remove our jira.csv separator '|'
+        #line = clean_jira_wiki(line)    # remove rich text formatting that jira uses. idealy should be done when exporting jira.csv but just in case
+
         parts = [p.strip() for p in line.split('|')]
         print(f"Processing line: {line}")
 
         if len(parts) != len(field_names):
-            print(f"Warning: Mismatched field count in {filename}. Make sure number of values ({len(parts)}) provided matches number of fields ({len(field_names)}).")
+            print(f"Warning: Skipping data row due to mismatched field count in {filename}. Make sure number of values ({len(parts)}) provided matches number of fields ({len(field_names)}).")
+            print(f"field_names = {field_names}")
+            print(f"parts:")
+            for part in parts:
+                print(f"part = {part}")
             continue
 
         # dictionary that maps field names to their corresponding values that we just read from the line
@@ -95,9 +107,9 @@ def convert_row_col_to_excel_coordinate(row, col):
 
 
 
-def process_jira_table_blocks(filename):
+def process_jira_table_blocks(filename, worksheet):
     wb = load_workbook(filename)
-    ws = wb.active
+    ws = wb[worksheet]
 
     printing = False  # Flag to track when we're in a Jira Table block
     printing_import_mode = False # flag to track when we're in a jira table block in import mode
@@ -418,14 +430,16 @@ def process_jira_table_blocks(filename):
 
 if __name__ == "__main__":
     #main()
-    if len(sys.argv) < 3:
-        print("Usage: python update_excel.py <csv file> <xlsx file>")
+    if len(sys.argv) < 4:
+        print("Usage: python update_excel.py <csv file> <xlsx file> <sheet>")
         sys.exit(1)
     
     jiracsv = sys.argv[1]
-    print(f"Received argument: {jiracsv}")
+    print(f"Received argument jiracsv: {jiracsv}")
     xlfile = sys.argv[2]
-    print(f"Received argument: {xlfile}")
+    print(f"Received argument xlfile: {xlfile}")
+    sheet = sys.argv[3]
+    print(f"Received argument sheet: {sheet}")
 
     import_mode = False
     execsummary_mode = False
@@ -454,7 +468,8 @@ if __name__ == "__main__":
     if (execsummary_mode):
         print(f"Skipping file {jiracsv} since it is an intended for <ai brief> post processing")
     else:
-        process_jira_table_blocks(xlfile)
+        print(f"Calling process_jira_table_blocks({xlfile})...")
+        process_jira_table_blocks(xlfile, sheet)
     
     print("Finished processing Jira Table blocks.")
 

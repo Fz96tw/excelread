@@ -14,6 +14,7 @@ user_cache = {}
 import requests
 from requests.auth import HTTPBasicAuth
 
+from my_utils import *
 
 # Cache dictionary to avoid repeated calls
 user_cache = {}
@@ -125,7 +126,7 @@ def get_summarized_comments(comments_list_asc, field_arg=None):
     except Exception as e:
         # Log the exception and return a safe default
         print(f"[EXCEPTION THROWN ERROR] get_summarized_comments failed: {e}")
-        return "[ERROR] Summary could not be generated."
+        return "[ERROR] Summary could not be generated due to exceptions during LLM interaction."
 
 def get_user_display_name(account_id):
     if account_id in user_cache:
@@ -226,29 +227,6 @@ def get_llm_model(llm_config_file):
 
 
 
-# convert any rich-text formatting in any jira field who value is retrieved with getattr()
-# jira client getattr() adds markdown for jira rich fields that contain certain text, 
-# eg. hyperlinks have a'|' char which will break out jira.csv file format! 
-def clean_jira_wiki(text):
-    if not text:
-        return ""
-
-    text = str(text)  # convert from jira object to string so we can call replace
-
-    # Replace wiki-style link markers [text|url] → url
-    # This simplistic approach assumes the link and text are similar or you don’t need to keep both.
-    text = text.replace("[", "(").replace("]", ")").replace("|", " ")
-
-    # Remove basic bold/italic markers (*bold*, _italic_)
-    text = text.replace("*", "").replace("_", "")
-
-    # Remove table/heading markers (|, ||, #)
-    text = text.replace("||", " ").replace("|", " ").replace("#", " ")
-
-    # Clean up (compact) any multiple spaces introduced by above replaces
-    text = " ".join(text.split())
-
-    return text.strip()
 
 
 
@@ -507,7 +485,8 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
 
 #                    value = value.replace("\n","")
                     value = str(value).replace("\r", "").replace("\n", "")
-                    print(f"AFTER CALLING REPLACE IN COMMENTS = {value}")
+                    value = clean_jira_wiki(value)
+                    print(f"After removing newlines and jira rich text formating from value = {value}")
                     from datetime import datetime
                     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     value = "As of " + now_str + ";" + value
@@ -647,6 +626,7 @@ if jql_ids:
                             for comment in sorted_comments:
                                 comments_str = comment.body
                                 comments_str = comments_str.replace("\n","").replace("\r","")
+                                comments_str = clean_jira_wiki(comments_str)
                                 comments_list.append("; ".join([
                                     f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comments_str)}"
                                 #    f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
@@ -656,6 +636,7 @@ if jql_ids:
                             for comment in sorted_comments_asc:
                                 comments_str = comment.body
                                 comments_str = comments_str.replace("\n","").replace("\r","")
+                                comments_str = clean_jira_wiki(comments_str)   
                                 comments_list_asc.append("; ".join([
                                     f"{comment.created[:10]} - {comment.author.displayName} wrote: {replace_account_ids_with_names(comments_str)}"
                                     #f"{comment.created[:10]} - {comment.author.displayName} wrote: {replace_account_ids_with_names(comment.body)}"
@@ -695,6 +676,7 @@ if jql_ids:
                      
                     else:
                         value_str = str(value).replace("\n","")
+                        value_str = clean_jira_wiki(value_str)
                         print(f"Processing generic field: {field} with value: {value_str}")
                         generic_fields_list.append("▫️ [" + issue.key + "] " + value_str)
 
@@ -771,7 +753,8 @@ if jql_ids:
                 
                 print(f"Final value for field {field}: {value}")
 
-                value_str = value.replace("\r", "").replace("\n", "")   
+                value_str = value.replace("\r", "").replace("\n", "") 
+                value_str = clean_jira_wiki(value_str)  
                 if field in field_args:
                     print(f"found field_args[{field}] = {field_args.get(field)}")
                     print(f"about to call get_summarized_comments(value_str={value_str}, field_args={field_args[field]}")

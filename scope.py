@@ -174,7 +174,7 @@ def write_execsummary_yaml(jira_ids, filename, file_info, timestamp):
     print("ExecSummary scope yaml file created successfully:", execsummary_scope_output_file)
 
 
-def close_current_jira_table(jira_fields, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp): 
+def close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp): 
     print("close_current_jira_table called")
 
     if jira_fields and jira_create_rows:
@@ -189,8 +189,9 @@ def close_current_jira_table(jira_fields, jira_ids, jira_create_rows, scope_outp
         print(f"JIRA IDs found: {jira_ids}")
         with open(scope_output_file, 'a') as f:
             yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
-            print(f"Fieldname args found for: {jira_fields_default_value}")
-            yaml.dump({"field_args": jira_fields_default_value}, f, default_flow_style=False)
+            if jira_fields_default_value:
+                print(f"Fieldname args found for: {jira_fields_default_value}")
+                yaml.dump({"field_args": jira_fields_default_value}, f, default_flow_style=False)
 
 
         print("JIRA rows have been written to output file:", scope_output_file)
@@ -324,6 +325,18 @@ if __name__ == "__main__":
             if ("<ai brief>" in cell_str and len(str(cell_str)) > 9): 
                                                
                 print(f"<ai brief> found in cell_str={cell_str}")
+
+                if jira_table_found:
+                    close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
+                    jira_table_found = False
+                    jira_ids = []
+                    jira_fields = []
+                    jira_fields_default_value = {}
+                    fields_found = False
+                    jira_import_found = False
+                    jira_create_found = False
+                    jira_create_rows = []
+
                 exec_summary_found = True;
                 exec_summary_cell = "";
                 cleaned_value = str(cell).rsplit("<ai brief>", 1)[0].strip().replace(" ", "_")
@@ -335,6 +348,7 @@ if __name__ == "__main__":
                 with open(scope_output_file, 'w') as f:
                     yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
        
+                # this is the refer_tables list for aibrief processing downstream
                 ai_table_list = extract_ai_summary_table_list(orig_case_cell_str, timestamp)
                 with open(scope_output_file, 'a') as f:
                     yaml.dump({"tables":ai_table_list}, f, default_flow_style=False)
@@ -355,7 +369,7 @@ if __name__ == "__main__":
                 #print(f"Jira projects found for cycletime: {jira_proj_list}")
 
                 if jira_table_found:
-                    close_current_jira_table(jira_fields, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
+                    close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
                     jira_table_found = False
                     jira_ids = []
                     jira_fields = []
@@ -421,7 +435,7 @@ if __name__ == "__main__":
                 print(f"Jira projects found for quickstart: {jira_proj_list}")
 
                 if jira_table_found:
-                    close_current_jira_table(jira_fields, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
+                    close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
                     jira_table_found = False
                     jira_ids = []
                     jira_fields = []
@@ -456,7 +470,7 @@ if __name__ == "__main__":
             elif "<rate resolved>" in cell_str or "<rate assignee>" in cell_str:
                 
                 if jira_table_found:
-                    close_current_jira_table(jira_fields, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
+                    close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
                     jira_table_found = False
                     jira_ids = []
                     jira_fields = []
@@ -534,8 +548,9 @@ if __name__ == "__main__":
                         print(f"JIRA IDs found: {jira_ids}")
                         with open(scope_output_file, 'a') as f:
                             yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
-                            print(f"Fieldname args found for: {jira_fields_default_value}")
-                            yaml.dump({"field_args": jira_fields_default_value}, f, default_flow_style=False)
+                            if jira_fields_default_value:   
+                                print(f"Fieldname args found for: {jira_fields_default_value}")
+                                yaml.dump({"field_args": jira_fields_default_value}, f, default_flow_style=False)
 
 
                         print("JIRA rows have been written to output file:", scope_output_file)

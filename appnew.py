@@ -593,7 +593,7 @@ if len(sys.argv) == 2:
         cache = load_cache(userlogin)
         cca = _build_msal_app(cache)
 else:
-    print(f"defaulting to application authorization since user_auth argument not specified")    
+    print(f"defaulting to application authorization since user_auth argument not specified")   
     cache = load_cache()
     print("calling build_msal_app(cache)")
     cca = build_msal_app(cache)
@@ -635,6 +635,16 @@ if not scheduler.running:
     '''
     scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
     
+    # Add after your existing scheduler.start()
+    # automatic cleanup of task queue every hour
+    scheduler.add_job(
+        func=lambda: task_queue.clear_completed_tasks(older_than_minutes=60),
+        trigger='interval',
+        hours=1,
+        id='task_queue_cleanup',
+        replace_existing=True
+    )
+
     # Setup all the schedules since app is starting up
     schedule_jobs(scheduler,SCHEDULE_FILE, delegated_auth)
 
@@ -1190,6 +1200,116 @@ def clear_schedule():
 
     return jsonify({"success": True})
 
+
+
+# Add this import at the top of your file
+from task_queue import task_queue
+
+# ... rest of your existing imports and code ...
+
+
+# ============================================================================
+# TASK QUEUE ROUTES - Add these new routes
+# ============================================================================
+
+@app.route("/tasks/status", methods=["GET"])
+def get_task_status():
+    """Get status of all tasks or a specific task"""
+    task_id = request.args.get("task_id")
+    user = current_user.username if current_user.is_authenticated else None
+    
+    if task_id:
+        task = task_queue.get_task(task_id)
+        if task:
+            return jsonify({"success": True, "task": task.to_dict()})
+        else:
+            return jsonify({"success": False, "message": "Task not found"}), 404
+    else:
+        # Return all tasks for this user
+        tasks = task_queue.get_all_tasks(user=user)
+        status = task_queue.get_queue_status()
+        return jsonify({
+            "success": True,
+            "tasks": tasks,
+            "queue_status": status
+        })
+
+
+@app.route("/tasks/cancel/<task_id>", methods=["POST"])
+def cancel_task_route(task_id):
+    """Cancel a pending task"""
+    success = task_queue.cancel_task(task_id)
+    if success:
+        return jsonify({"success": True, "message": "Task cancelled"})
+    else:
+        return jsonify({
+            "success": False, 
+            "message": "Task not found or already running"
+        }), 400
+
+
+@app.route("/tasks/clear", methods=["POST"])
+def clear_old_tasks():
+    """Clear completed tasks older than 1 hour"""
+    cleared = task_queue.clear_completed_tasks(older_than_minutes=60)
+    return jsonify({"success": True, "cleared": cleared})
+
+
+
+# ADD THIS NEW ROUTE INSTEAD:
+@app.route("/resync_sharepoint", methods=["POST"])
+def resync_sharepoint():
+    """Queue a resync task (async)"""
+    val = request.form.get('resync_bar')
+    user = current_user.username if current_user.is_authenticated else None
+    
+    if not val:
+        return jsonify({"success": False, "message": "No file specified"}), 400
+    
+    # Clean the URL
+    val = clean_sharepoint_url(val)
+    
+    # Enqueue the task
+    task_id = task_queue.enqueue(
+        resync_task_worker,
+        file_url=val,
+        userlogin=user,
+        delegated_auth=delegated_auth,
+        user=user
+    )
+    
+    return jsonify({
+        "success": True,
+        "message": f"Resync started for {val}",
+        "task_id": task_id
+    })
+
+
+# ============================================================================
+# BACKGROUND WORKER FUNCTION - Add this new function
+# ============================================================================
+
+def resync_task_worker(file_url, userlogin, delegated_auth):
+    """
+    Background task that performs the actual resync.
+    This runs in a separate thread via the task queue.
+    """
+    print(f"[Task Worker] Starting resync for {file_url}, user: {userlogin}")
+    
+    try:
+        # Call your existing resync function
+        result = resync(file_url, userlogin, delegated_auth)
+        
+        print(f"[Task Worker] Resync completed successfully for {file_url}")
+        return {
+            "status": "success",
+            "file": file_url,
+            "result": result
+        }
+    
+    except Exception as e:
+        print(f"[Task Worker] Resync failed for {file_url}: {str(e)}")
+        raise  # Re-raise so task queue marks it as failed
 
 
 
