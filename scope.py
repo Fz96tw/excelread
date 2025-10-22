@@ -4,7 +4,18 @@ import sys
 import os
 import yaml
 import re
+from googleapiclient.discovery import build
+from google_oauth import *
 
+'''from google_oauth import (
+    get_google_flow,
+    load_google_token,
+    save_google_token,
+    logout_google,
+    is_google_logged_in,
+)'''
+
+from my_utils import *
 
 '''def read_excel_rows(filename):
     df = pd.read_excel(filename, header=None)  # Treat all rows as data
@@ -18,9 +29,39 @@ def read_excel_rows(filename, sheet_name=0):
     return df.values.tolist()
 
 
+def read_google_rows(googlelogin, spreadsheet_url_or_id, sheet_name=None):
+    """
+    Reads all rows from a Google Sheet, returns as list of lists.
+    sheet_name: name of the sheet; defaults to first sheet if None.
+    """
+    # Extract spreadsheet ID if URL is given
+    match = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", spreadsheet_url_or_id)
+    spreadsheet_id = match.group(1) if match else spreadsheet_url_or_id.strip()
+
+    # Load user's saved credentials
+    creds = load_google_token(googlelogin)
+    if not creds or not creds.valid:
+        raise Exception(f"❌ User {googlelogin} not logged in to Google Drive")
+
+    service = build("sheets", "v4", credentials=creds)
+
+    # If no sheet_name provided, get the first sheet
+    if sheet_name is None:
+        metadata = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+        sheet_name = metadata["sheets"][0]["properties"]["title"]
+
+    result = service.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id,
+        range=sheet_name
+    ).execute()
+
+    return result.get("values", [])
+
+
 def set_output_filename(filename, sheet, table_name, timestamp, import_found=False, jira_create_found=False, runrate_found=False) -> str:
     print(f"set_output_filename called, timestamp = {timestamp}")
-    base_name = os.path.basename(filename)         # "Book1.xlsx"
+    #base_name = os.path.basename(filename)         # "Book1.xlsx"
+    base_name = file_info["basename"]       # expected to be "Book1.xlsx"  or google doc id
     #name, ext = os.path.splitext(base_name)        # name = "Book1", ext = ".xlsx"
     outputfile = f"{base_name}.{sheet}.{table_name}.{timestamp}.scope.yaml"
     outputfile = f"{base_name}.{sheet}.{table_name}.{timestamp}.import.scope.yaml" if import_found else outputfile
@@ -127,7 +168,7 @@ def write_execsummary_yaml(jira_ids, filename, file_info, timestamp):
     print("ExecSumamry processing now")
     #cleaned_value = "ExecSummary"
     execsummary_scope_output_file = f"{filename}.{sheet}.{file_info['table']}.{timestamp}.aisummary.scope.yaml"
-
+    
 
     file_info["scope file"] = execsummary_scope_output_file
     #file_info["table"] = cleaned_value
@@ -201,7 +242,10 @@ def close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, j
 
         # always write exec sumamry yaml even tho we don't know if
         # will be needed/used
-        write_execsummary_yaml(jira_ids, filename, file_info, timestamp)  
+        if is_google_sheet:
+            write_execsummary_yaml(jira_ids, file_info["basename"], file_info, timestamp)  
+        else:
+            write_execsummary_yaml(jira_ids, filename, file_info, timestamp)  
 
     elif jira_create_rows:
         print("closing out previous scope file")
@@ -256,13 +300,14 @@ def is_row_blank(row):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 4:
-        print("Usage: python scope.py <filename> <sheet> <timestamp>")
+    if len(sys.argv) < 5:
+        print("Usage: python scope.py <filename> <sheet> <timestamp> <userlogin>")
         sys.exit(1)
 
     filename = sys.argv[1]
     sheet = sys.argv[2]
     timestamp = sys.argv[3]
+    userlogin = sys.argv[4] 
 
     '''if ":" in filename_ex:
         filename, sheet = filename_ex.split(":", 1)
@@ -275,7 +320,16 @@ if __name__ == "__main__":
     '''
 
     print(f"argv filename={filename} worksheet={sheet} timestamp={timestamp}")   
-    rows = read_excel_rows(filename, sheet_name=sheet)
+
+     # Detect if source is Google Sheet (simple heuristic: URL or just ID)
+    is_google_sheet = isinstance(filename, str) and ("docs.google.com/spreadsheets" in filename or re.match(r"^[a-zA-Z0-9-_]{20,}$", filename))
+
+    if is_google_sheet:
+        print(f"Reading Google Sheet: {filename}, sheet: {sheet}")
+        # For Google Sheets, assume userlogin is 'default' for now
+        rows = read_google_rows(userlogin, filename, sheet_name=sheet)
+    else:
+        rows = read_excel_rows(filename, sheet_name=sheet)
 
     last_idx, last_excel_row = get_last_data_row_from_rows(rows)    # Find the last row where any column has a non-NaN value
     print(f"Last data row index (0-based): {last_idx}, Excel row number (1-based): {last_excel_row}")
@@ -305,6 +359,11 @@ if __name__ == "__main__":
         "sheet": sheet
         #"scope file": scope_output_file
     }
+
+    if is_google_sheet:
+        doc_id = extract_google_doc_id(filename) or file_info["basename"]   
+        file_info["basename"] = get_google_drive_filename(userlogin, doc_id) or doc_id
+
     
     row_count = 0
     for outer_idx, row in enumerate(rows):
@@ -751,6 +810,9 @@ if __name__ == "__main__":
     # but if this scope was being done on <ai brief> then no need
     # to make a aisummary.scope.yaml since it doesn't have any content on its own.
     if not exec_summary_found:
-        write_execsummary_yaml(jira_ids, filename, file_info, timestamp)        
+        if is_google_sheet:
+            write_execsummary_yaml(jira_ids, file_info["basename"], file_info, timestamp)  
+        else:
+            write_execsummary_yaml(jira_ids, filename, file_info, timestamp)        
 
 

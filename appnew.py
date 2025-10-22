@@ -16,6 +16,8 @@ from refresh import *
 from my_scheduler import *
 from my_utils import *
 
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Allow HTTP for local dev
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key")  # Use a real secret in production
 
@@ -23,6 +25,7 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key")  # Use 
 #FOO_FILE = './config/.env'
 BAR_FILE = './config/.bar'
 BANNER_PATH = '/static/banner3.jpg'  # put banner.jpg in static folder
+GOOGLE_FILE = './config/.google'
 
 # -------------------------------
 # TOKEN MANAGEMENT
@@ -459,6 +462,67 @@ def login():
 #    return result["access_token"]
 
 
+from google_oauth_appnew import (
+    get_google_flow,
+    load_google_token,
+    save_google_token,
+    logout_google,
+    is_google_logged_in,
+)
+
+from googleapiclient.discovery import build
+
+@app.route("/google/login")
+def google_login():
+    if not current_user.is_authenticated:
+        return redirect(url_for("home"))
+
+    userlogin = current_user.username
+    flow = get_google_flow(userlogin)
+    auth_url, state = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent"
+    )
+    session["google_oauth_state"] = state
+    session["google_user"] = userlogin
+    print(f"🌐 Redirecting {userlogin} to Google OAuth...")
+    return redirect(auth_url)
+
+
+@app.route("/google/callback")
+def google_callback():
+    userlogin = session.get("google_user")
+    if not userlogin:
+        return "Missing session user", 400
+
+    flow = get_google_flow(userlogin)
+    flow.fetch_token(authorization_response=request.url)
+    creds = flow.credentials
+    save_google_token(creds, userlogin)
+
+    return """
+        <html><body style='font-family:sans-serif;text-align:center;padding:40px;'>
+        <h2>✅ Google Login Successful</h2>
+        <p>You may close this window.</p>
+        <script>
+            try { window.opener && window.opener.postMessage('google-login-success', '*'); } catch(e) {}
+            setTimeout(() => window.close(), 1000);
+        </script>
+        </body></html>
+    """
+
+
+@app.route("/google/logout")
+def google_logout():
+    if not current_user.is_authenticated:
+        return redirect(url_for("home"))
+
+    userlogin = current_user.username
+    logout_google(userlogin)
+    return redirect(url_for("index"))
+
+
 import os
 from flask import Flask, render_template, jsonify, send_from_directory, request
 
@@ -662,8 +726,12 @@ def map_windows_path_to_container(path: str) -> str:
     return path
 
 
-bar_values = read_file_lines(BAR_FILE)
-local_file_values = read_file_lines(LOCAL_FILES)
+bar_values = []
+google_values = []
+local_file_values = []
+
+#bar_values = read_file_lines(BAR_FILE)
+#local_file_values = read_file_lines(LOCAL_FILES)
 user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
 
 logged_in = False
@@ -715,6 +783,7 @@ def authorized():
 
 auth_user_email = ""
 auth_user_name = ""
+google_user_email = ""
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -733,6 +802,10 @@ def index():
     global logged_in
     global auth_user_email
     global auth_user_name
+    global google_user_email
+    global BAR_FILE
+    global GOOGLE_FILE
+    global LOCAL_FILES
 
     if (delegated_auth):
         print ("/ route is using delegated_auth flow")
@@ -770,8 +843,6 @@ def index():
             print("No existing accounts found in token cache")
             #return '<a href="/login">Login with Microsoft</a>'
             logged_in = False
-
-    
 
 
     user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
@@ -830,12 +901,23 @@ def index():
             "jira_token": foo_lines[2],
         }
     '''
-    
+
+ 
+    if delegated_auth:
+        BAR_FILE = f"./config/.bar_{userlogin}"
+        LOCAL_FILES = f"./config/files_local_{userlogin}.json"
+        GOOGLE_FILE = f"./config/.google_{userlogin}"
+        print(f"using delegated auth so BAR_FILE = {BAR_FILE}, LOCAL_FILES = {LOCAL_FILES}, GOOGLE_FILE = {GOOGLE_FILE}")
+   
     bar_values = read_file_lines(BAR_FILE)
     print(f"/ route loaded bar_values = {bar_values}")
 
     local_file_values = read_file_lines(LOCAL_FILES)
     print(f"/ route loaded local_file_values = {local_file_values}")    
+
+    google_values = read_file_lines(GOOGLE_FILE)
+    print(f"/ route loaded google_values = {google_values}")
+
     bar_values_original = {}
 
     if not delegated_auth:
@@ -876,7 +958,8 @@ def index():
                 if new_val not in bar_values and new_val not in local_file_values:
                     print(f"{new_val} added to bar_values")   
                     bar_values.append(new_val)
-                    write_file_lines(BAR_FILE, bar_values)                        
+                    write_file_lines(BAR_FILE, bar_values)   
+                    print(f"Updated BAR_FILE={BAR_FILE} with new value {new_val}")                     
                 else:
                     print(f"{new_val} already present so no action needed")
                     return jsonify({"success": True, "message": "File already present, no action needed"})
@@ -890,6 +973,7 @@ def index():
                 print(f"{to_remove} found and will be removed")
                 bar_values.remove(to_remove)
                 write_file_lines(BAR_FILE, bar_values)
+                print(f"Removed from BAR_FILE={BAR_FILE} the value {to_remove}")                     
 
                 # if file was scheduled for resync then remove from schedule.json 
                 clear_schedule_file(user_sched_file, to_remove, userlogin) 
@@ -926,6 +1010,31 @@ def index():
     
     print(f"Sharepoint Authorization status: {logged_in}")
 
+
+    # Check Google login status 
+    google_logged_in = is_google_logged_in(userlogin)
+    if google_logged_in:
+        from google.oauth2.credentials import Credentials
+        google_creds = load_google_token(userlogin)
+        if google_creds:
+            try:
+                # Get user info from Google
+                from googleapiclient.discovery import build
+                service = build('oauth2', 'v2', credentials=google_creds)
+                user_info = service.userinfo().get().execute()
+                google_user_email = user_info.get('email', '')
+                print(f"Google user email: {google_user_email}")
+            except Exception as e:
+                print(f"Error fetching Google user info: {e}")
+                google_user_email = ""
+        else:
+            google_user_email = ""
+    else:
+        google_user_email = ""
+
+
+
+
     auth_user_info = session.get("user")
     if auth_user_info:
         auth_user_email = auth_user_info.get("preferred_username")
@@ -939,14 +1048,16 @@ def index():
                            banner_path=BANNER_PATH,
                            foo_values=foo_values,
                            bar_values=bar_values,
+                           google_values=google_values,
                            local_values=local_file_values,
                            logged_in=logged_in,
+                           google_logged_in=google_logged_in,
                            folder_tree=folder_tree,
                            schedule_dict=schedule_dict,
                            username=userlogin,
                            auth_username=f"{auth_user_email}",
+                           google_username=google_user_email,
                            llm_default=llm_model)
-
 
 
 
@@ -1032,7 +1143,9 @@ def add_sharepoint():
         if new_val not in bar_values and new_val not in local_file_values:
             print(f"{new_val} added to bar_values")   
             bar_values.append(new_val)
-            write_file_lines(BAR_FILE, bar_values)                        
+            write_file_lines(BAR_FILE, bar_values)      
+            print(f"Updated BAR_FILE={BAR_FILE} with new value {new_val}")                     
+                  
         else:
             print(f"{new_val} already present so no action needed")
             return jsonify({"success": True, "message": "File already present, no action needed"})
@@ -1048,6 +1161,7 @@ def remove_sharepoint():
         print(f"{to_remove} found and will be removed")
         bar_values.remove(to_remove)
         write_file_lines(BAR_FILE, bar_values)
+        print(f"Removed from BAR_FILE={BAR_FILE} the value {to_remove}")
 
         # if file was scheduled for resync then remove from schedule.json 
         clear_schedule_file(user_sched_file, to_remove, userlogin) 
@@ -1162,7 +1276,7 @@ def schedule_file():
 
     # update the scheduled jobs
     global delegated_auth
-    schedule_jobs(scheduler, user_sched_file, filename, userlogin, delegated_auth)
+    schedule_jobs(scheduler, user_sched_file, delegated_auth, userlogin, delegated_auth, google_user_email)
 
     return jsonify({"success": True, "message": "Schedule saved successfully"})
 
@@ -1214,20 +1328,25 @@ from task_queue import task_queue
 
 @app.route("/tasks/status", methods=["GET"])
 def get_task_status():
+    #print("/tasks/status endpoint called")
     """Get status of all tasks or a specific task"""
     task_id = request.args.get("task_id")
     user = current_user.username if current_user.is_authenticated else None
-    
     if task_id:
         task = task_queue.get_task(task_id)
+        #print(f"get_task_status called with task_id={task_id} for user={user}")
         if task:
+            #print(f"Returning status for task_id={task_id}: {task.to_dict()}")
             return jsonify({"success": True, "task": task.to_dict()})
         else:
+            #print(f"Task with id={task_id} not found")
             return jsonify({"success": False, "message": "Task not found"}), 404
     else:
         # Return all tasks for this user
         tasks = task_queue.get_all_tasks(user=user)
         status = task_queue.get_queue_status()
+        #print(f"Returning status for all tasks for user={user}: {tasks}")
+        #print(f"Queue status: {status}")
         return jsonify({
             "success": True,
             "tasks": tasks,
@@ -1263,6 +1382,8 @@ def resync_sharepoint():
     val = request.form.get('resync_bar')
     user = current_user.username if current_user.is_authenticated else None
     
+    print(f"/resync_sharepoint endpoint called with val={val} for user={user}") 
+
     if not val:
         return jsonify({"success": False, "message": "No file specified"}), 400
     
@@ -1275,8 +1396,11 @@ def resync_sharepoint():
         file_url=val,
         userlogin=user,
         delegated_auth=delegated_auth,
+        google_user_email=google_user_email,
         user=user
     )
+
+    print(f"Resync task queued with task_id={task_id} for file={val} and user={user}")
     
     return jsonify({
         "success": True,
@@ -1285,11 +1409,48 @@ def resync_sharepoint():
     })
 
 
+#--- Google Sheet routes ---
+@app.route("/add_google", methods=["POST"])
+def add_google():
+    new_val = request.form.get('google_value', '').strip()
+    if new_val:
+        print(f"add_google with google_value={new_val}")
+        if new_val not in google_values and new_val not in bar_values and new_val not in local_file_values:
+            print(f"{new_val} added to google_values")   
+            google_values.append(new_val)
+            write_file_lines(GOOGLE_FILE, google_values)      
+            print(f"Updated GOOGLE_FILE={GOOGLE_FILE} with new value {new_val}")                     
+        else:
+            print(f"{new_val} already present so no action needed")
+            return jsonify({"success": True, "message": "File already present, no action needed"})
+        return jsonify({"success": True, "message": "Google Sheet added successfully"})
+    return jsonify({"success": False, "message": "No file URL provided"})
+
+
+@app.route("/remove_google", methods=["POST"])
+def remove_google():
+    to_remove = request.form.get('remove_google')
+    print(f"remove_google called with {to_remove}")
+    if to_remove in google_values:
+        print(f"{to_remove} found and will be removed")
+        google_values.remove(to_remove)
+        write_file_lines(GOOGLE_FILE, google_values)
+        print(f"Removed from GOOGLE_FILE={GOOGLE_FILE} the value {to_remove}")
+
+        # if file was scheduled for resync then remove from schedule.json 
+        clear_schedule_file(user_sched_file, to_remove, userlogin) 
+        schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+        return jsonify({"success": True, "message": "Google Sheet removed successfully"})
+    else:
+        print(f"{to_remove} not found in google_values, no action taken")
+    return jsonify({"success": False, "message": "File not found"})
+
+
 # ============================================================================
 # BACKGROUND WORKER FUNCTION - Add this new function
 # ============================================================================
 
-def resync_task_worker(file_url, userlogin, delegated_auth):
+def resync_task_worker(file_url, userlogin, delegated_auth, google_user_email):
     """
     Background task that performs the actual resync.
     This runs in a separate thread via the task queue.
@@ -1298,7 +1459,7 @@ def resync_task_worker(file_url, userlogin, delegated_auth):
     
     try:
         # Call your existing resync function
-        result = resync(file_url, userlogin, delegated_auth)
+        result = resync(file_url, userlogin, delegated_auth, google_user_email) # pass google_user_email if needed for google sheets only
         
         print(f"[Task Worker] Resync completed successfully for {file_url}")
         return {

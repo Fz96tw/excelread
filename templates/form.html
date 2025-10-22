@@ -251,7 +251,7 @@
             width: 100%;              /* span full menu width */
         }
 
-    /* Task Queue Status Styles */
+        /* Task Queue Status Styles */
         .task-item {
             padding: 10px;
             margin: 8px 0;
@@ -372,12 +372,11 @@
                 <div id="taskQueueStatus" style="display: none; background: #fff; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px; padding: 15px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 2px solid #eee; padding-bottom: 8px;">
                         <h3 style="margin: 0; font-size: 16px; color: #2c3e50;">📋 Active Tasks</h3>
-                        <button onclick="clearCompletedTasks()" style="padding: 4px 12px; font-size: 12px; cursor: pointer;">Clear Completed</button>
+                        <button onclick="clearAllTasks()" style="padding: 4px 12px; font-size: 12px; cursor: pointer; background: #e74c3c; color: white; border: none; border-radius: 4px;">Clear All</button>
                     </div>
                     <div id="taskList"></div>
                 </div>
 
-                
                 <!-- Section 1: Jira -->
                 <div id="section1" class="section-content">
                     <div style="display:flex; align-items:center; gap:6px;">
@@ -404,9 +403,94 @@
         
                 </div>
 
-                                <!-- Section 6: Googlesheets -->
+                <!-- Section 6: Google Sheets -->
                 <div id="section6" class="section-content">
-        
+                    <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+                        <!-- Left side: user icon + name -->
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <img src="/static/usericon.png" alt="Login" style="width:30px; height:25px">
+                            <span>{{username}}</span>
+                        </div>
+
+                        <!-- Right side: permissions -->
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span>Google Drive permissions: <br> {{google_username}}</span>
+                            {% if google_logged_in %}
+                                <button type="button" title="Logged in">✅ Authorized</button>
+                            {% else %}
+                                <button type="button" class="google-login-btn" onclick="openGoogleLoginPopup(this)" title="Login">🔒 Login Required</button>
+                            {% endif %}
+                            <span>
+                                {% if google_logged_in %}
+                                <form method="GET" class="left-form" action="/google/logout">
+                                    <button type="submit" name="logout_google" title="logout_google">Revoke</button>
+                                </form>
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <br>
+                    <h2><img src="/static/googlesheetsicon.png" style="width:48px; height:48px; vertical-align:bottom; margin-right:2px;">Connect Google Sheet to AI Agent</h2>
+                    <form method="POST" class="left-form" action="/add_google">
+                        <label for="google_value">Google Sheet URL or File ID:</label>
+                        <input type="text" name="google_value" id="google_value" placeholder="https://docs.google.com/spreadsheets/d/...">
+                        <button type="submit" name="add_google"><img src="/static/llmicon.png" style="height:20px; vertical-align:middle; margin-right:6px;">Connect</button>
+                    </form>
+                    <br><br><br><br>
+                    <h2>Active Google Sheets Connections</h2>
+                    <table style="border-collapse: collapse; width: 100%;">
+                        <thead>
+                            <tr>
+                            <th style="text-align:center; padding:6px; font-size:16px;"> </th>
+                            <th style="text-align:center; padding:6px; font-size:16px;"> </th>
+                            <th style="text-align:left; padding:6px; font-size:16px;">Connected Files</th>
+                            <th style="text-align:center; padding:1px; font-size:10px;">Repeat</th>
+                            <th style="text-align:center; padding:1px; font-size:10px;">Schedule</th>
+                            <th style="text-align:center; padding:1px; font-size:10px;">Run</th>
+                            <th style="text-align:center; padding:1px; font-size:10px;">Remove</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for val in google_values %}
+                            <tr>
+                                <td style="text-align:left; padding:6px;">{{ loop.index }}</td>
+                                <td style="text-align:left; padding:6px;">                                    
+                                    <img src="/static/googlesheetsicon.png" style="height:18px; vertical-align:bottom; margin-right:2px;">
+                                </td>
+                                <td style="padding:6px;">
+                                    <a href="{{ val }}" target="_blank">{{ val }}</a></td>
+                                <td style="text-align:center; padding:1px;">
+                                    {% set sched = schedule_dict.get(val) %}
+                                    {% if sched %}
+                                        {% if sched.time %}
+                                            <span style="font-size:12px; margin-left:6px;">{{sched.mode}} at {{ sched.time }}</span>
+                                        {% elif sched.interval %}
+                                            <span style="font-size:12px; margin-left:6px;">Every {{ sched.interval }} min ({{sched.userlogin}})</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span style="font-size:12px; margin-left:6px;">None</span>
+                                    {% endif %}
+                                </td>
+                                <td style="text-align:center; padding:1px;">
+                                    <button type="button" onclick="openSchedule('{{ val }}')">
+                                        <img src="/static/schedule-icon.png" alt="Schedule">
+                                    </button>
+                                </td>
+                                <td style="text-align:center; padding:1px;">
+                                    <button type="button" onclick="handleResync('{{ val }}', event)">
+                                        <img src="/static/sync-icon.png" alt="Resync">
+                                    </button>                                
+                                </td>
+                                <td style="text-align:center; padding:1px;">
+                                    <form method="POST" action="/remove_google">
+                                        <input type="hidden" name="remove_google" value="{{ val }}">
+                                        <button type="submit" onclick="return confirm('Remove {{ val }}?')"><img src="/static/delete-icon.png" alt="Delete" style="width:21px; height:21px"></button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
 
                 <!-- Section 2: Sharepoint -->
@@ -490,7 +574,8 @@
                                 <td style="text-align:center; padding:1px;">
                                     <button type="button" onclick="handleResync('{{ val }}', event)">
                                         <img src="/static/sync-icon.png" alt="Resync">
-                                    </button>                                
+                                    </button>     
+                                                                        
                                 </td>
                                 <td style="text-align:center; padding:1px;">
                                     <form method="POST" action="/remove_sharepoint">
@@ -771,6 +856,26 @@
             }
         });
 
+
+        /* ---------- Google Login popup handling ---------- */
+        let lastGoogleLoginBtn = null;
+        function openGoogleLoginPopup(btn) {
+            lastGoogleLoginBtn = btn;
+            const popup = window.open("/google/login", "GoogleLoginWindow", "width=600,height=700");
+            if (!popup) alert("Please allow popups for this site.");
+        }
+        window.addEventListener("message", function(e) {
+            if (e.data === "google-login-success" && lastGoogleLoginBtn) {
+                lastGoogleLoginBtn.textContent = "✅ Authorized"; 
+                lastGoogleLoginBtn.title = "Logged in";
+                location.reload();
+            } else if (e.data === "google-login-failed" && lastGoogleLoginBtn) {
+                lastGoogleLoginBtn.textContent = "❌ Authorization Failed"; 
+                lastGoogleLoginBtn.title = "Login failed";
+            }
+        });
+        
+        
         /* ---------- Schedule modal and mutual exclusivity ---------- */
         const scheduleTime = document.getElementById("scheduleTime");
         const scheduleInterval = document.getElementById("scheduleInterval");
@@ -1074,6 +1179,45 @@
             });
         });
 
+        /* ---------- Add Google (AJAX) ---------- */
+        const addGoogleForm = document.querySelector('form[action="/add_google"]');
+        if (addGoogleForm) {
+            addGoogleForm.addEventListener("submit", function(event) {
+                event.preventDefault();
+                const formData = new FormData(this);
+                fetch(this.action, { method: "POST", body: formData })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(`✅ ${data.message}`);
+                        setTimeout(() => { window.location.hash = "section6"; window.location.reload(); }, 900);
+                    } else {
+                        showToast(`❌ ${data.message || "Operation failed"}`, false);
+                    }
+                })
+                .catch(() => showToast("❌ Error connecting to server", false));
+            });
+        }
+
+        /* ---------- Remove Google (AJAX) ---------- */
+        document.querySelectorAll('form[action="/remove_google"]').forEach(form => {
+            form.addEventListener("submit", function(event) {
+                event.preventDefault();
+                const formData = new FormData(this);
+                fetch(this.action, { method: "POST", body: formData })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(`✅ ${data.message}`);
+                        setTimeout(() => { window.location.hash = "section6"; window.location.reload(); }, 900);
+                    } else {
+                        showToast(`❌ ${data.message || "Operation failed"}`, false);
+                    }
+                })
+                .catch(() => showToast("❌ Error connecting to server", false));
+            });
+        });
+
         /*      
         document.querySelectorAll("form input[name='resync_bar']").forEach(input => {
             const form = input.closest("form");
@@ -1150,20 +1294,63 @@
             }
         }
 
-        function clearCompletedTasks() {
-            const toRemove = [];
-            activeTasks.forEach((task, taskId) => {
-                if (task.status === 'completed' || task.status === 'failed') {
-                    toRemove.push(taskId);
-                }
-            });
+        function clearAllTasks() {
+            if (!confirm('Clear ALL tasks from the list? Running tasks will continue in the background.')) {
+                return;
+            }
             
-            toRemove.forEach(taskId => activeTasks.delete(taskId));
+            const count = activeTasks.size;
+            activeTasks.clear();
             updateTaskDisplay();
-            console.log(`[Task] Cleared ${toRemove.length} completed tasks`);
+            console.log(`[Task] Cleared all ${count} tasks from display`);
         }
 
         async function pollAllTasks() {
+            try {
+                const response = await fetch('/tasks/status');
+                const data = await response.json();
+                
+                if (!data.success) {
+                    console.error('Failed to fetch task status');
+                    return;
+                }
+                
+                // DEBUG: Log what we're receiving
+                console.log('[Task Poll] Received tasks:', data.tasks);
+                console.log('[Task Poll] Current active tasks:', [...activeTasks.keys()]);
+                
+                // Update all tracked tasks
+                data.tasks.forEach(task => {
+                    const taskId = task.task_id; // Make sure this matches your storage key
+                    
+                    console.log(`[Task Poll] Checking task ${taskId}, exists: ${activeTasks.has(taskId)}`);
+                    
+                    if (activeTasks.has(taskId)) {
+                        const localTask = activeTasks.get(taskId);
+                        console.log(`[Task Poll] Updating task ${taskId}: ${localTask.status} -> ${task.status}`);
+                        
+                        localTask.status = task.status;
+                        localTask.started_at = task.started_at;
+                        localTask.completed_at = task.completed_at;
+                        localTask.progress = task.progress;
+                        localTask.error = task.error;
+                        
+                        // Auto-remove completed/failed tasks after 1 minute
+                        if ((task.status === 'completed' || task.status === 'failed') && !localTask.removeScheduled) {
+                            localTask.removeScheduled = true;
+                            setTimeout(() => removeCompletedTask(taskId), 60000);
+                        }
+                    }
+                });
+                
+                updateTaskDisplay();
+                
+            } catch (error) {
+                console.error('Error polling tasks:', error);
+            }
+        }
+
+        async function pollAllTasksFoo() {
             try {
                 const response = await fetch('/tasks/status');
                 const data = await response.json();
@@ -1272,6 +1459,8 @@
             updateTaskDisplay();
             startGlobalPolling();
         });
+
+
 
     </script>
 </body>

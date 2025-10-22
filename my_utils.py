@@ -1,6 +1,33 @@
 import re
 
 
+def is_googlesheet(filename: str) -> bool:
+     # Detect if source is Google Sheet (simple heuristic: URL or just ID)
+    is_google_sheet = isinstance(filename, str) and ("docs.google.com/spreadsheets" in filename or re.match(r"^[a-zA-Z0-9-_]{20,}$", filename))
+    return is_google_sheet
+
+
+def extract_google_doc_id(url_or_id: str) -> str | None:
+    """
+    Extracts the Google document ID from a full URL or returns the string as-is
+    if it already looks like an ID. Returns None if not found.
+    """
+    if not isinstance(url_or_id, str):
+        return None
+
+    # Match patterns like:
+    # https://docs.google.com/spreadsheets/d/<ID>/edit
+    # https://docs.google.com/document/d/<ID>/
+    match = re.search(r"/d/([a-zA-Z0-9-_]+)", url_or_id)
+    if match:
+        return match.group(1)
+
+    # If it looks like a raw ID (usually >20 chars alphanumeric + _ or -)
+    if re.fullmatch(r"[a-zA-Z0-9-_]{20,}", url_or_id.strip()):
+        return url_or_id.strip()
+
+    return None
+
 
 # convert any rich-text formatting in any jira field who value is retrieved with getattr()
 # jira client getattr() adds markdown for jira rich fields that contain certain text, 
