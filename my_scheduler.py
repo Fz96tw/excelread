@@ -70,12 +70,12 @@ def make_job_id(userlogin: str, filename: str) -> str:
     return job_id
 
 
-def schedule_jobs(scheduler, sched_file, delegated_auth, google_user_email=None, filename=None, userlogin=None):
+def schedule_jobs(scheduler, sched_file, delegated_auth, filename=None, userlogin=None):
     """
     Schedule all jobs from schedules.json or reschedule a specific entry.
     """
 
-    logger.info(f"schedule_jobs called with filename={filename}, userlogin={userlogin}, google_user_email={google_user_email}")
+    logger.info(f"schedule_jobs called with filename={filename}, userlogin={userlogin}")
 
     if not os.path.exists(sched_file):
         logger.warning(f"Schedule file {sched_file} does not exist. Exiting function.")
@@ -113,7 +113,7 @@ def schedule_jobs(scheduler, sched_file, delegated_auth, google_user_email=None,
                 "interval",
                 minutes=int(s["interval"]),
 #                args=[cleaned_filename, userlogin],
-                kwargs={"url": cleaned_filename, "userlogin":userlogin, "delegated_auth":delegated_auth,"google_user_email":google_user_email},
+                kwargs={"url": cleaned_filename, "userlogin":userlogin, "delegated_auth":delegated_auth},
                 id=job_id,
                 replace_existing=True,
                 misfire_grace_time=300,  # 5 minutes to prevent skipping of jobs when delays occur)
@@ -132,8 +132,8 @@ def schedule_jobs(scheduler, sched_file, delegated_auth, google_user_email=None,
                     hour=hour,
                     minute=minute,
 #                    args=[cleaned_filename, userlogin],
-                    kwargs={"url": cleaned_filename, "userlogin":userlogin},
-                    id=job_id,
+                    kwargs={"url": cleaned_filename, "userlogin":userlogin, "delegated_auth":delegated_auth},
+                        id=job_id,
                     replace_existing=True,
                     misfire_grace_time=300,  # 5 minutes to prevent skipping of jobs when delays occur)
                     max_instances=1
@@ -151,7 +151,7 @@ def schedule_jobs(scheduler, sched_file, delegated_auth, google_user_email=None,
                     hour=hour,
                     minute=minute,
                     #args=[cleaned_filename, userlogin],
-                    kwargs={"url": cleaned_filename, "userlogin":userlogin},
+                    kwargs={"url": cleaned_filename, "userlogin":userlogin, "delegated_auth":delegated_auth},
                     id=job_id,
                     replace_existing=True,
                     misfire_grace_time=300,  # 5 minutes to prevent skipping of jobs when delays occur)

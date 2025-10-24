@@ -316,6 +316,35 @@
         .status-completed { background: #27ae60; color: white; }
         .status-failed { background: #e74c3c; color: white; }
 
+        .log-viewer {
+            background: #fefcfc;             /* dark gray, softer than black */
+            color: #0f0e0e;                  /* light gray text */
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 13px;
+            padding: 12px;
+            border-radius: 6px;
+            height: 80vh;
+            overflow-y: auto;
+            white-space: pre-wrap;           /* preserve newlines and wrap long lines */
+            line-height: 1.4;
+            border: 1px solid #333;
+        }
+
+
+        /* --- Log styling enhancements --- */
+        .log-viewer .traceback-block {
+        display: block;
+        background-color: #fdfafa;
+        color: #ff6b6b;
+        border-left: 3px solid #ff4d4d;
+        padding-left: 8px;
+        margin: 6px 0;
+        white-space: pre-wrap;
+        }
+
+        .log-viewer .log-error { color: #ff6b6b; }
+        .log-viewer .log-warning { color: #dcdcaa; }
+        .log-viewer .log-info { color: #2b08cb; }
     </style>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -455,7 +484,7 @@
                             <tr>
                                 <td style="text-align:left; padding:6px;">{{ loop.index }}</td>
                                 <td style="text-align:left; padding:6px;">                                    
-                                    <img src="/static/googlesheetsicon.png" style="height:18px; vertical-align:bottom; margin-right:2px;">
+                                    <img src="/static/googlesheetfileicon.png" style="height:24px; vertical-align:bottom; margin-right:2px;">
                                 </td>
                                 <td style="padding:6px;">
                                     <a href="{{ val }}" target="_blank">{{ val }}</a></td>
@@ -666,19 +695,15 @@
                     </table>
                 </div>
 
-                <!-- Section 3: Logs -->
                 <div id="section3" class="section-content">
                     <h3>Debug Logs</h3>
-                    <ul>
-                    {% for file in folder_tree %}
-                        <li>📄 {{ file.name }} — <small>{{ file.modified }}</small>
-                            <form method="POST" style="display:inline;">
-                                <input type="hidden" name="view_log" value="{{ file.name }}">
-                                <button type="submit">👁️ View</button>
-                            </form>
-                        </li>
-                    {% endfor %}
-                    </ul>
+
+                    <div>
+                        <label for="logRunSelect">Select Run Folder:</label>
+                        <select id="logRunSelect"></select>
+                    </div>
+
+                    <pre id="logViewer" class="log-viewer"></pre>
                 </div>
 
                 <!-- Section 4: LLM Model -->
@@ -1460,6 +1485,78 @@
             startGlobalPolling();
         });
 
+    /* ---------- Debug Logs Viewer ---------- */
+    async function loadRunFolders() {
+    try {
+        const res = await fetch("/logs"); // returns list of run folders (JSON)
+        const runs = await res.json();
+        const select = document.getElementById("logRunSelect");
+        select.innerHTML = "";
+        runs.forEach(run => {
+        const opt = document.createElement("option");
+        opt.value = run;
+        opt.textContent = run;
+        select.appendChild(opt);
+        });
+        if (runs.length) {
+        select.value = runs[0];
+        loadLogFile(runs[0]);
+        } else {
+        document.getElementById("logViewer").textContent = "No logs found.";
+        }
+    } catch (err) {
+        document.getElementById("logViewer").textContent = "❌ Error loading log folders.";
+        console.error(err);
+    }
+    }
+
+    async function loadLogFile(run) {
+    try {
+        //const res = await fetch(`/logs/${run}/app.log`); // adjust filename if needed
+        const res = await fetch(`/logs/${run}`);
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        const viewer = document.getElementById("logViewer");
+        //viewer.textContent = text || "(empty)";
+       
+        if (!text.trim()) {
+        viewer.textContent = "(empty)";
+        } else {
+            let formatted = text;
+
+            // Highlight standard log levels
+            formatted = formatted
+                .replace(/(ERROR)/g, '<span class="log-error">$1</span>')
+                .replace(/(WARNING)/g, '<span class="log-warning">$1</span>')
+                .replace(/(--- Running.*?---)/g, '<span class="log-info">$1</span>')
+                .replace(/(INFO)/g, '<span class="log-info">$1</span>');
+
+            // Highlight Python traceback blocks
+            // Match everything from "Traceback (most recent call last):" up to a blank line or end of text
+            formatted = formatted.replace(
+                /(Traceback \(most recent call last\):[\s\S]*?(?=\n\s*\n|$))/g,
+                '<span class="traceback-block">$1</span>'
+            );
+
+            viewer.innerHTML = formatted;
+        }
+        
+        viewer.scrollTop = viewer.scrollHeight; // auto-scroll to bottom
+    } catch (err) {
+        document.getElementById("logViewer").textContent = "❌ Failed to load log file.";
+        console.error(err);
+    }
+    }
+
+    const logRunSelect = document.getElementById("logRunSelect");
+    if (logRunSelect) {
+    logRunSelect.addEventListener("change", e => loadLogFile(e.target.value));
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+    if (document.getElementById("section3")) loadRunFolders();
+    });
 
 
     </script>

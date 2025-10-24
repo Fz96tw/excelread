@@ -334,6 +334,7 @@ JIRA_URL = os.environ.get("JIRA_URL")
 JIRA_EMAIL = os.environ.get("JIRA_EMAIL")
 JIRA_PASSWORD = os.environ.get("JIRA_PASSWORD")
 
+print(f"load_dotenv({ENV_PATH_USER}) has read JIRA_URL={JIRA_URL} JIRA_EMAIL={JIRA_EMAIL} JIRA_API_TOKEN={JIRA_API_TOKEN}")
 
 if not JIRA_API_TOKEN:
     print("Error: JIRA_API_TOKEN environment variable not set.")

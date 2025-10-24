@@ -325,7 +325,75 @@ def get_unique_sheet_names(missing_tables):
 
 from openpyxl import load_workbook
 
-def extract_table_rows(basename, worksheet_name=None, tablename=None):
+
+
+from google_oauth import *
+
+# don't be confused, googlelogin param is just userlogin param passed to identify which google token to use
+# this var name is misleading and i need to fix it.
+def read_google_rows(googlelogin, spreadsheet_url_or_id, sheet_name=None):
+    """
+    Reads all rows from a Google Sheet, returns as list of lists.
+    sheet_name: name of the sheet; defaults to first sheet if None.
+    """
+    # Extract spreadsheet ID if URL is given
+    match = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", spreadsheet_url_or_id)
+    spreadsheet_id = match.group(1) if match else spreadsheet_url_or_id.strip()
+
+    # Load user's saved credentials
+    creds = load_google_token(googlelogin)
+    if not creds or not creds.valid:
+        raise Exception(f"❌ User {googlelogin} not logged in to Google Drive")
+
+    service = build("sheets", "v4", credentials=creds)
+
+    # If no sheet_name provided, get the first sheet
+    if sheet_name is None:
+        metadata = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+        sheet_name = metadata["sheets"][0]["properties"]["title"]
+
+    print(f"Reading Google Sheet ID={spreadsheet_id}, sheet='{sheet_name}' for user={googlelogin}")
+    result = service.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id,
+        range=sheet_name
+    ).execute()
+
+    return result.get("values", [])
+
+
+def read_google_sheet_as_openpyxl(spreadsheet_url_or_id, sheet_name, userlogin="default"):
+    """
+    Read a Google Sheet and return an openpyxl-compatible worksheet object.
+    Uses existing read_google_rows() function for authentication and data retrieval.
+    
+    Args:
+        spreadsheet_url_or_id: Google Sheet ID or full URL
+        sheet_name: Name of the worksheet/tab
+        userlogin: Google credentials identifier (passed to read_google_rows)
+    
+    Returns:
+        openpyxl Worksheet object
+    """
+    from openpyxl import Workbook
+    
+    # Use your existing function to get the data
+    all_values = read_google_rows(userlogin, spreadsheet_url_or_id, sheet_name)
+    
+    # Create openpyxl workbook and worksheet
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sheet_name
+    
+    # Populate the worksheet with data from Google Sheets
+    for row_idx, row_data in enumerate(all_values, start=1):
+        for col_idx, value in enumerate(row_data, start=1):
+            ws.cell(row=row_idx, column=col_idx, value=value)
+    
+    return ws
+
+
+
+def extract_table_rows(source, basename, worksheet_name=None, tablename=None):
     """
     Extract table rows from a specific worksheet in an Excel workbook.
     
@@ -343,16 +411,24 @@ def extract_table_rows(basename, worksheet_name=None, tablename=None):
     dict
         Dictionary mapping table_name -> list of rows
     """
-    wb = load_workbook(basename)
-    ws = wb.active
-    
-    if worksheet_name:
-        ws = wb[worksheet_name]  # Access worksheet by name instead of wb.active
+
+ 
+     # Detect if source is Google Sheet (simple heuristic: URL or just ID)
+    is_google_sheet = isinstance(source, str) and ("docs.google.com/spreadsheets" in source or re.match(r"^[a-zA-Z0-9-_]{20,}$", source))
+
+    if is_google_sheet:
+        # For Google Sheets, assume userlogin is 'default' for now
+        print(f"Reading Google Sheet: {basename}, sheet: {worksheet_name}")
+        ws = read_google_sheet_as_openpyxl(source, worksheet_name, userlogin)
+
+    else:
+        wb = load_workbook(basename)
+        ws = wb[worksheet_name] if worksheet_name else wb.active
 
     table_rows = {}     # maps table_name -> list of rows
     curr_table = None
 
-    SPECIAL_TAGS = ("<jira>", "<ai brief>", "<run rate>", "<cycletime>")
+    SPECIAL_TAGS = ("<jira>", "<ai brief>", "<rate assignee>", "<rate resolved>", "<cycletime>")
     aibrief_cells = []   # list to store coordinates of <aibrief> cells
 
     # Iterate with cell objects, not just values
@@ -430,82 +506,9 @@ def extract_table_rows(basename, worksheet_name=None, tablename=None):
 
 
 
-'''from openpyxl import load_workbook
-
-wb = load_workbook(basename)
-ws = wb.active
-
-table_rows = {}     # maps table_name -> list of rows
-curr_table = None
-
-SPECIAL_TAGS = ("<jira>", "<ai brief>", "<run rate>","<cycletime>")   # extend this if you have more tags
-aibrief_cells = []   # list to store coordinates of <aibrief> cells
-
-# Iterate with cell objects, not just values
-for row in ws.iter_rows(values_only=False):
-    row_values = [str(cell.value).strip() if cell.value is not None else "" for cell in row]
-
-    print(f"reading row = {row_values}")
-
-    # skip the row if all cells are blank
-    if all(v == "" for v in row_values):
-        continue
-
-    # check each cell for special tags
-    for cell in row:
-        print(f"checking cell_value: {cell.value}")
-        if cell.value and any(tag in str(cell.value) for tag in SPECIAL_TAGS):
-            if "<ai brief>" in str(cell.value):
-                print(f"found <ai brief> in str{cell.value} at coordinate={cell.coordinate} in row={row_values}")
-                print(f"checking if tablename: {tablename} present")
-                if tablename.replace("_"," ") in  str(cell.value):
-                    print(f"found target tablename")
-                    # Get the cell one row below in the same column
-                    below_cell = ws.cell(row=cell.row + 1, column=cell.column)
-
-                    print(f"Cell below is at {below_cell.coordinate} with value: {below_cell.value}")
-
-                    aibrief_cells.append({
-                        "coordinate": cell.coordinate,
-                        "row": cell.row,
-                        "column": cell.column,
-                        "below_coordinate": below_cell.coordinate,
-                        "below_value": below_cell.value
-                    })
-
-                    # no need to check other tags in this cell since we found the table
-                    # note that aibrief.py is called for single aibrief.scope.yaml at a time by refresh.py
-                    # so we don't need to search for other aibrief tags in this run
-                    break  
-
-    # find if this row contains any special tag
-    tag_cells = [v for v in row_values if any(tag in v for tag in SPECIAL_TAGS)]
-
-    if tag_cells:
-        # close current table if we were collecting
-        if curr_table:
-            print(f"Finished collecting rows for table '{curr_table}'")
-
-        # check if this is a <jira> start
-        jira_cells = [v for v in tag_cells if "<jira>" in v]
-        if jira_cells:
-            curr_table = jira_cells[0].rsplit("<jira>", 1)[0].rstrip().replace(" ", "_").lower()
-            table_rows[curr_table] = []   # start fresh list
-            print(f"Found <jira> table '{curr_table}'")
-        else:
-            # other tag encountered: stop collecting
-            curr_table = None
-
-        continue  # skip storing this header row itself
-
-    # if inside a <jira> table, add rows
-    if curr_table:
-        table_rows[curr_table].append(row_values)
-'''
-
 
 # we pass tablename in this case to identify which <aibrief> tag to process
-table_rows, aibrief_cells = extract_table_rows(basename, sheet, tablename)
+table_rows, aibrief_cells = extract_table_rows(source, basename, sheet, tablename)
 
 # Debug: print collected <aibrief> positions
 # not sure why this is needed but leaving it in for now.
@@ -547,16 +550,16 @@ if sheets_to_resync:
     #sys.exit(1)
     for wsheet in sheets_to_resync:
         url = url + "#" + wsheet # append sheet fragment to URL because that's the format resync expects
-        print(f"Running resync on sheet '{url}' to generate data for sheet '{wsheet}'")
         val= clean_sharepoint_url(url)  
         cwd = os.getcwd()
+        print(f"Running resync({val},{userlogin},{cwd},{timestamp}) on sheet '{url}' to generate data for sheet '{wsheet}'")
         resync(val,userlogin, delegated_auth, cwd, timestamp)  # call your function with the string value file URL and userlogin (used for working folder for script)
 
         # After resync, extract table rows from this sheet and update table_rows
         print(f"Extracting table rows from sheet '{wsheet}' after resync")
         # in this case we do not care about the aibrief_cells returned because we already have them from the original sheet
         # _ variable is used to ignore the second return value
-        new_table_rows, _ = extract_table_rows(basename, wsheet)
+        new_table_rows, _ = extract_table_rows(source, basename, wsheet)
         if (new_table_rows):
             print(f"Extracted tables from sheet '{wsheet}': {list(new_table_rows.keys())}")
             table_rows.update(new_table_rows)
@@ -580,7 +583,7 @@ for table_name, rows in table_rows.items():
 
         # Compose filename
         #filename = f"{source}.{sheet}.{tablename}.{table_name}.aisummary.context.txt"
-        filename = f"{source}.{table_name}.aisummary.context.txt"
+        filename = f"{basename}.{table_name}.aisummary.context.txt"
         # Save context to file
         with open(filename, "w", encoding="utf-8") as f:
             f.write(context)
@@ -591,7 +594,7 @@ for table_name, rows in table_rows.items():
         print(f"{table_name} is not referred in {yaml_file} -> {refer_tables}")
 
 # Compose filename
-filename = f"{source}.{sheet}.{tablename}.aibrief.context.txt"
+filename = f"{basename}.{sheet}.{tablename}.aibrief.context.txt"
 # Save context to file
 with open(filename, "w", encoding="utf-8") as f:
     f.write(aibrief_context)
@@ -608,7 +611,7 @@ report = get_summarized_comments(aibrief_context, sysprompt)
 
 # Compose filename
 #filename = f"{os.path.splitext(source)[0]}.{tablename}.llm.txt"
-filename = f"{source}.{sheet}.{tablename}.aibrief.llm.txt"
+filename = f"{basename}.{sheet}.{tablename}.aibrief.llm.txt"
 # Save context to file
 with open(filename, "w", encoding="utf-8") as f:
     f.write(report)
@@ -629,7 +632,7 @@ if aibrief_cells:
     changes = f"{below_cell} = {timestamp}:{cleaned_response} || "
     #changes = f"{below_coordinate} = {timestamp}:{cleaned_response} || "
     #filename = f"{os.path.splitext(source)[0]}.{tablename}.changes.txt"
-    filename = f"{source}.{sheet}.{tablename}.aibrief.changes.txt"
+    filename = f"{basename}.{sheet}.{tablename}.aibrief.changes.txt"
     # Save context to file
     with open(filename, "w", encoding="utf-8") as f:
         f.write(changes)

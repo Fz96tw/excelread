@@ -29,6 +29,7 @@ def read_excel_rows(filename, sheet_name=0):
     return df.values.tolist()
 
 
+# rename the googlelogin param to userlogin because that what is used as
 def read_google_rows(googlelogin, spreadsheet_url_or_id, sheet_name=None):
     """
     Reads all rows from a Google Sheet, returns as list of lists.
@@ -50,6 +51,7 @@ def read_google_rows(googlelogin, spreadsheet_url_or_id, sheet_name=None):
         metadata = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
         sheet_name = metadata["sheets"][0]["properties"]["title"]
 
+    print(f"Reading Google Sheet ID={spreadsheet_id}, sheet='{sheet_name}' for user={googlelogin}")
     result = service.spreadsheets().values().get(
         spreadsheetId=spreadsheet_id,
         range=sheet_name
@@ -61,7 +63,7 @@ def read_google_rows(googlelogin, spreadsheet_url_or_id, sheet_name=None):
 def set_output_filename(filename, sheet, table_name, timestamp, import_found=False, jira_create_found=False, runrate_found=False) -> str:
     print(f"set_output_filename called, timestamp = {timestamp}")
     #base_name = os.path.basename(filename)         # "Book1.xlsx"
-    base_name = file_info["basename"]       # expected to be "Book1.xlsx"  or google doc id
+    base_name = file_info['basename']       # expected to be "Book1.xlsx"  or googlesheet file name
     #name, ext = os.path.splitext(base_name)        # name = "Book1", ext = ".xlsx"
     outputfile = f"{base_name}.{sheet}.{table_name}.{timestamp}.scope.yaml"
     outputfile = f"{base_name}.{sheet}.{table_name}.{timestamp}.import.scope.yaml" if import_found else outputfile
@@ -243,7 +245,7 @@ def close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, j
         # always write exec sumamry yaml even tho we don't know if
         # will be needed/used
         if is_google_sheet:
-            write_execsummary_yaml(jira_ids, file_info["basename"], file_info, timestamp)  
+            write_execsummary_yaml(jira_ids, file_info['basename'], file_info, timestamp)  
         else:
             write_execsummary_yaml(jira_ids, filename, file_info, timestamp)  
 
@@ -350,7 +352,7 @@ if __name__ == "__main__":
     jira_fields_exec_summary = []
     exec_summary_cell = ""  # location of cell where the summary contents need to be placed
 
-    #file_info.append({"source":filename, "basename":os.path.basename(filename), "scope file":scope_output_file})
+    #file_info.append({"source":filename, 'basename':os.path.basename(filename), "scope file":scope_output_file})
     #with open(scope_output_file, 'w') as f:
     #    yaml.dump({ "fileinfo": file_info}, f, default_flow_style=False)
     file_info = {
@@ -400,7 +402,8 @@ if __name__ == "__main__":
                 exec_summary_cell = "";
                 cleaned_value = str(cell).rsplit("<ai brief>", 1)[0].strip().replace(" ", "_")
                 #scope_output_file = set_output_filename(filename, cleaned_value, timestamp, jira_import_found, jira_create_found)
-                scope_output_file = f"{filename}.{sheet}.{cleaned_value}.{timestamp}.aibrief.scope.yaml"
+                #scope_output_file = f"{filename}.{sheet}.{cleaned_value}.{timestamp}.aibrief.scope.yaml"
+                scope_output_file = f"{file_info['basename']}.{sheet}.{cleaned_value}.{timestamp}.aibrief.scope.yaml"
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
                 file_info["table"] = cleaned_value
@@ -442,7 +445,7 @@ if __name__ == "__main__":
 
                 # generate quickstart scope yaml file
                 cleaned_value = str(cell).rsplit("<cycletime>", 1)[0].strip().replace(" ", "_")
-                scope_output_file = f"{filename}.{sheet}.{cleaned_value}.{timestamp}.cycletime.scope.yaml"
+                scope_output_file = f"{file_info['basename']}.{sheet}.{cleaned_value}.{timestamp}.cycletime.scope.yaml"
 
                 if "jql" in cell_str:
                     jql_str = cell_str.split("jql", 1)[1].strip()
@@ -508,7 +511,7 @@ if __name__ == "__main__":
 
                 # generate quickstart scope yaml file
                 cleaned_value = str(cell).rsplit("<quickstart>", 1)[0].strip().replace(" ", "_")
-                scope_output_file = f"{filename}.{sheet}.{cleaned_value}.{timestamp}.quickstart.scope.yaml"
+                scope_output_file = f"{file_info['basename']}.{sheet}.{cleaned_value}.{timestamp}.quickstart.scope.yaml"
 
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
@@ -552,10 +555,10 @@ if __name__ == "__main__":
                 
                 if "<rate resolved>" in cell_str:
                     cleaned_value = str(cell).rsplit("<rate resolved>", 1)[0].strip().replace(" ", "_")
-                    scope_output_file = f"{filename}.{sheet}.{cleaned_value}.{timestamp}.resolved.rate.scope.yaml"
+                    scope_output_file = f"{file_info['basename']}.{sheet}.{cleaned_value}.{timestamp}.resolved.rate.scope.yaml"
                 else:
                     cleaned_value = str(cell).rsplit("<rate assignee>", 1)[0].strip().replace(" ", "_")
-                    scope_output_file = f"{filename}.{sheet}.{cleaned_value}.{timestamp}.assignee.rate.scope.yaml"
+                    scope_output_file = f"{file_info['basename']}.{sheet}.{cleaned_value}.{timestamp}.assignee.rate.scope.yaml"
 
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
@@ -811,7 +814,7 @@ if __name__ == "__main__":
     # to make a aisummary.scope.yaml since it doesn't have any content on its own.
     if not exec_summary_found:
         if is_google_sheet:
-            write_execsummary_yaml(jira_ids, file_info["basename"], file_info, timestamp)  
+            write_execsummary_yaml(jira_ids, file_info['basename'], file_info, timestamp)  
         else:
             write_execsummary_yaml(jira_ids, filename, file_info, timestamp)        
 

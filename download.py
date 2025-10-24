@@ -41,7 +41,7 @@ def load_cache(userlogin=None):
         cache.deserialize(open(TOKEN_CACHE_FILE, "r").read())
         print(f"loaded cache from file '{TOKEN_CACHE_FILE}'")
     else:
-        print(f"load_cahce failed to find path '{TOKEN_CACHE_FILE}'")
+        print(f"load_cahce failed to find path '{TOKEN_CACHE_FILE}' cwd={os.getcwd()}'")
     return cache
 
 # -------------------------------

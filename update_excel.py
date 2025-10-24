@@ -106,10 +106,85 @@ def convert_row_col_to_excel_coordinate(row, col):
     return f"{col_letter}{row}"
 
 
+from google_oauth import *
 
-def process_jira_table_blocks(filename, worksheet):
-    wb = load_workbook(filename)
-    ws = wb[worksheet]
+# don't be confused, googlelogin param is just userlogin param passed to identify which google token to use
+# this var name is misleading and i need to fix it.
+def read_google_rows(googlelogin, spreadsheet_url_or_id, sheet_name=None):
+    """
+    Reads all rows from a Google Sheet, returns as list of lists.
+    sheet_name: name of the sheet; defaults to first sheet if None.
+    """
+    # Extract spreadsheet ID if URL is given
+    match = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", spreadsheet_url_or_id)
+    spreadsheet_id = match.group(1) if match else spreadsheet_url_or_id.strip()
+
+    # Load user's saved credentials
+    creds = load_google_token(googlelogin)
+    if not creds or not creds.valid:
+        raise Exception(f"❌ User {googlelogin} not logged in to Google Drive")
+
+    service = build("sheets", "v4", credentials=creds)
+
+    # If no sheet_name provided, get the first sheet
+    if sheet_name is None:
+        metadata = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+        sheet_name = metadata["sheets"][0]["properties"]["title"]
+
+    print(f"Reading Google Sheet ID={spreadsheet_id}, sheet='{sheet_name}' for user={googlelogin}")
+    result = service.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id,
+        range=sheet_name
+    ).execute()
+
+    return result.get("values", [])
+
+
+def read_google_sheet_as_openpyxl(spreadsheet_url_or_id, sheet_name, userlogin="default"):
+    """
+    Read a Google Sheet and return an openpyxl-compatible worksheet object.
+    Uses existing read_google_rows() function for authentication and data retrieval.
+    
+    Args:
+        spreadsheet_url_or_id: Google Sheet ID or full URL
+        sheet_name: Name of the worksheet/tab
+        userlogin: Google credentials identifier (passed to read_google_rows)
+    
+    Returns:
+        openpyxl Worksheet object
+    """
+    from openpyxl import Workbook
+    
+    # Use your existing function to get the data
+    all_values = read_google_rows(userlogin, spreadsheet_url_or_id, sheet_name)
+    
+    # Create openpyxl workbook and worksheet
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sheet_name
+    
+    # Populate the worksheet with data from Google Sheets
+    for row_idx, row_data in enumerate(all_values, start=1):
+        for col_idx, value in enumerate(row_data, start=1):
+            ws.cell(row=row_idx, column=col_idx, value=value)
+    
+    return ws
+
+
+def process_jira_table_blocks(filename, worksheet, userlogin):
+
+
+     # Detect if source is Google Sheet (simple heuristic: URL or just ID)
+    is_google_sheet = isinstance(filename, str) and ("docs.google.com/spreadsheets" in filename or re.match(r"^[a-zA-Z0-9-_]{20,}$", filename))
+
+    if is_google_sheet:
+        # For Google Sheets, assume userlogin is 'default' for now
+        print(f"Reading Google Sheet: {filename}, sheet: {worksheet}")
+        ws = read_google_sheet_as_openpyxl(filename, worksheet, userlogin)
+
+    else:
+        wb = load_workbook(filename)
+        ws = wb[worksheet]
 
     printing = False  # Flag to track when we're in a Jira Table block
     printing_import_mode = False # flag to track when we're in a jira table block in import mode
@@ -430,16 +505,18 @@ def process_jira_table_blocks(filename, worksheet):
 
 if __name__ == "__main__":
     #main()
-    if len(sys.argv) < 4:
-        print("Usage: python update_excel.py <csv file> <xlsx file> <sheet>")
+    if len(sys.argv) < 5:
+        print("Usage: python update_excel.py <csv file> <xlsx file> <sheet> <userlogin>")
         sys.exit(1)
-    
+        
     jiracsv = sys.argv[1]
     print(f"Received argument jiracsv: {jiracsv}")
     xlfile = sys.argv[2]
     print(f"Received argument xlfile: {xlfile}")
     sheet = sys.argv[3]
     print(f"Received argument sheet: {sheet}")
+    userlogin = sys.argv[4]
+    print(f"Received argument userlogin: {userlogin}")
 
     import_mode = False
     execsummary_mode = False
@@ -469,7 +546,7 @@ if __name__ == "__main__":
         print(f"Skipping file {jiracsv} since it is an intended for <ai brief> post processing")
     else:
         print(f"Calling process_jira_table_blocks({xlfile})...")
-        process_jira_table_blocks(xlfile, sheet)
+        process_jira_table_blocks(xlfile, sheet, userlogin)
     
     print("Finished processing Jira Table blocks.")
 

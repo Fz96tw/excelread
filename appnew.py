@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for,session
+from flask import Flask, render_template, request, redirect, url_for,session, send_from_directory
 import os
 import re
 import json
@@ -23,9 +23,9 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key")  # Use 
 
 
 #FOO_FILE = './config/.env'
-BAR_FILE = './config/.bar'
+#BAR_FILE = './config/.bar'
 BANNER_PATH = '/static/banner3.jpg'  # put banner.jpg in static folder
-GOOGLE_FILE = './config/.google'
+#GOOGLE_FILE = './config/.google'
 
 # -------------------------------
 # TOKEN MANAGEMENT
@@ -117,18 +117,19 @@ def read_file_lines(path):
 def write_file_lines(path, lines):
     with open(path, 'w') as f:
         f.write("\n".join(lines))
+        print(f"Wrote {len(lines)} lines to {path}")
 
 
 
 import time
 
 def is_logged_in():
-    global logged_in
+    #global logged_in
     global auth_user_info
     global auth_user_email
     global auth_user_name
 
-    if logged_in == False:
+    if session["is_logged_in"] == False:
         return False
     
     # Try silent token acquisition (from cache)
@@ -137,7 +138,7 @@ def is_logged_in():
     if result and "access_token" in result:
         print("Valid token found in cache.")
 
-        logged_in = True
+        #logged_in = True
         session["is_logged_in"] = True
         session["user"] = result.get("id_token_claims")
         session["access_token"] = result["access_token"]
@@ -157,7 +158,7 @@ def is_logged_in():
             save_cache(cache)
             print("Valid token found after acquiring new token.")
 
-            logged_in = True
+            #logged_in = True
             session["is_logged_in"] = True
             session["user"] = result.get("id_token_claims")
             session["access_token"] = result["access_token"]
@@ -172,7 +173,8 @@ def is_logged_in():
 # for user delegated Auth flow
 def get_app_token_delegated():
     print("called get_app_token_delegated()... Acquiring app token...")
-    global userlogin
+    #global userlogin
+    userlogin = current_user.username
     cache = load_cache(userlogin)  # ✅ Load the cache here
 
     cca = msal.ConfidentialClientApplication(
@@ -390,7 +392,7 @@ def logout():
 # DONT GET CONFUSED.  this route is for sharepoint authorization. Not user login to IAConnector (see /home route)
 @app.route("/login")
 def login():
-    global logged_in
+    #global logged_in
 
     if delegated_auth:
         print ("/login endpoint using delegated_auth flow")
@@ -420,7 +422,8 @@ def login():
         print("Access token acquired successfully.")
         save_cache(cache)
 
-        logged_in = True
+        #logged_in = True
+        session["is_logged_in"] = True
 
         if "access_token" in result:
             session["is_logged_in"] = True
@@ -566,7 +569,7 @@ point_url(url: str) -> str:
     return url.replace(" ", "%20")
 '''
 
-@app.route('/logs', methods=['GET', 'POST'])
+'''@app.route('/logs', methods=['GET', 'POST'])
 def logs():
     log_content = ""
     viewed_log = ""
@@ -582,7 +585,7 @@ def logs():
     folder_tree = get_folder_tree(LOG_FOLDER)
     return render_template('logs.html', folder_tree=folder_tree,
                            log_content=log_content, viewed_log=viewed_log)
-
+'''
 
 
 #@app.route('/home')
@@ -622,7 +625,7 @@ llm_model = "Local"
 # File to store schedules
 SCHEDULE_FILE = "./config/schedules.json"
 LLMCONFIG_FILE = "./config/llmconfig.json"
-LOCAL_FILES = "./config/files_local.json"
+#LOCAL_FILES = "./config/files_local.json"
 
 # gloabals ^^^
 
@@ -725,23 +728,51 @@ def map_windows_path_to_container(path: str) -> str:
         return f"/mnt/{drive_letter}/{relative_path}"
     return path
 
+def get_bar_values(userlogin):
+    user_bar_file = f"./config/.bar_{userlogin}"
+    return read_file_lines(user_bar_file)
 
-bar_values = []
-google_values = []
-local_file_values = []
+def save_bar_values(userlogin, values):
+    user_bar_file = f"./config/.bar_{userlogin}"
+    write_file_lines(user_bar_file, values)
+
+
+
+def get_google_values(userlogin):
+    user_bar_file = f"./config/.google_{userlogin}"
+    return read_file_lines(user_bar_file)
+
+def save_google_values(userlogin, values):
+    user_bar_file = f"./config/.google_{userlogin}"
+    write_file_lines(user_bar_file, values)
+
+
+def get_local_values(userlogin):
+    user_bar_file = f"./config/local_files_{userlogin}"
+    return read_file_lines(user_bar_file)
+
+def save_local_values(userlogin, values):
+    user_bar_file = f"./config/local_files_{userlogin}"
+    write_file_lines(user_bar_file, values)
+
+
+
+#bar_values = []
+#google_values = []
+#local_file_values = []
 
 #bar_values = read_file_lines(BAR_FILE)
 #local_file_values = read_file_lines(LOCAL_FILES)
 user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
 
-logged_in = False
+#logged_in = False
 
 
 # REDIRECT_PATH callback only required when using user-delegated auth flow.  
 # not needed/used for private client auth flow
 @app.route(REDIRECT_PATH)
 def authorized():
-    global logged_in
+    #global logged_in
      # Handle redirect from Azure AD
     code = request.args.get("code")
     if not code:
@@ -761,7 +792,8 @@ def authorized():
             session["is_logged_in"] = True
             session["user"] = result.get("id_token_claims")
             session["access_token"] = result["access_token"]
-            logged_in = True
+            #logged_in = True
+            session["is_logged_in"] = True
             #return redirect(url_for("index"))
             return """
                     <html>
@@ -791,7 +823,7 @@ def index():
     # Make sure user is logged into AI Connector before showing main page
     #userlogin = None
     if current_user.is_authenticated:
-        global userlogin
+        #global userlogin
         userlogin = current_user.username
         print(f"User logged in: {userlogin}")
     else:
@@ -799,13 +831,13 @@ def index():
         userlogin = None
         return redirect(url_for("home"))
 
-    global logged_in
+    #logged_in
     global auth_user_email
     global auth_user_name
     global google_user_email
-    global BAR_FILE
-    global GOOGLE_FILE
-    global LOCAL_FILES
+    #global BAR_FILE
+    #global GOOGLE_FILE
+    #global LOCAL_FILES
 
     if (delegated_auth):
         print ("/ route is using delegated_auth flow")
@@ -823,7 +855,7 @@ def index():
             if result:
                 print (f"/ endpoint found valid user auth token = {result}")
                 print(f"token claims = {result.get('token_claims')}")
-                logged_in = True
+                #logged_in = True
                 session["is_logged_in"] = True
                 session["user"] = result.get("id_token_claims")
                 session["access_token"] = result["access_token"]
@@ -842,7 +874,8 @@ def index():
         else:
             print("No existing accounts found in token cache")
             #return '<a href="/login">Login with Microsoft</a>'
-            logged_in = False
+            #logged_in = False
+            session["is_logged_in"] = False
 
 
     user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
@@ -863,7 +896,8 @@ def index():
 
 
     # Load saved value
-    ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{userlogin}")
+    #ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{userlogin}")
+    ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{current_user.username}")
 
     foo_values = {}
     foo_values["jira_url"] = read_env("JIRA_URL", ENV_PATH_USER)
@@ -905,20 +939,23 @@ def index():
  
     if delegated_auth:
         BAR_FILE = f"./config/.bar_{userlogin}"
-        LOCAL_FILES = f"./config/files_local_{userlogin}.json"
+        LOCAL_FILES = f"./config/local_files_{userlogin}"
         GOOGLE_FILE = f"./config/.google_{userlogin}"
         print(f"using delegated auth so BAR_FILE = {BAR_FILE}, LOCAL_FILES = {LOCAL_FILES}, GOOGLE_FILE = {GOOGLE_FILE}")
    
-    bar_values = read_file_lines(BAR_FILE)
+    #bar_values = read_file_lines(BAR_FILE)
+    bar_values = get_bar_values(userlogin)
+
     print(f"/ route loaded bar_values = {bar_values}")
 
-    local_file_values = read_file_lines(LOCAL_FILES)
+    #local_file_values = read_file_lines(LOCAL_FILES)
+    local_file_values = get_local_values(userlogin)
     print(f"/ route loaded local_file_values = {local_file_values}")    
 
-    google_values = read_file_lines(GOOGLE_FILE)
-    print(f"/ route loaded google_values = {google_values}")
+    #google_values = read_file_lines(GOOGLE_FILE)
+    google_values = get_google_values(userlogin)
 
-    bar_values_original = {}
+    print(f"/ route loaded google_values = {google_values}")
 
     if not delegated_auth:
         # Synchronize session login status with real token state every request
@@ -926,7 +963,7 @@ def index():
         logged_in_state = is_logged_in()  # returns True or False
         print(f"Login status: {logged_in_state}")
         session["is_logged_in"] = logged_in_state
-        logged_in = logged_in_state
+        #logged_in = logged_in_state
 
 
 
@@ -958,7 +995,8 @@ def index():
                 if new_val not in bar_values and new_val not in local_file_values:
                     print(f"{new_val} added to bar_values")   
                     bar_values.append(new_val)
-                    write_file_lines(BAR_FILE, bar_values)   
+                    #write_file_lines(BAR_FILE, bar_values)   
+                    save_bar_values(userlogin, bar_values)
                     print(f"Updated BAR_FILE={BAR_FILE} with new value {new_val}")                     
                 else:
                     print(f"{new_val} already present so no action needed")
@@ -972,7 +1010,8 @@ def index():
             if to_remove in bar_values:
                 print(f"{to_remove} found and will be removed")
                 bar_values.remove(to_remove)
-                write_file_lines(BAR_FILE, bar_values)
+                #write_file_lines(BAR_FILE, bar_values)
+                save_bar_values(userlogin, bar_values)
                 print(f"Removed from BAR_FILE={BAR_FILE} the value {to_remove}")                     
 
                 # if file was scheduled for resync then remove from schedule.json 
@@ -1008,7 +1047,7 @@ def index():
         return redirect(url_for('index'))
 
     
-    print(f"Sharepoint Authorization status: {logged_in}")
+    print(f"Sharepoint Authorization status: {session['is_logged_in']}")
 
 
     # Check Google login status 
@@ -1050,7 +1089,7 @@ def index():
                            bar_values=bar_values,
                            google_values=google_values,
                            local_values=local_file_values,
-                           logged_in=logged_in,
+                           logged_in=session["is_logged_in"],
                            google_logged_in=google_logged_in,
                            folder_tree=folder_tree,
                            schedule_dict=schedule_dict,
@@ -1063,16 +1102,18 @@ def index():
 
 @app.route("/logout_sharepoint", methods=["POST"])
 def logout_sharepoint():
-    global logged_in
+    #global logged_in
+    userlogin = current_user.username
     print("recvd /logout_sharepoint endpoint called")
-    if logged_in == True:
+    if session == True:
         print(f"Revoking sharepoint access token for user={userlogin}")
         token_file = f"./config/token_cache_{userlogin}.json"
     
         if os.path.exists(token_file):
             os.remove(token_file)
             print(f"Deleted token file: {token_file}")
-            logged_in = False
+            #logged_in = False
+            session["is_logged_in"] = False
         else:
             print(f"No token file found for user={userlogin}")
 
@@ -1138,12 +1179,20 @@ def setmodel():
 @app.route("/add_sharepoint", methods=["POST"])
 def add_sharepoint():
     new_val = request.form.get('bar_value', '').strip()
+    BAR_FILE = f"./config/.bar_{current_user.username}"
+    bar_values = get_bar_values(current_user.username)
+    local_file_values = get_local_values(current_user.username)
+    google_values = get_google_values(current_user.username)    
+    userlogin = current_user.username
+    print(f"add_sharepoint called with {new_val} for user {current_user.username} into BAR_FILE={BAR_FILE}")
+    print(f"current bar_values = {bar_values}")
     if new_val:
         print(f"add_bar with bar_value={new_val}")
-        if new_val not in bar_values and new_val not in local_file_values:
+        if new_val not in bar_values and new_val not in local_file_values and new_val not in google_values:
             print(f"{new_val} added to bar_values")   
             bar_values.append(new_val)
-            write_file_lines(BAR_FILE, bar_values)      
+            #write_file_lines(BAR_FILE, bar_values)    
+            save_bar_values(userlogin, bar_values)  
             print(f"Updated BAR_FILE={BAR_FILE} with new value {new_val}")                     
                   
         else:
@@ -1156,11 +1205,15 @@ def add_sharepoint():
 @app.route("/remove_sharepoint", methods=["POST"])
 def remove_sharepoint():
     to_remove = request.form.get('remove_bar')
-    print(f"remove_bar called with {to_remove}")
+    userlogin = current_user.username
+    BAR_FILE = f"./config/.bar_{current_user.username}"
+    bar_values = get_bar_values(current_user.username)
+    print(f"remove_bar called with {to_remove} for user {userlogin} from {BAR_FILE}")
     if to_remove in bar_values:
         print(f"{to_remove} found and will be removed")
         bar_values.remove(to_remove)
-        write_file_lines(BAR_FILE, bar_values)
+        #write_file_lines(BAR_FILE, bar_values)
+        save_bar_values(userlogin, bar_values)
         print(f"Removed from BAR_FILE={BAR_FILE} the value {to_remove}")
 
         # if file was scheduled for resync then remove from schedule.json 
@@ -1177,13 +1230,15 @@ def remove_sharepoint():
 @app.route("/add_local", methods=["POST"])
 def add_local():
     new_val = request.form.get('local_value', '').strip()
+    local_file_values = get_local_values(current_user.username)
     if new_val:
-        print(f"add_local with local_value={new_val}")
+        print(f"add_local with local_value={new_val} for user {current_user.username}")
         if new_val not in local_file_values:
             container_val = map_windows_path_to_container(new_val)
-            print(f"{container_val} added to local_file_values")   
             local_file_values.append(container_val)
-            write_file_lines(LOCAL_FILES, local_file_values)                        
+            #write_file_lines(LOCAL_FILES, local_file_values)   
+            save_local_values(current_user.username, local_file_values)  
+            print(f"{new_val} added to local_file_values as {container_val} for user {current_user.username}")             
         else:
             print(f"{new_val} already present so no action needed")
             return jsonify({"success": True, "message": "File already present, no action needed"})
@@ -1194,11 +1249,15 @@ def add_local():
 @app.route("/remove_local", methods=["POST"])
 def remove_local():
     to_remove = request.form.get('remove_local')
+    userlogin = current_user.username
+    #LOCAL_FILES = f"./config/files_local_{current_user.username}.json"
+    local_file_values = get_local_values(current_user.username)
     print(f"remove_local called with {to_remove}")
     if to_remove in local_file_values:
         print(f"{to_remove} found and will be removed")
         local_file_values.remove(to_remove)
-        write_file_lines(LOCAL_FILES, local_file_values)
+        #write_file_lines(LOCAL_FILES, local_file_values)
+        save_local_values(userlogin, local_file_values)
         # if file was scheduled for resync then remove from schedule.json 
         clear_schedule_file(user_sched_file, to_remove, userlogin) 
         schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
@@ -1413,13 +1472,18 @@ def resync_sharepoint():
 @app.route("/add_google", methods=["POST"])
 def add_google():
     new_val = request.form.get('google_value', '').strip()
+    #GOOGLE_FILE = f"./config/.google_{current_user.username}"
+    bar_values = get_bar_values(current_user.username)
+    google_values = get_google_values(current_user.username)
+    local_file_values = get_local_values(current_user.username)
     if new_val:
         print(f"add_google with google_value={new_val}")
         if new_val not in google_values and new_val not in bar_values and new_val not in local_file_values:
             print(f"{new_val} added to google_values")   
             google_values.append(new_val)
-            write_file_lines(GOOGLE_FILE, google_values)      
-            print(f"Updated GOOGLE_FILE={GOOGLE_FILE} with new value {new_val}")                     
+            #write_file_lines(GOOGLE_FILE, google_values)    
+            save_google_values(current_user.username, google_values)
+            print(f"Updated google_values with new value {new_val}")                     
         else:
             print(f"{new_val} already present so no action needed")
             return jsonify({"success": True, "message": "File already present, no action needed"})
@@ -1430,12 +1494,16 @@ def add_google():
 @app.route("/remove_google", methods=["POST"])
 def remove_google():
     to_remove = request.form.get('remove_google')
+    userlogin = current_user.username
+    #GOOGLE_FILE = f"./config/.google_{current_user.username}"
+    google_values = get_google_values(current_user.username)
     print(f"remove_google called with {to_remove}")
     if to_remove in google_values:
         print(f"{to_remove} found and will be removed")
         google_values.remove(to_remove)
-        write_file_lines(GOOGLE_FILE, google_values)
-        print(f"Removed from GOOGLE_FILE={GOOGLE_FILE} the value {to_remove}")
+        #write_file_lines(GOOGLE_FILE, google_values)
+        save_google_values(userlogin, google_values)
+        print(f"Removed from google_values the value {to_remove}")
 
         # if file was scheduled for resync then remove from schedule.json 
         clear_schedule_file(user_sched_file, to_remove, userlogin) 
@@ -1459,7 +1527,7 @@ def resync_task_worker(file_url, userlogin, delegated_auth, google_user_email):
     
     try:
         # Call your existing resync function
-        result = resync(file_url, userlogin, delegated_auth, google_user_email) # pass google_user_email if needed for google sheets only
+        result = resync(file_url, userlogin, delegated_auth) # pass google_user_email if needed for google sheets only
         
         print(f"[Task Worker] Resync completed successfully for {file_url}")
         return {
@@ -1472,6 +1540,58 @@ def resync_task_worker(file_url, userlogin, delegated_auth, google_user_email):
         print(f"[Task Worker] Resync failed for {file_url}: {str(e)}")
         raise  # Re-raise so task queue marks it as failed
 
+
+LOG_BASE_DIR = "./logs"
+
+import re
+from datetime import datetime
+from flask import jsonify
+
+@app.route("/logs")
+def list_logs():
+    user_dir = os.path.join(LOG_BASE_DIR, current_user.username)
+    if not os.path.isdir(user_dir):
+        return jsonify([])
+
+    runs = os.listdir(user_dir)
+    pattern = re.compile(r"(\d{8}_\d{6})")  # matches YYYYMMDD_HHMMSS
+
+    def extract_datetime(name):
+        m = pattern.search(name)
+        if not m:
+            return datetime.min  # fallback for invalid names
+        try:
+            return datetime.strptime(m.group(1), "%Y%m%d_%H%M%S")
+        except ValueError:
+            return datetime.min
+
+    runs_sorted = sorted(runs, key=extract_datetime, reverse=True)
+    print(f"Listing log runs for {current_user.username}: {runs_sorted}")
+    return jsonify(runs_sorted)
+
+
+@app.route("/logs/<run>")
+def get_latest_log(run):
+    """
+    Automatically find and serve the first .log file inside the run folder.
+    """
+    user_dir = os.path.join(LOG_BASE_DIR, current_user.username)
+    run_path = os.path.join(user_dir, run)
+
+    if not os.path.isdir(run_path):
+        abort(404, description="Log run not found")
+
+    # Find any file ending with .log
+    log_files = [f for f in os.listdir(run_path) if f.endswith(".log")]
+    if not log_files:
+        abort(404, description="No log files found")
+
+    # Pick the most recent (sorted descending by name or modified time)
+    log_files.sort(reverse=True)
+    log_file = log_files[0]
+
+    print(f"Serving log file {log_file} for {current_user.username}")
+    return send_from_directory(run_path, log_file)
 
 
 if __name__ == "__main__":

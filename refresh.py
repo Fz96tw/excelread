@@ -96,7 +96,7 @@ def delete_old_folders_by_hours(path: str, hours: int):
 
 
 
-def resync(url: str, userlogin, delegated_auth, google_user_email, workdir = None, ts = None):
+def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
     """
     Full resync process with recursive handling of YAML files.
     """
@@ -187,6 +187,7 @@ def resync(url: str, userlogin, delegated_auth, google_user_email, workdir = Non
     runrate_assignee_jira_script = os.path.join(base_dir, "runrate_assignee.py")
     update_excel_script = os.path.join(base_dir, "update_excel.py")
     update_sharepoint_script = os.path.join(base_dir, "update_sharepoint.py")
+    update_googlesheet_script = os.path.join(base_dir, "update_googlesheet.py")
     aibrief_script = os.path.join(base_dir, "aibrief.py")
     quickstart_script = os.path.join(base_dir, "quickstart.py")
     cycletime_script = os.path.join(base_dir, "cycletime.py")
@@ -274,10 +275,19 @@ def resync(url: str, userlogin, delegated_auth, google_user_email, workdir = Non
         input_file_orig = input_file
 
         if is_googlesheet(file_url):
-            logger.info("process_yaml: Detected Google Sheets URL so overriding input_file to be file_url")
+            logger.info(f"process_yaml: Detected Google Sheets URL {file_url}")
             input_file = file_url       # for google sheets we pass the url to scope.py and not the filename. 
                                         # by doing this we can keep the rest of the code same below.
-
+            
+            # used further below to pick which update py script to run
+            script_to_run = update_googlesheet_script 
+            script_to_run_str = "update_googlesheet.py"
+            logger.info(f"script_to_run set to update_googlesheet_script  for {file_url} when processing changes.txt")
+            
+        else:
+            script_to_run = update_sharepoint_script
+            script_to_run_str = "update_sharepoint.py"
+            logger.info(f"script_to_run set to update_sharepoint.py for {file_url} when processing changes.txt...")
 
         logger.info(f"Running scope.py on {input_file} {sheet} timestamp={timestamp}...")
         run_and_log(["python", "-u", scope_script, input_file, sheet, timestamp, userlogin], log, f"scope.py {input_file} {timestamp} {userlogin}")
@@ -316,9 +326,9 @@ def resync(url: str, userlogin, delegated_auth, google_user_email, workdir = Non
     #                run_and_log(["python", "-u", download_script, file_url, timestamp], log, f"download.py {file_url} {timestamp}")
                     if delegated_auth:
                         logger.info("delegated_auth detected")
-                        run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
+                        run_and_log(["python", "-u", download_script, file_url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
                     else:
-                        run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+                        run_and_log(["python", "-u", download_script, file_url, timestamp], log, f"download.py {url} {timestamp}")
 
                 logger.info(f"Re-running scope.py on {input_file}...")
                 run_and_log(["python", "-u", scope_script, input_file, sheet, timestamp, userlogin], log, f"scope.py {input_file} {sheet} {timestamp} {userlogin}")
@@ -349,7 +359,7 @@ def resync(url: str, userlogin, delegated_auth, google_user_email, workdir = Non
                     run_and_log(["python", "-u", read_jira_script, yaml_file, timestamp, userlogin], log, f"read_jira.py {yaml_file} {timestamp} {userlogin}")
 
                     logger.info(f"Updating Excel with {jira_csv}...")
-                    run_and_log(["python", "-u", update_excel_script, jira_csv, input_file, sheet], log, f"update_excel.py {jira_csv} {input_file} {sheet}")
+                    run_and_log(["python", "-u", update_excel_script, jira_csv, input_file, sheet, userlogin], log, f"update_excel.py {jira_csv} {input_file} {sheet} {userlogin}")
 
                 changes_file = f"{substring}.changes.txt"
                 k = ["cycletime", "resolved", "assignee"]
@@ -357,20 +367,20 @@ def resync(url: str, userlogin, delegated_auth, google_user_email, workdir = Non
                 if any(s in changes_file for s in k):
                     changes_file = changes_file.replace(".changes.txt", ".import.changes.txt")
                     print(f"modified changes_file to include 'import' keyword =  {changes_file}")                    
-                
+
+                logger.info(f"Updating spreadsheet for {file_url} with changes from {input_file_orig}.{changes_file}...")
                 #logger.info(f"Updating SharePoint for {url} with changes from {input_file}.{substring}.changes.txt...")
-                logger.info(f"Updating SharePoint for {url} with changes from {input_file_orig}.{changes_file}...")
                 if delegated_auth:
                     output_lines = run_and_log(
-                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{changes_file}", timestamp, userlogin, sheet, "--user_auth"],
+                    ["python", "-u", script_to_run, file_url, f"{input_file_orig}.{changes_file}", timestamp, userlogin, sheet, "--user_auth"],
                     log,
-                    f"update_sharepoint.py {url} {input_file}.{changes_file} {timestamp} {userlogin} '{sheet}' --user_auth"
+                    f"{script_to_run_str} {file_url} {input_file_orig}.{changes_file} {timestamp} {userlogin} '{sheet}' --user_auth"
                     )
                 else:
                     output_lines = run_and_log(
-                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{changes_file}", timestamp, userlogin, sheet],
+                    ["python", "-u", script_to_run, file_url, f"{input_file_orig}.{changes_file}", timestamp, userlogin, sheet],
                     log,
-                    f"update_sharepoint.py {url} {input_file}.{changes_file} {timestamp} {userlogin} '{sheet}'"
+                    f"{script_to_run_str} {file_url} {input_file_orig}.{changes_file} {timestamp} {userlogin} '{sheet}'"
                     )
 
                 if any("Aborting update" in line for line in output_lines):
@@ -451,25 +461,41 @@ def resync(url: str, userlogin, delegated_auth, google_user_email, workdir = Non
         else:
             logger.info("No aibrief.changes.txt files found")
 
+
+        if is_googlesheet(file_url):
+            logger.info(f"process_aibrief_changes_txt: Detected Google Sheets URL {file_url}")
+            input_file = file_url       # for google sheets we pass the url to scope.py and not the filename. 
+                                        # by doing this we can keep the rest of the code same below.
+            
+            # used further below to pick which update py script to run
+            script_to_run = update_googlesheet_script 
+            script_to_run_str = "update_googlesheet.py"
+            logger.info(f"script_to_run set to update_googlesheet_script  for {file_url} when processing changes.txt")
+            
+        else:
+            script_to_run = update_sharepoint_script
+            script_to_run_str = "update_sharepoint.py"
+            logger.info(f"script_to_run set to update_sharepoint.py for {file_url} when processing changes.txt...")
+
         for changes_file in changes_files:   
             while True:    
                 if sheet.lower() not in changes_file.lower():
                     logger.info(f"Skipping changes file {changes_file} as it does not match sheet {sheet}")
                     break
 
-                logger.info(f"Updating SharePoint for {url} with changes from {changes_file}...")
+                logger.info(f"Updating spreadsheet for {file_url} with changes from {changes_file}...")
                 if delegated_auth:
                     output_lines = run_and_log(
                     #["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp, userlogin, "--user_auth"],
-                    ["python", "-u", update_sharepoint_script, url, changes_file, timestamp, userlogin, sheet, "--user_auth"],
+                    ["python", "-u", script_to_run, file_url, changes_file, timestamp, userlogin, sheet, "--user_auth"],
                     log,
-                    f"update_sharepoint.py {url} {changes_file} {timestamp} {userlogin} {sheet} --user_auth"
+                    f"{script_to_run_str} {file_url} {changes_file} {timestamp} {userlogin} {sheet} --user_auth"
                     )
                 else:
                     output_lines = run_and_log(
-                    ["python", "-u", update_sharepoint_script, url, changes_file, timestamp, userlogin, sheet],
+                    ["python", "-u", script_to_run, file_url, changes_file, timestamp, userlogin, sheet],
                     log,
-                    f"update_sharepoint.py {url} {changes_file} {timestamp} {userlogin} {sheet}"
+                    f"{script_to_run_str} {file_url} {changes_file} {timestamp} {userlogin} {sheet}"
                     )
             
                 if any("Aborting update" in line for line in output_lines):
@@ -488,9 +514,9 @@ def resync(url: str, userlogin, delegated_auth, google_user_email, workdir = Non
         #                run_and_log(["python", "-u", download_script, file_url, timestamp], log, f"download.py {file_url} {timestamp}")
                     if delegated_auth:
                         logger.info("delegated_auth detected")
-                        run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
+                        run_and_log(["python", "-u", download_script, file_url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
                     else:
-                        run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+                        run_and_log(["python", "-u", download_script, file_url, timestamp], log, f"download.py {url} {timestamp}")
 
                     continue
 
@@ -524,13 +550,14 @@ def resync(url: str, userlogin, delegated_auth, google_user_email, workdir = Non
 
             # need to download xlsx file again since process_yaml earlier updated
             # sharepoint and this means the meta data will not match any longer 
-            logger.info(f"Re-downloading {url}...")
-#            run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
-            if delegated_auth:
-                logger.info("delegated_auth detected")
-                run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
-            else:
-                run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+            if not is_googlesheet(url):
+                logger.info(f"Re-downloading {url}...")
+    #            run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+                if delegated_auth:
+                    logger.info("delegated_auth detected")
+                    run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
+                else:
+                    run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
 
             logger.info("about to call process_aibrief_changes_txt")
             process_aibrief_changes_txt(url, sheet, filename, timestamp)
