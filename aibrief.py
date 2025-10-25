@@ -478,7 +478,7 @@ def extract_table_rows(source, basename, worksheet_name=None, tablename=None):
             jira_cells = [v for v in tag_cells if "<jira>" in v]
             if jira_cells:
                 #curr_table = jira_cells[0].rsplit("<jira>", 1)[0].rstrip().replace(" ", "_").lower()
-                curr_table = jira_cells[0].rsplit("<jira>", 1)[0].rstrip().replace(" ", "_")  # keep case as-is
+                curr_table = jira_cells[0].rsplit("<jira>", 1)[0].rstrip().replace(" ", " ")  # keep case as-is
                 print(f"curr_table set to {curr_table}")                
                 print(f"checking worksheet_name={worksheet_name} against sheet={sheet}")
                 if worksheet_name and worksheet_name != sheet:
