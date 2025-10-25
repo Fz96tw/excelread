@@ -10,6 +10,27 @@ from google_oauth import load_google_token, get_google_drive_filename
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+
+
+
+
+
+
+
+import requests
+from collections import defaultdict
+import argparse
+from urllib.parse import urlparse, quote, unquote
+import msal
+import os
+import json
+import string
+import shutil
+from openpyxl import load_workbook
+from openpyxl.utils import column_index_from_string
+import re
+from dotenv import load_dotenv
+
 # -------------------------------
 # Config from environment variables
 # -------------------------------
@@ -23,8 +44,6 @@ parser.add_argument("changes_file", help="Path to the local changes file")
 parser.add_argument("timestamp", help="String tag (timestamp) for local output temp files")
 parser.add_argument("userlogin", help="String userlogin")
 parser.add_argument("worksheet", help="String worksheet name or index")
-
-# Optional flag (no value needed — just true/false)
 parser.add_argument("--user_auth", action="store_true", help="Enable delgated user auth flow output")
 
 args = parser.parse_args()
@@ -86,7 +105,6 @@ def create_hyperlink(value, jira_base_url):
 def extract_sheet_id(url_or_id):
     """Extract Google Sheets ID from URL or return as-is if already an ID"""
     if "docs.google.com/spreadsheets" in url_or_id:
-        # Extract ID from URL like: https://docs.google.com/spreadsheets/d/SHEET_ID/edit
         parts = url_or_id.split("/d/")
         if len(parts) > 1:
             sheet_id = parts[1].split("/")[0]
@@ -111,7 +129,7 @@ def column_index_to_letter(col_index):
     return result
 
 def get_sheet_id_by_name(service, spreadsheet_id, sheet_name):
-    """Get the sheet ID (gid) for a given sheet name"""
+    """Get the sheet ID (gid) for a given sheet name - CACHED"""
     try:
         spreadsheet = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
         for sheet in spreadsheet.get('sheets', []):
@@ -123,119 +141,132 @@ def get_sheet_id_by_name(service, spreadsheet_id, sheet_name):
         raise
 
 # -------------------------------
-# GOOGLE SHEETS UPDATE FUNCTIONS
+# OPTIMIZED BATCH UPDATE FUNCTIONS
 # -------------------------------
 
-def update_sparse_row(service, spreadsheet_id, sheet_name, row_num, cols, jira_base_url, 
-                     import_mode=False, runrate_mode=False):
-    """Update specific cells in a row"""
-    print(f"Updating row {row_num} with columns: {list(cols.keys())}")
+def build_all_updates(all_rows, sheet_id, sheet_name, jira_base_url):
+    """
+    Build all value updates and formatting requests in a single pass.
+    Returns: (value_data_list, formatting_requests_list)
+    """
+    all_value_data = []
+    all_format_requests = []
     
-    # Prepare batch update requests
+    for row_num in sorted(all_rows.keys()):
+        cols = all_rows[row_num]
+        
+        for col_letter, values in cols.items():
+            col_index = column_letter_to_index(col_letter)
+            new_val = values["new"]
+            
+            # Handle hyperlinks
+            if new_val.startswith("URL "):
+                hyperlink = create_hyperlink(new_val, jira_base_url)
+                if hyperlink:
+                    new_val = new_val.replace("URL", "").strip()
+                    if "jql" in str(new_val).lower():
+                        new_val = "Link"
+                    
+                    cell_range = f"{sheet_name}!{col_letter}{row_num}"
+                    all_value_data.append({
+                        'range': cell_range,
+                        'values': [[f'=HYPERLINK("{hyperlink}","{new_val}")']],
+                    })
+                    continue
+            
+            # Handle regular values with semicolon to newline conversion
+            new_val = new_val.replace(";", "\n") if ";" in new_val else new_val
+            
+            cell_range = f"{sheet_name}!{col_letter}{row_num}"
+            all_value_data.append({
+                'range': cell_range,
+                'values': [[new_val]],
+            })
+            
+            # Add text wrapping format request
+            all_format_requests.append({
+                'repeatCell': {
+                    'range': {
+                        'sheetId': sheet_id,
+                        'startRowIndex': row_num - 1,
+                        'endRowIndex': row_num,
+                        'startColumnIndex': col_index,
+                        'endColumnIndex': col_index + 1,
+                    },
+                    'cell': {
+                        'userEnteredFormat': {
+                            'wrapStrategy': 'WRAP'
+                        }
+                    },
+                    'fields': 'userEnteredFormat.wrapStrategy'
+                }
+            })
+    
+    return all_value_data, all_format_requests
+
+def insert_blank_rows_batch(sheet_id, rows_to_insert):
+    """
+    Build insert dimension requests for multiple rows.
+    Returns list of requests to be added to a batch.
+    """
     requests = []
-    data = []
     
-    for col_letter, values in cols.items():
-        col_index = column_letter_to_index(col_letter)
-        new_val = values["new"]
+    # Sort rows in descending order to avoid index shifting issues
+    sorted_rows = sorted(rows_to_insert.items(), reverse=True)
+    print(f"🔍 Processing inserts in descending order: {sorted_rows}")
+    
+    for row_num, count in sorted_rows:
+        start_idx = row_num - 1  # Convert to 0-based
+        end_idx = row_num - 1 + count
         
-        # Handle hyperlinks
-        if new_val.startswith("URL "):
-            hyperlink = create_hyperlink(new_val, jira_base_url)
-            if hyperlink:
-                new_val = new_val.replace("URL", "").strip()
-                if "jql" in str(new_val).lower():
-                    new_val = "Link"
-                
-                # Create hyperlink formula
-                cell_range = f"{sheet_name}!{col_letter}{row_num}"
-                data.append({
-                    'range': cell_range,
-                    'values': [[f'=HYPERLINK("{hyperlink}","{new_val}")']],
-                })
-                continue
+        print(f"   📍 Insert {count} row(s) at position {row_num} (startIndex={start_idx}, endIndex={end_idx})")
         
-        # Handle regular values with semicolon to newline conversion
-        new_val = new_val.replace(";", "\n") if ";" in new_val else new_val
-        
-        cell_range = f"{sheet_name}!{col_letter}{row_num}"
-        data.append({
-            'range': cell_range,
-            'values': [[new_val]],
-        })
-        
-        # Enable text wrapping for the cell
-        sheet_id = get_sheet_id_by_name(service, spreadsheet_id, sheet_name)
         requests.append({
-            'repeatCell': {
+            'insertDimension': {
                 'range': {
                     'sheetId': sheet_id,
-                    'startRowIndex': row_num - 1,
-                    'endRowIndex': row_num,
-                    'startColumnIndex': col_index,
-                    'endColumnIndex': col_index + 1,
+                    'dimension': 'ROWS',
+                    'startIndex': start_idx,
+                    'endIndex': end_idx,
                 },
-                'cell': {
-                    'userEnteredFormat': {
-                        'wrapStrategy': 'WRAP'
-                    }
-                },
-                'fields': 'userEnteredFormat.wrapStrategy'
+                'inheritFromBefore': False
             }
         })
     
-    # Execute batch value update
-    if data:
+    print(f"✅ Created {len(requests)} insert requests")
+    return requests
+
+def execute_all_updates(service, spreadsheet_id, value_data, format_requests):
+    """Execute all updates in minimal API calls"""
+    total_cells_updated = 0
+    
+    # Execute all value updates in ONE batch call
+    if value_data:
         body = {
             'valueInputOption': 'USER_ENTERED',
-            'data': data
+            'data': value_data
         }
         try:
             result = service.spreadsheets().values().batchUpdate(
                 spreadsheetId=spreadsheet_id, body=body).execute()
-            print(f"✅ Updated {result.get('totalUpdatedCells')} cells in row {row_num}")
+            total_cells_updated = result.get('totalUpdatedCells', 0)
+            print(f"✅ Updated {total_cells_updated} cells in single batch call")
         except HttpError as e:
             print(f"Error updating values: {e}")
             raise
     
-    # Execute formatting requests
-    if requests:
-        body = {'requests': requests}
+    # Execute all formatting in ONE batch call
+    if format_requests:
+        body = {'requests': format_requests}
         try:
             service.spreadsheets().batchUpdate(
                 spreadsheetId=spreadsheet_id, body=body).execute()
-            print(f"✅ Applied formatting to row {row_num}")
+            print(f"✅ Applied formatting to {len(format_requests)} cells in single batch call")
         except HttpError as e:
             print(f"Error applying formatting: {e}")
             raise
-
-def insert_blank_rows(service, spreadsheet_id, sheet_name, start_row, count):
-    """Insert blank rows at the specified position"""
-    print(f"Inserting {count} blank row(s) at row {start_row}")
     
-    sheet_id = get_sheet_id_by_name(service, spreadsheet_id, sheet_name)
-    
-    requests = [{
-        'insertDimension': {
-            'range': {
-                'sheetId': sheet_id,
-                'dimension': 'ROWS',
-                'startIndex': start_row - 1,  # 0-based
-                'endIndex': start_row - 1 + count,
-            },
-            'inheritFromBefore': False
-        }
-    }]
-    
-    body = {'requests': requests}
-    
-    try:
-        service.spreadsheets().batchUpdate(
-            spreadsheetId=spreadsheet_id, body=body).execute()
-        print(f"✅ Successfully inserted {count} blank row(s) at row {start_row}")
-    except HttpError as e:
-        print(f"Error inserting rows: {e}")
-        raise
+    return total_cells_updated
 
 # -------------------------------
 # MAIN LOGIC
@@ -263,11 +294,14 @@ try:
 except Exception as e:
     print(f"⚠️ Could not retrieve filename: {e}")
 
+# GET SHEET ID ONCE at the start (CRITICAL OPTIMIZATION)
+sheet_id = get_sheet_id_by_name(service, spreadsheet_id, worksheet_name)
+print(f"📋 Sheet ID for '{worksheet_name}': {sheet_id}")
+
 # -------------------------------
 # PARSE CHANGES FILE
 # -------------------------------
 
-# Separate INSERT rows from regular updates
 insert_row_values = defaultdict(dict)
 row_values = defaultdict(dict)
 
@@ -305,30 +339,110 @@ with open(changes_file, "r") as f:
         print(f"Processed {cell}: new='{new_value.strip()}'")
 
 # -------------------------------
-# APPLY UPDATES TO GOOGLE SHEET
+# APPLY ALL UPDATES IN OPTIMIZED BATCHES
 # -------------------------------
 
-print(f"\n🚀 Starting updates to Google Sheet...")
+print(f"\n🚀 Starting optimized batch updates to Google Sheet...")
+print(f"📊 Debug: insert_row_values has {len(insert_row_values)} rows: {list(insert_row_values.keys())}")
+print(f"📊 Debug: row_values has {len(row_values)} rows: {list(row_values.keys())}")
 
-# Process INSERT rows first
-for row_num in sorted(insert_row_values.keys()):
-    cols = insert_row_values[row_num]
-    print(f"📝 Inserting row {row_num} with values: {cols}")
-    insert_blank_rows(service, spreadsheet_id, worksheet_name, row_num, 1)
-    update_sparse_row(service, spreadsheet_id, worksheet_name, row_num, cols, 
-                     jira_base_url, import_mode)
+all_requests = []
 
-# Process regular updates
-for row_num in sorted(row_values.keys()):
-    cols = row_values[row_num]
-    print(f"✏️ Updating row {row_num} with values: {cols}")
-    update_sparse_row(service, spreadsheet_id, worksheet_name, row_num, cols, 
-                     jira_base_url, import_mode, runrate_mode)
+# Step 1: Build insert row requests (if any)
+if insert_row_values:
+    # Check for consecutive row inserts and optimize them into bulk operations
+    sorted_insert_rows = sorted(insert_row_values.keys())
+    
+    # Group consecutive rows together
+    insert_groups = []
+    current_group_start = sorted_insert_rows[0]
+    current_group_count = 1
+    
+    for i in range(1, len(sorted_insert_rows)):
+        if sorted_insert_rows[i] == sorted_insert_rows[i-1] + 1:
+            # Consecutive row
+            current_group_count += 1
+        else:
+            # Gap found, save current group
+            insert_groups.append((current_group_start, current_group_count))
+            current_group_start = sorted_insert_rows[i]
+            current_group_count = 1
+    
+    # Don't forget the last group
+    insert_groups.append((current_group_start, current_group_count))
+    
+    print(f"🔍 Optimized {len(sorted_insert_rows)} individual inserts into {len(insert_groups)} bulk operations:")
+    for start, count in insert_groups:
+        print(f"   📍 Insert {count} rows starting at position {start}")
+    
+    # Build requests from groups (in descending order)
+    rows_to_insert = {start: count for start, count in insert_groups}
+    insert_requests = insert_blank_rows_batch(sheet_id, rows_to_insert)
+    all_requests.extend(insert_requests)
+    print(f"📝 Prepared {len(insert_requests)} bulk insertion requests")
+else:
+    print(f"ℹ️ No insert rows found")
 
-# For runrate mode, insert blank rows at the end
+# Step 2: Build runrate blank rows (if needed)
 if runrate_mode and row_values:
     last_row = max(row_values.keys())
-    print(f"🧹 Runrate mode: inserting blank rows after row {last_row}")
-    insert_blank_rows(service, spreadsheet_id, worksheet_name, last_row + 1, 2)
+    runrate_requests = insert_blank_rows_batch(sheet_id, {last_row + 1: 2})
+    all_requests.extend(runrate_requests)
+    print(f"🧹 Prepared runrate blank row requests")
+
+# Step 3: Execute all insert operations in ONE batch call
+if all_requests:
+    body = {'requests': all_requests}
+    print(f"🚀 Sending batch request with {len(all_requests)} operations:")
+    for i, req in enumerate(all_requests):
+        if 'insertDimension' in req:
+            r = req['insertDimension']['range']
+            print(f"   Request {i+1}: Insert rows at startIndex={r['startIndex']}, endIndex={r['endIndex']}")
+    
+    try:
+        response = service.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id, body=body).execute()
+        print(f"✅ Executed all {len(all_requests)} insert operations in single batch call")
+        print(f"📋 Response: {response}")
+    except HttpError as e:
+        print(f"❌ Error inserting rows: {e}")
+        print(f"📄 Request body: {json.dumps(body, indent=2)}")
+        raise
+else:
+    print(f"ℹ️ No insert operations to execute")
+
+# Step 4: Merge insert and update rows (handling conflicts properly)
+all_rows = {}
+
+print(f"\n🔄 Merging dictionaries...")
+print(f"   insert_row_values: {dict(insert_row_values)}")
+print(f"   row_values: {dict(row_values)}")
+
+for row_num, cols in insert_row_values.items():
+    if row_num not in all_rows:
+        all_rows[row_num] = {}
+    all_rows[row_num].update(cols)  # Add insert columns
+    print(f"📥 Added insert row {row_num} with columns: {list(cols.keys())}")
+
+for row_num, cols in row_values.items():
+    if row_num not in all_rows:
+        all_rows[row_num] = {}
+    all_rows[row_num].update(cols)  # Add/merge update columns
+    print(f"✏️ Added/merged update row {row_num} with columns: {list(cols.keys())}")
+
+print(f"📦 Final merged rows: {list(all_rows.keys())}")
+print(f"📦 Merged {len(insert_row_values)} insert rows and {len(row_values)} update rows into {len(all_rows)} total rows")
+
+# Step 5: Build ALL value and format updates together
+all_value_data, all_format_requests = build_all_updates(
+    all_rows, sheet_id, worksheet_name, jira_base_url
+)
+
+print(f"📦 Prepared {len(all_value_data)} value updates and {len(all_format_requests)} format updates")
+
+# Step 6: Execute all value and format updates in TWO batch calls (minimum possible)
+total_updated = execute_all_updates(service, spreadsheet_id, all_value_data, all_format_requests)
 
 print(f"\n✅ All updates completed successfully!")
+print(f"📊 Summary: {total_updated} cells updated with {len(all_format_requests)} formatted")
+print(f"🎯 Total API calls: ~{3 + (1 if all_requests else 0) + 2} (down from potentially 100+)")

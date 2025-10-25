@@ -958,7 +958,7 @@ for assignee in unique_assignee_list:
         jql = "key in ("
         for issue in bucket:
             jql += issue.key + ","
-        jql = jql.rstrip(",") + ")"
+        jql = jql.rstrip(",") + ") order by key asc"
 
         #entry = f"{coord} = {len(bucket)} || "
         hyperlink = _make_hyperlink_formula(f"{JIRA_URL}/issues/?jql={jql}", f"{len(bucket)}") + " || "

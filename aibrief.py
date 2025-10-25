@@ -428,7 +428,7 @@ def extract_table_rows(source, basename, worksheet_name=None, tablename=None):
     table_rows = {}     # maps table_name -> list of rows
     curr_table = None
 
-    SPECIAL_TAGS = ("<jira>", "<ai brief>", "<rate assignee>", "<rate resolved>", "<cycletime>")
+    SPECIAL_TAGS = ("<jira>", "<ai brief>", "<rate assignee>", "<rate resolved>", "<cycletime>", "<statustime>")
     aibrief_cells = []   # list to store coordinates of <aibrief> cells
 
     # Iterate with cell objects, not just values
@@ -552,8 +552,16 @@ if sheets_to_resync:
         url = url + "#" + wsheet # append sheet fragment to URL because that's the format resync expects
         val= clean_sharepoint_url(url)  
         cwd = os.getcwd()
+
+        config_dir_backup = CONFIG_DIR
+        print(f"saving CONFIG_DIR value {CONFIG_DIR} before calling resync")
         print(f"Running resync({val},{userlogin},{cwd},{timestamp}) on sheet '{url}' to generate data for sheet '{wsheet}'")
         resync(val,userlogin, delegated_auth, cwd, timestamp)  # call your function with the string value file URL and userlogin (used for working folder for script)
+        #CONFIG_DIR = config_dir_backup
+        CONFIG_DIR = "../../../config"
+        print(f"restoring CONFIG_DIR value to {CONFIG_DIR}")
+
+        from google_oauth import *
 
         # After resync, extract table rows from this sheet and update table_rows
         print(f"Extracting table rows from sheet '{wsheet}' after resync")

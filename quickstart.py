@@ -129,11 +129,11 @@ changes_epics = [
 ]
 
 changes_resolved_velocity = [
-    f"Resolved Velocity<rate resolved><weeks>jql project in ({jira_projects_str}) and created >= -30d"
+    f"Resolved Velocity<rate resolved><months>jql project in ({jira_projects_str}) and resolved >= -13w"
 ]
 
 changes_assignee_velocity = [
-    f"Assignee Velocity<rate assignee><weeks>jql project in ({jira_projects_str}) and created >= -30d"
+    f"Assignee Velocity<rate assignee><months>jql project in ({jira_projects_str}) and resolved >= -13w"
 ]
 
 changes_overall_status = [
@@ -141,8 +141,13 @@ changes_overall_status = [
 ]
 
 changes_cycletime = [
-    f"Cycle Time<cycletime> jql project in ({jira_projects_str}) and updated >= -90d"
+    f"Cycle Time<cycletime> jql project in ({jira_projects_str}) and created >= -13w"
 ]
+
+changes_statustime = [
+    f"Status Time<statustime> jql project in ({jira_projects_str}) and created >= -13w"
+]
+
 
 changes_list = []
 coord = get_column_letter(1)
@@ -160,12 +165,16 @@ r += 10
 changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = {changes_cycletime[0]} || ")
 r += 10
 
+changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = {changes_statustime[0]} || ")
+r += 10
+
+
 # column write always start at column A
 for idx, entry in enumerate(changes_epics):
     if idx == 0:
         changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = {entry} || ")
     else:
-        coord = f"{get_column_letter(excel_col + 1 + idx)}{r + 1}"
+        coord = f"{get_column_letter(excel_col + idx)}{r + 1}"
         changes_list.append(f"{coord} = {entry} || ")
 
     

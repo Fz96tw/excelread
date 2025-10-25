@@ -593,14 +593,14 @@ from urllib.parse import unquote
 from openpyxl.utils import get_column_letter
 
 if len(sys.argv) < 4:
-    print("Usage: python cycletime.py <yaml_file> <timestamp> <userlogin>")
+    print("Usage: python statustime.py <yaml_file> <timestamp> <userlogin>")
     sys.exit(1)
 
 yaml_file = sys.argv[1]
 timestamp = sys.argv[2]
 userlogin = sys.argv[3]
 
-print(f"cycletime parameters  yaml_file={yaml_file} timestamp={timestamp} userlogin={userlogin}")
+print(f"statustime parameters  yaml_file={yaml_file} timestamp={timestamp} userlogin={userlogin}")
 
 with open(yaml_file, 'r') as f:
     data = yaml.safe_load(f)
@@ -623,15 +623,13 @@ if not tablename:
     sys.exit(1)
 
 
-# I don't think this code is doing anything useful. It always sets create_mode to True?! since 
-# Determine if we will be INSERTING rows eventually vs just UPDATING existing rows in Excel/SharePoint
-if "cycletime.scope" in yaml_file.lower():
-    print(f"cycletime detected based on filename: {yaml_file}.")
+if "statustime.scope" in yaml_file.lower():
+    print(f"statustime detected based on filename: {yaml_file}.")
     # You can set a flag or handle import-specific logic here if needed
-    output_file = basename + "." + tablename + timestamp + ".cycletime.jira.csv"
+    output_file = basename + "." + tablename + timestamp + ".statustime.jira.csv"
     #mode = "assignee" #"resolved"
 else:
-    print("Error: YAML filename is not 'cycletime.scope.yaml")
+    print("Error: YAML filename is not 'statustime.scope.yaml")
     sys.exit(1)
 
 fields = data.get('fields', [])
@@ -664,7 +662,7 @@ print("Field values,", field_values_str)
 '''
     fileinfo:
     basename: Quickstart.xlsx
-    scope file: Quickstart.xlsx.Cycle_Time.20250928_164350.cycletime.scope.yaml
+    scope file: Quickstart.xlsx.Cycle_Time.20250928_164350.statustime.scope.yaml
     source: Quickstart.xlsx
     table: Cycle_Time
     jql: project in (tes,fr) and updated > -90d
@@ -674,17 +672,17 @@ print("Field values,", field_values_str)
 '''
 
 # the following were addded by scope.py in runrate yaml file
-cycletime_table_row = data.get('row', None)
-print(f"quickstart_table_row from yaml: {cycletime_table_row}")
-cycletime_table_col = data.get('col', None)
-print(f"quickstart_table_col from yaml: {cycletime_table_col}")
+statustime_table_row = data.get('row', None)
+print(f"quickstart_table_row from yaml: {statustime_table_row}")
+statustime_table_col = data.get('col', None)
+print(f"quickstart_table_col from yaml: {statustime_table_col}")
 last_excel_row = data.get('lastrow', None)
 print(f"last_excel_row from yaml: {last_excel_row}")
 jql_str = data.get('jql', None)
 print(f"jql from yaml: {jql_str}")
 
 # validate
-if not jql_str or cycletime_table_row is None or cycletime_table_col is None or last_excel_row is None:
+if not jql_str or statustime_table_row is None or statustime_table_col is None or last_excel_row is None:
     print("❌ Error: Missing required fields in YAML file")
     sys.exit(1)
 
@@ -741,8 +739,13 @@ except Exception as e:
     sys.exit(1)
 
 
-#########################
+changes_list = []
 
+r = statustime_table_row + 1
+excel_col = statustime_table_col + 1
+
+#########################
+'''
 # Calculate chain cycle times
 results = calculate_average_chain_cycle_time(issues)
 print(f"\nCalculated cycle times for {len(results)} unique transition chains.")
@@ -756,12 +759,11 @@ sorted_chains = sorted(
     reverse=True
 )
 
-changes_list = []
-r = cycletime_table_row 
-excel_col = cycletime_table_col + 1
+r = statustime_table_row + 1
+excel_col = statustime_table_col + 1
 
 # write out the timestamp in cell adjacent to <> so we can tell when the update occurred
-coord = f"{get_column_letter(cycletime_table_col + 2)}{cycletime_table_row + 1}"
+coord = f"{get_column_letter(statustime_table_col + 2)}{statustime_table_row + 1}"
 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 entry = f"{coord} = {now_str} ||"
 print(entry)
@@ -773,7 +775,7 @@ if scan_ahead_nonblank_rows:
 else:
     prefix = "INSERT"
 
-r += 1  # bump row one more time so INSERT are done at the row right below the cycletime tag
+r += 1  # bump row one more time so INSERT are done at the row right below the statustime tag
 changes_list.append(f"{get_column_letter(excel_col)}{r} = {prefix} TRANSITION CHAIN || ")
 changes_list.append(f"{get_column_letter(excel_col + 1)}{r} =   AVERAGE || ")
 changes_list.append(f"{get_column_letter(excel_col + 2)}{r} =   MEDIAN  || ")
@@ -822,12 +824,12 @@ for chain_str, data in sorted_chains:
     print(f"  Range:        {data['min_hours']:.1f} - {data['max_hours']:.1f} hours")
     print(f"  Sample Size:  {data['count']} issues")
 
-changes_list.append(f"{get_column_letter(excel_col)}{r} =  INSERT ----- || ")
-
+changes_list.append(f"{get_column_letter(excel_col)}{r} =  INSERT EOL || ")
+'''
 ###########################
 
 
-'''
+
 # Calculate transition times
 results = calculate_average_status_transition_time(issues)
 print(f"\nCalculated transition times for {len(results)} status transitions.")
@@ -846,11 +848,11 @@ sorted_transitions = sorted(
 
 
 #changes_list = []
-#r = cycletime_table_row + 1
-#excel_col = cycletime_table_col + 1
+#r = statustime_table_row + 1
+#excel_col = statustime_table_col + 1
 
 # write out the timestamp in cell adjacent to <> so we can tell when the update occured
-coord = f"{get_column_letter(cycletime_table_col + 2)}{cycletime_table_row + 1}"
+coord = f"{get_column_letter(statustime_table_col + 2)}{statustime_table_row + 1}"
 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 entry = f"{coord} = {now_str} ||"
 print (entry)
@@ -863,7 +865,7 @@ if scan_ahead_nonblank_rows:
 else:
     prefix = "INSERT"
 
-r += 1  # bump row one more time so INSERT are done at the row right below the cycletime tag 
+r += 1  # bump row one more time so INSERT are done at the row right below the statustime tag 
 changes_list.append(f"{get_column_letter(excel_col)}{r} = {prefix} FROM STATUS || ")  # add INSERT to only first since the rest are on same row
 changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = TO STATUS || ")  # add INSERT to only first since the rest are on same row
 changes_list.append(f"{get_column_letter(excel_col + 2)}{r} =   Average Time || ")
@@ -922,7 +924,7 @@ no_transitions = get_issues_with_no_transitions(issues)
 print("\nIssues with no transitions:")
 for status, issue_keys in no_transitions.items():
     print(f"{status}: {', '.join(issue_keys)}")
-'''
+
 
 
 

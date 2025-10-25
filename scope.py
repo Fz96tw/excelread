@@ -99,7 +99,7 @@ def extract_ai_summary_table_list(text: str, timestamp) -> list[str]:
     
     # Split by commas and normalize
 #    return [s.strip().replace(" ", "_") for s in substrings.split(",") if s.strip()]
-    return [s.strip().replace(" ", "_") for s in substrings.split(",") if s.strip()]
+    return [s.strip().replace(" ", " ") for s in substrings.split(",") if s.strip()]
 
 
 def extract_email_list(text: str) -> list[str]:
@@ -424,7 +424,7 @@ if __name__ == "__main__":
                     yaml.dump({"email":email_list}, f, default_flow_style=False)
                 continue        # we may have <jira> in same row so continue processing
 
-            elif "<cycletime>" in cell_str:
+            elif "<cycletime>" in cell_str or "<statustime>" in cell_str:
                 print(f"<cycletime> found in cell_str={cell_str}")
                 #cell_after_tag = cell_str.split("<cycletime>", 1)[1].strip()
                 #jira_proj_list = [s.strip().replace(" ", "_") for s in cell_after_tag.split(",") if s.strip()]
@@ -443,9 +443,14 @@ if __name__ == "__main__":
 
                 runrate_found = False #does not depend on jira_table_found
 
-                # generate quickstart scope yaml file
-                cleaned_value = str(cell).rsplit("<cycletime>", 1)[0].strip().replace(" ", "_")
-                scope_output_file = f"{file_info['basename']}.{sheet}.{cleaned_value}.{timestamp}.cycletime.scope.yaml"
+                if "<cycletime>" in cell_str:
+                    # generate quickstart scope yaml file
+                    cleaned_value = str(cell).rsplit("<cycletime>", 1)[0].strip().replace(" ", "_")
+                    scope_output_file = f"{file_info['basename']}.{sheet}.{cleaned_value}.{timestamp}.cycletime.scope.yaml"
+                else:
+                    cleaned_value = str(cell).rsplit("<statustime>", 1)[0].strip().replace(" ", "_")
+                    scope_output_file = f"{file_info['basename']}.{sheet}.{cleaned_value}.{timestamp}.statustime.scope.yaml"
+
 
                 if "jql" in cell_str:
                     jql_str = cell_str.split("jql", 1)[1].strip()

@@ -116,12 +116,27 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
 
     sheet = unquote(sheet) #replace any %20 with space character 
     
+   
+
     if is_googlesheet(url):
-        logger.info("Detected Google Sheets URL")
-#        filename = url
-        doc_id = extract_google_doc_id(url)
-        basename = get_google_drive_filename(userlogin, doc_id) or doc_id
-        filename = basename
+        try:
+            if workdir:
+                # needed because resync expects directoy to be same as appnew.py
+                os.chdir("../../../")
+                print(f"changed directory to ../../../ and now cwd={os.getcwd()}")
+        
+            logger.info("Detected Google Sheets URL")
+    #        filename = url
+            doc_id = extract_google_doc_id(url)
+            basename = get_google_drive_filename(userlogin, doc_id) or doc_id
+            filename = basename
+        finally:
+            if workdir:
+                # needed because resync expects directoy to be same as appnew.py
+                os.chdir(workdir)
+                print(f"changed directory back to {workdir}")
+
+
     else:
         logger.info("Not a Google sheets URL, will treat as local or Sharepoint")
         # Parse a URL into 6 components:
@@ -191,6 +206,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
     aibrief_script = os.path.join(base_dir, "aibrief.py")
     quickstart_script = os.path.join(base_dir, "quickstart.py")
     cycletime_script = os.path.join(base_dir, "cycletime.py")
+    statustime_script = os.path.join(base_dir, "statustime.py")
     
 
     def run_and_log(cmd, log, desc):
@@ -346,6 +362,9 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                 elif "cycletime.scope.yaml" in yaml_file:
                     logger.info(f"Found CYCLETIME scope yaml file {yaml_file}")
                     run_and_log(["python", "-u", cycletime_script, yaml_file, timestamp, userlogin], log, f"cycletime.py {yaml_file} {timestamp} {userlogin}")
+                elif "statustime.scope.yaml" in yaml_file:
+                    logger.info(f"Found STATUSTIME scope yaml file {yaml_file}")
+                    run_and_log(["python", "-u", statustime_script, yaml_file, timestamp, userlogin], log, f"statustime.py {yaml_file} {timestamp} {userlogin}")
                 elif "quickstart.scope.yaml" in yaml_file:
                     logger.info(f"Found QUIKSTART scope yaml file {yaml_file}")
                     run_and_log(["python", "-u", quickstart_script, yaml_file, timestamp], log, f"quickstart.py {yaml_file} {timestamp}")
@@ -362,7 +381,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                     run_and_log(["python", "-u", update_excel_script, jira_csv, input_file, sheet, userlogin], log, f"update_excel.py {jira_csv} {input_file} {sheet} {userlogin}")
 
                 changes_file = f"{substring}.changes.txt"
-                k = ["cycletime", "resolved", "assignee"]
+                k = ["cycletime", "statustime","resolved", "assignee"]
 
                 if any(s in changes_file for s in k):
                     changes_file = changes_file.replace(".changes.txt", ".import.changes.txt")
@@ -528,7 +547,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                     
                     # all files are process now so end the loop
                     break
-                
+           
 
 
     with open(log_file, "w", encoding="utf-8") as log:
@@ -567,5 +586,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
             logger.exception(err_msg)
             log.write(err_msg + "\n")
 
+
     userfolder = f"{work_dir}/../"
     delete_old_folders_by_hours(userfolder,24)   # remove user-level temporary file that are older than 24 hour
+
