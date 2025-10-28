@@ -267,17 +267,25 @@ import_mode = False
 execsummary_mode = False
 
 # Determine if we will be INSERTING rows eventually vs just UPDATING existing rows in Excel/SharePoint
-if "import" in yaml_file.lower():
+if ".import." in yaml_file.lower():
     print("Import mode detected based on filename containing 'import'.")
     # You can set a flag or handle import-specific logic here if needed
     import_mode = True
     output_file = basename + "." + sheet + "." + tablename + "." + timestamp + ".import.jira.csv"
 # Determine if we are dealing wiht ExecSummary table here
-elif "aisummary" in yaml_file.lower():
+elif ".aisummary." in yaml_file.lower():
     print(f"ai summary mode detected based on filename = {yaml_file}")
     # You can set a flag or handle import-specific logic here if needed
     execsummary_mode = True
     output_file = basename + "." + sheet + "." + tablename + "." + timestamp + ".aisummary.jira.csv"
+elif ".chain." in yaml_file.lower():
+    print(f"Chain YAML detected based on filename = {yaml_file}")
+    match = re.match(rf"{re.escape(basename)}\.(.+?)\.chain\.scope\.yaml", os.path.basename(yaml_file))
+    if match:
+        substring = match.group(1)
+        output_file = f"{basename}.{substring}.chain.jira.csv"
+        print(f"output_file set to {output_file}")
+        
 else:
     import_mode = False
     execsummary_mode = False

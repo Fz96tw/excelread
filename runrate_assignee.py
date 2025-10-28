@@ -513,14 +513,14 @@ def get_resolved_by_user(issue):
             else:
                 continue  # unexpected type
 
-            if field == "status" and to_status and to_status.lower() == "resolved":
+            if field == "status" and to_status and to_status.lower() in {"resolved", "done", "completed"}:
                 #print(f"✅ Issue {issue.key} resolved by {author or 'Unknown'} "
                 #      f"at {getattr(history, 'created', 'unknown time')}")
                 return author or "Unknown"
                                 
     # it's possible issue went straight to close without a resolved statue.
     # we will make resolved by UNKNOWN in this case.  Alternatively you can use CLOSED author but leave that for future if needed.
-    print(f"ℹ️ Issue {issue.key} was never transitioned to 'Resolved'.")
+    print(f"ℹ️ Issue {issue.key} was never transitioned to 'Resolved'. Current status={issue.fields.status.name}")
     return "Unknown"
 
 
@@ -711,7 +711,9 @@ assignee_list = []
 for issue in issues:
     #assignee  = issue.fields.assignee.displayName if issue.fields.assignee else "Unassigned"   
     assignee = get_resolved_by_user(issue)
-    assignee_list.append(assignee)
+    # we don't want to show Unknown assignee in the sheet
+    if (assignee != "Unknown"):
+        assignee_list.append(assignee)
 
 unique_assignee_list = list(set(assignee_list))  # unique values
 
@@ -874,11 +876,18 @@ print(f"Sorted keys: {list(sorted_week_to_col.keys())}")
 
 week_to_label = {}  
 
+week_to_col['total'] = col + 2  # save the col to write assignee_total
+coord = f"{get_column_letter(week_to_col['total'])}{row}"
+entry = f"{coord} = Total Jira || " 
+print (entry)
+changes_list.append(entry)
+
+
 # Now assign column numbers in order
 for col_index, week_num in enumerate(sorted_week_to_col):
     print(f"week_to_col({week_num}) -> Column {col + 1 + col_index + 1}")
     week_to_label[week_num] = week_to_col[week_num]
-    week_to_col[week_num] = col + 1 + col_index + 1
+    week_to_col[week_num] = col + 1 + col_index + 2     # + 2 because we added assignee_total col as well
 
 # now write out the week headers
 for i in sorted_week_to_col:
@@ -901,19 +910,23 @@ for assignee in unique_assignee_list:
         # Print summary
         print_weekly_summary(weekly_buckets_resolved, week_info_resolved)
 
+    assignee_total = 0
+    print ("assignee_total reset to 0")
     # now loop through the weeks and write out the counts
     for i, (bucket, (year, week_num, start_date, end_date)) in enumerate(zip(weekly_buckets_resolved, week_info_resolved)):
         #week_str = f"Week {i+1} ({year}-W{week_num:02d})"
         week_str = f"{start_date.strftime('%Y-%m-%d')}"
         date_range = f"{start_date.strftime('%m/%d')} - {end_date.strftime('%m/%d/%Y')}"
         issue_count = len(bucket)
-        
+
+       
         #week_to_col[week_num] = col + 1 + i + 1
         #print(f"saving week_to_col('{week_num}' = {col + 1 + i + 1})")
         
         #coord = f"{get_column_letter(col + 1 + i + 1)}{row + 1}"
         #entry = f"{coord} = {len(bucket)} || "
         
+        print(f"bucket len = {len(bucket)}")
         if (len(bucket) == 0):
             print (f"Skipping week {week_num} since no OPEN issues")
             continue
@@ -937,7 +950,6 @@ for assignee in unique_assignee_list:
         else:
             print(f"Error: unrecognized period interval found in runrate_params mode={interval}")
             sys.exit(1)
-
 
         #print (f"Looking up week {week_num} in sorted_week_to_col, found column {week_to_col.get(week_num,'None')}")
         #coord = f"{get_column_letter(week_to_col.get(week_num))}{row + 1}"
@@ -965,6 +977,16 @@ for assignee in unique_assignee_list:
         entry = f"{coord} = {hyperlink} || " 
         print (entry)
         changes_list.append(entry)
+
+        assignee_total += len(bucket)
+        print(f"assignee_total updated to {assignee_total} for assignee={assignee}")
+
+    # now write out the assignee_total
+    coord = f"{get_column_letter(week_to_col['total'])}{row + 1}"
+    entry = f"{coord} = {assignee_total} || " 
+    print (entry)
+    changes_list.append(entry)
+
     
     row = row + 1   # move to next row for next assignee    
 

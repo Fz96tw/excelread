@@ -851,12 +851,6 @@ sorted_transitions = sorted(
 #r = statustime_table_row + 1
 #excel_col = statustime_table_col + 1
 
-# write out the timestamp in cell adjacent to <> so we can tell when the update occured
-coord = f"{get_column_letter(statustime_table_col + 2)}{statustime_table_row + 1}"
-now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-entry = f"{coord} = {now_str} ||"
-print (entry)
-changes_list.append(entry)
 
 
 if scan_ahead_nonblank_rows:
@@ -864,6 +858,15 @@ if scan_ahead_nonblank_rows:
     scan_ahead_nonblank_rows -= 1
 else:
     prefix = "INSERT"
+
+r += 1  # bump row one more time so INSERT are done at the row right below the cycletime tag
+
+# write out the timestamp in cell adjacent to <> so we can tell when the update occurred
+coord = f"{get_column_letter(excel_col)}{r}"
+now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+entry = f"{coord} = {prefix} {now_str} ||"
+print(entry)
+changes_list.append(entry)
 
 r += 1  # bump row one more time so INSERT are done at the row right below the statustime tag 
 changes_list.append(f"{get_column_letter(excel_col)}{r} = {prefix} FROM STATUS || ")  # add INSERT to only first since the rest are on same row

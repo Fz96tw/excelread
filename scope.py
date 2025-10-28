@@ -269,7 +269,7 @@ def close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, j
     #jira_table_found = False
     jira_ids = []
     jira_fields = []
-    jira_fields_default_value = {}
+    jira_fields_default_value = {}      # <jira><create> allows default values for jira fields 
     fields_found = False
     jira_import_found = False
     jira_create_found = False
@@ -416,6 +416,15 @@ if __name__ == "__main__":
                     yaml.dump({"tables":ai_table_list}, f, default_flow_style=False)
 
                 continue # go on with next cell in row incase there's <email> in same row
+
+            elif "<llm>" in cell_str:
+                print(f"<llm> tag found in cell_str={cell_str}")
+                match = re.search(r"<llm>(.*)",cell_str, re.IGNORECASE)
+                if match:
+                    llm_text = match.group(1).strip()
+                    with open(scope_output_file, 'a') as f:
+                        yaml.dump({"llm": llm_text}, f, default_flow_style=False)                    
+                continue        # we may have <jira> in same row so continue processing
 
             elif "<email>" in cell_str and exec_summary_found:
                 print(f"<email> found in cell_str={cell_str}")

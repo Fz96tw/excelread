@@ -3,6 +3,16 @@ import ollama
 import os
 from datetime import datetime
 from typing import List, Optional
+#import openai
+from openai import OpenAI
+
+
+#from openai import OpenAI
+from dotenv import load_dotenv
+
+import tiktoken
+from datetime import datetime
+#from openai.error import OpenAIError
 
 
 app = FastAPI()
@@ -60,7 +70,99 @@ class OllamaSummarizer:
             summary = response["message"]["content"]
             return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
-    def summarize(self, comments: list[str]) -> str:
+    
+    def summarize(self, comments: list[str], completion_tokens: int = 500) -> str:
+        if not comments:
+            return "No comments available."
+
+        # Model context limits (approximate tokens for Ollama models)
+        # llama3.2:1b has ~128k context, but we'll be conservative
+        MODEL_CONTEXT_LIMITS = {
+            "llama3.2:1b": 32000,
+            "llama3.2:3b": 32000,
+            "llama2": 4096,
+            "llama2:13b": 4096,
+            "mistral": 8192,
+        }
+
+        model_limit = MODEL_CONTEXT_LIMITS.get(self.model_name, 4096)
+        max_tokens_per_chunk = model_limit - completion_tokens
+
+        # Helper to count tokens (approximate: 1 token ≈ 4 characters for English text)
+        def count_tokens(text: str) -> int:
+            return len(text) // 4
+
+        # Split comments into chunks
+        chunks = []
+        chunk_token_counts = []
+        current_chunk = []
+        current_tokens = 0
+        total_tokens = 0
+
+        for comment in comments:
+            comment_tokens = count_tokens(comment)
+            total_tokens += comment_tokens
+            
+            if comment_tokens > max_tokens_per_chunk:
+                comment = comment[:max_tokens_per_chunk * 4]  # truncate large comment
+                comment_tokens = max_tokens_per_chunk
+
+            if current_tokens + comment_tokens > max_tokens_per_chunk:
+                chunk_text = "\n".join(current_chunk)
+                chunks.append(chunk_text)
+                chunk_token_counts.append(current_tokens)
+                current_chunk = [comment]
+                current_tokens = comment_tokens
+            else:
+                current_chunk.append(comment)
+                current_tokens += comment_tokens
+
+        if current_chunk:
+            chunk_text = "\n".join(current_chunk)
+            chunks.append(chunk_text)
+            chunk_token_counts.append(current_tokens)
+
+        # Print token statistics
+        print(f"[INFO] Total tokens across all comments: {total_tokens}")
+        print(f"[INFO] Number of chunks: {len(chunks)}")
+        for i, token_count in enumerate(chunk_token_counts, 1):
+            print(f"[INFO] Chunk {i} tokens: {token_count}")
+
+        # Summarize each chunk
+        summaries = []
+        for chunk in chunks:
+            prompt = f"The following is the content you need to summarize:\n{chunk}"
+
+            try:
+                response = ollama.chat(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                summaries.append(response["message"]["content"])
+            except Exception as e:
+                print(f"[ERROR] Ollama API error: {e}")
+                summaries.append("[Chunk summary failed]")
+
+        # Combine chunk summaries if multiple
+        if len(summaries) > 1:
+            combined_prompt = f"The following is the content you need to summarize:\n{'\n'.join(summaries)}"
+            try:
+                response = ollama.chat(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": combined_prompt}],
+                )
+                final_summary = response["message"]["content"]
+            except Exception as e:
+                print(f"[ERROR] Ollama API error in final summary: {e}")
+                final_summary = "[Final summary failed due to API error]"
+        else:
+            final_summary = summaries[0]
+
+        return f"({self.model_name}) {final_summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+
+
+    def summarize_old(self, comments: list[str]) -> str:
         if not comments:
             return "No comments available."
 
@@ -74,6 +176,8 @@ class OllamaSummarizer:
         )
         summary = response["message"]["content"]
         return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+
 
 
     def summarize_ex(self, comments: List[str], field: Optional[str] = None) -> str:
@@ -140,9 +244,6 @@ def summarize_local(comments: str):
     return {"summary": local_summarizer.summarize_str(comments)}
 
 
-from openai import OpenAI
-from dotenv import load_dotenv
-
 #app = FastAPI()
 MODEL_NAME2 = "gpt-4o-mini"   # you can switch to gpt-4.1, gpt-4o, etc.
 
@@ -180,7 +281,98 @@ class OpenAISummarizer:
         #summary = summary.replace("\n", "; ").replace("|", "/")
         return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
-    def summarize(self, comments: list[str]) -> str:
+
+
+    # Model context limits (tokens)
+    MODEL_CONTEXT_LIMITS = {
+        "gpt-3.5-turbo": 4096,
+        "gpt-3.5-turbo-16k": 16384,
+        "gpt-4": 8192,
+        "gpt-4-32k": 32768,
+        "gpt-4-turbo": 128000,   # GPT-4 Turbo 128k
+    }
+
+    def summarize(self, comments: list[str], completion_tokens: int = 500) -> str:
+        if not comments:
+            return "No comments available."
+
+        model_limit = self.MODEL_CONTEXT_LIMITS.get(self.model_name, 4096)
+        max_tokens_per_chunk = model_limit - completion_tokens
+
+        # Helper to count tokens for a given model
+        def count_tokens(text: str) -> int:
+            enc = tiktoken.encoding_for_model(self.model_name)
+            return len(enc.encode(text))
+
+        # Split comments into chunks
+        chunks = []
+        chunk_token_counts = []
+        current_chunk = []
+        current_tokens = 0
+        total_tokens = 0
+
+        for comment in comments:
+            comment_tokens = count_tokens(comment)
+            total_tokens += comment_tokens
+            
+            if comment_tokens > max_tokens_per_chunk:
+                comment = comment[:max_tokens_per_chunk]  # truncate large comment
+                comment_tokens = max_tokens_per_chunk
+
+            if current_tokens + comment_tokens > max_tokens_per_chunk:
+                chunk_text = "\n".join(current_chunk)
+                chunks.append(chunk_text)
+                chunk_token_counts.append(current_tokens)
+                current_chunk = [comment]
+                current_tokens = comment_tokens
+            else:
+                current_chunk.append(comment)
+                current_tokens += comment_tokens
+
+        if current_chunk:
+            chunk_text = "\n".join(current_chunk)
+            chunks.append(chunk_text)
+            chunk_token_counts.append(current_tokens)
+
+        # Print token statistics
+        print(f"[INFO] Total tokens across all comments: {total_tokens}")
+        print(f"[INFO] Number of chunks: {len(chunks)}")
+        for i, token_count in enumerate(chunk_token_counts, 1):
+            print(f"[INFO] Chunk {i} tokens: {token_count}")
+
+        # Summarize each chunk
+        summaries = []
+        for chunk in chunks:
+            prompt = self._summarize_prompt(chunk)
+
+            try:
+                response = client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                summaries.append(response.choices[0].message.content)
+            except openai.OpenAIError as e:
+                    print("API error:", e)
+
+        # Combine chunk summaries if multiple
+        if len(summaries) > 1:
+            combined_prompt = self._summarize_prompt("\n".join(summaries))
+            try:
+                response = client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": combined_prompt}],
+                )
+                final_summary = response.choices[0].message.content
+            except OpenAIError as e:
+                final_summary = "[Final summary failed due to API error]"
+        else:
+            final_summary = summaries[0]
+
+        return f"({self.model_name}) {final_summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+
+
+    def summarize_old(self, comments: list[str]) -> str:
         if not comments:
             return "No comments available."
 

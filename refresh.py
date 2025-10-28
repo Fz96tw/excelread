@@ -362,6 +362,44 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                 elif "cycletime.scope.yaml" in yaml_file:
                     logger.info(f"Found CYCLETIME scope yaml file {yaml_file}")
                     run_and_log(["python", "-u", cycletime_script, yaml_file, timestamp, userlogin], log, f"cycletime.py {yaml_file} {timestamp} {userlogin}")
+
+                    # cycletime.py has output *.cyc.scope.yaml files that have to be processed                                
+                    chain_yaml_pattern = os.path.join(work_dir, f"{input_file_orig}.*.{timestamp}.chain.scope.yaml")
+                    chain_yaml_files = glob.glob(chain_yaml_pattern)
+                    if not chain_yaml_files:
+                        msg = f"No Chain YAML files found matching pattern {chain_yaml_pattern} after running cycletime.py"
+                        logger.warning(msg)
+                        log.write(msg + "\n")
+                        return
+                    
+                    chain_yaml_files.sort(key=extract_substring)
+
+                    for chain_yaml_file in chain_yaml_files:
+                        if sheet.lower() not in chain_yaml_file.lower():
+                            logger.info(f"Skipping Chain YAML file {chain_yaml_file} as it does not match sheet {sheet}")
+                            continue
+                        
+                        logger.info(f"Processing Chain YAML file: {chain_yaml_file}")
+                        match = re.match(f"{re.escape(input_file_orig)}\.(.+?)\.chain\.scope\.yaml", os.path.basename(chain_yaml_file))
+                        if match:
+                            substring_chain = match.group(1)
+                            jira_csv = f"{input_file_orig}.{substring_chain}.jira.csv"
+                            logger.info(f"Generating Jira CSV: {jira_csv}")
+                            run_and_log(["python", "-u", read_jira_script, chain_yaml_file, timestamp, userlogin], log, f"read_jira.py {chain_yaml_file} {timestamp} {userlogin}")
+
+                            # no need to call update_excel since jira csv data is not intended to be shown on spreadsheet.  
+                            # The second follow up call to cycletime needs to procees the jira.csv that it generated
+                            #logger.info(f"Updating Excel with {jira_csv}...")
+                            #run_and_log(["python", "-u", update_excel_script, jira_csv, input_file, sheet, userlogin], log, f"update_excel.py {jira_csv} {input_file} {sheet} {userlogin}")
+                        else:
+                            print(f"re.match failed for ({input_file_orig})\.(.+)\.chain\.scope\.yaml, os.path.basename({chain_yaml_file})")
+
+                    # at this point all the chain.jira.csv files should be created (or not if read_jira failed for valid reasons)
+                    # so let's call cycletime again so it will discover and process these  jira.csv files now
+                    logger.info("calling second pass of CYCLETIME to process all the chain.jira.csv files")
+                    run_and_log(["python", "-u", cycletime_script, yaml_file, timestamp, userlogin], log, f"cycletime.py {yaml_file} {timestamp} {userlogin}")
+
+
                 elif "statustime.scope.yaml" in yaml_file:
                     logger.info(f"Found STATUSTIME scope yaml file {yaml_file}")
                     run_and_log(["python", "-u", statustime_script, yaml_file, timestamp, userlogin], log, f"statustime.py {yaml_file} {timestamp} {userlogin}")
