@@ -87,12 +87,14 @@ def load_cache(userlogin=None):
     if os.path.exists(TOKEN_CACHE_FILE):
         print(f"Loading token cache from file={TOKEN_CACHE_FILE}")
         cache.deserialize(open(TOKEN_CACHE_FILE, "r").read())
-    
+    else:
+        print(f"load_cache could not find token file {TOKEN_CACHE_FILE}")
+
     return cache
     
 
 def save_cache(cache, userlogin=None):
-    global TOKEN_CACHE_FILE
+    #global TOKEN_CACHE_FILE
     if cache.has_state_changed:
 
         if userlogin:
@@ -395,15 +397,16 @@ def login():
     #global logged_in
 
     if delegated_auth:
-        print ("/login endpoint using delegated_auth flow")
-        cache = load_cache(userlogin)
+        print (f"/login endpoint using delegated_auth flow for {current_user.username}")
+        cache = load_cache(current_user.username)
         cca = _build_msal_app(cache)
         auth_url = cca.get_authorization_request_url(
             scopes=SCOPES,
             redirect_uri=REDIRECT_URI,  # url_for("authorized", _external=True)  <-------------------- 
             prompt="consent" # to make sure the user (or their admin) grants access the first time
         )
-        save_cache(cache, userlogin)
+        save_cache(cache, current_user.username)
+        #session["is_logged_in"] = True
         return redirect(auth_url)
     else:
         cache = load_cache()
@@ -738,6 +741,126 @@ def save_bar_values(userlogin, values):
 
 
 
+def read_json_list(path):
+    """Read a list of file objects from a JSON file"""
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as f:
+                data = json.load(f)
+                # Ensure it's a list
+                if isinstance(data, list):
+                    return data
+                else:
+                    print(f"Warning: {path} does not contain a list, returning empty list")
+                    return []
+        except json.JSONDecodeError as e:
+            print(f"Error reading JSON from {path}: {e}")
+            return []
+    return []
+
+
+def write_json_list(path, items):
+    """Write a list to a JSON file"""
+    try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        
+        with open(path, 'w') as f:
+            json.dump(items, f, indent=4)
+            print(f"Wrote {len(items)} items to {path}")
+    except Exception as e:
+        print(f"Error writing JSON to {path}: {e}")
+
+
+def extract_filename_from_url(url):
+    """Extract filename from SharePoint URL"""
+    # Remove query parameters
+    url_without_params = url.split('?')[0]
+    # Get the last part of the path
+    filename = url_without_params.split('/')[-1]
+    # URL decode
+    from urllib.parse import unquote
+    return unquote(filename)
+
+
+def extract_worksheet_name(url):
+    """Extract worksheet name from URL if present, otherwise return empty string"""
+    # Look for worksheet parameter in URL
+    if 'activeCell=' in url or 'worksheet=' in url:
+        # This is a placeholder - adjust based on your actual URL structure
+        return ""  # You can enhance this based on your needs
+    return ""
+
+
+def get_bar_values_json(userlogin):
+    """Load bar values from JSON file - returns list of file objects"""
+    user_bar_file = f"./config/.bar_{userlogin}.json"
+    return read_json_list(user_bar_file)
+
+def save_bar_values_json(userlogin, values):
+    """Save bar values to JSON file - values should be list of file objects"""
+    user_bar_file = f"./config/.bar_{userlogin}.json"
+    write_json_list(user_bar_file, values)
+
+def add_bar_entry(userlogin, file_url, worksheet_name=""):
+    """Add a new file entry to bar_values with all metadata"""
+    bar_values = get_bar_values(userlogin)
+    
+    # Check if URL already exists
+    for entry in bar_values:
+        if entry.get("file_url") == file_url:
+            print(f"File URL {file_url} already exists in bar_values")
+            return False
+    
+    # Create new entry
+    new_entry = {
+        "file_url": file_url,
+        "filename": extract_filename_from_url(file_url),
+        "worksheet_name": worksheet_name,
+        "date_added": datetime.utcnow().isoformat(),
+        "last_refresh": None
+    }
+    
+    bar_values.append(new_entry)
+    save_bar_values(userlogin, bar_values)
+    print(f"Added new file entry: {new_entry}")
+    return True
+
+def remove_bar_entry(userlogin, file_url):
+    """Remove a file entry from bar_values by file_url"""
+    bar_values = get_bar_values(userlogin)
+    original_count = len(bar_values)
+    
+    bar_values = [entry for entry in bar_values if entry.get("file_url") != file_url]
+    
+    if len(bar_values) < original_count:
+        save_bar_values(userlogin, bar_values)
+        print(f"Removed file entry with URL: {file_url}")
+        return True
+    else:
+        print(f"File URL {file_url} not found in bar_values")
+        return False
+
+def update_bar_refresh_time(userlogin, file_url):
+    """Update the last_refresh timestamp for a file entry"""
+    bar_values = get_bar_values(userlogin)
+    
+    for entry in bar_values:
+        if entry.get("file_url") == file_url:
+            entry["last_refresh"] = datetime.utcnow().isoformat()
+            save_bar_values(userlogin, bar_values)
+            print(f"Updated last_refresh for {file_url}")
+            return True
+    
+    print(f"File URL {file_url} not found in bar_values")
+    return False
+
+def get_bar_urls_only(userlogin):
+    """Get just the file URLs from bar_values (for backward compatibility)"""
+    bar_values = get_bar_values(userlogin)
+    return [entry.get("file_url", "") for entry in bar_values]
+
+
 def get_google_values(userlogin):
     user_bar_file = f"./config/.google_{userlogin}"
     return read_file_lines(user_bar_file)
@@ -773,6 +896,8 @@ user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
 @app.route(REDIRECT_PATH)
 def authorized():
     #global logged_in
+
+    userlogin = current_user.username
      # Handle redirect from Azure AD
     code = request.args.get("code")
     if not code:
@@ -842,9 +967,9 @@ def index():
     if (delegated_auth):
         print ("/ route is using delegated_auth flow")
         # Try silent token first
-        print("Attempting to acquire token silently...")
+        print(f"Attempting to acquire token silently for {userlogin}...")
         cache = load_cache(userlogin)
-        print("Loaded cache, checking for accounts...")
+        print(f"Loaded cache, checking for accounts for {userlogin}...")
         cca = _build_msal_app(cache)
         accounts = cca.get_accounts()
         if accounts:
@@ -1105,27 +1230,26 @@ def logout_sharepoint():
     #global logged_in
     userlogin = current_user.username
     print("recvd /logout_sharepoint endpoint called")
-    if session == True:
-        print(f"Revoking sharepoint access token for user={userlogin}")
-        token_file = f"./config/token_cache_{userlogin}.json"
-    
-        if os.path.exists(token_file):
-            os.remove(token_file)
-            print(f"Deleted token file: {token_file}")
-            #logged_in = False
-            session["is_logged_in"] = False
-        else:
-            print(f"No token file found for user={userlogin}")
+    #if session['logged_in'] == True:
+    token_file = f"./config/token_cache_{userlogin}.json"
+    print(f"Revoking sharepoint access token for user={userlogin} token_file={token_file}")
 
+    if os.path.exists(token_file):
+        os.remove(token_file)
+        print(f"Deleted token file: {token_file}")
+        #logged_in = False
+        session["is_logged_in"] = False
+    else:
+        print(f"No token file {token_file} found for user={userlogin}")
   
-        # Microsoft logout endpoint (kills AAD session cookies)
-        ms_logout_url = "https://login.microsoftonline.com/common/oauth2/v2.0/logout"
+    # Microsoft logout endpoint (kills AAD session cookies)
+    ms_logout_url = "https://login.microsoftonline.com/common/oauth2/v2.0/logout"
 
-        # After logout, redirect back to your app
-        post_logout_redirect = url_for('index', section="section2", _external=True)
+    # After logout, redirect back to your app
+    post_logout_redirect = url_for('index', section="section2", _external=True)
 
-        # Redirect user through Microsoft logout then back to your app
-        return redirect(f"{ms_logout_url}?post_logout_redirect_uri={post_logout_redirect}")
+    # Redirect user through Microsoft logout then back to your app
+    return redirect(f"{ms_logout_url}?post_logout_redirect_uri={post_logout_redirect}")
 
 
 from flask import Flask, request, jsonify
@@ -1275,6 +1399,8 @@ def schedule_file():
     interval = request.form.get("interval")
     mode = request.form.get("mode")  # <-- this will be "hourly", "daily", or "weekly", or None if not selected
     days = request.form.getlist("days")  # ["mon", "wed", "fri"]
+    
+    userlogin = current_user.username
 
     print(f"Schedule called filename={filename} time={time} mode={mode} interval={interval}")
     # Validate input
@@ -1335,7 +1461,7 @@ def schedule_file():
 
     # update the scheduled jobs
     global delegated_auth
-    schedule_jobs(scheduler, user_sched_file, delegated_auth, userlogin, delegated_auth, google_user_email)
+    schedule_jobs(scheduler, user_sched_file, delegated_auth, filename, userlogin)
 
     return jsonify({"success": True, "message": "Schedule saved successfully"})
 
@@ -1455,7 +1581,7 @@ def resync_sharepoint():
         file_url=val,
         userlogin=user,
         delegated_auth=delegated_auth,
-        google_user_email=google_user_email,
+        #google_user_email=google_user_email,
         user=user
     )
 
@@ -1518,7 +1644,7 @@ def remove_google():
 # BACKGROUND WORKER FUNCTION - Add this new function
 # ============================================================================
 
-def resync_task_worker(file_url, userlogin, delegated_auth, google_user_email):
+def resync_task_worker(file_url, userlogin, delegated_auth):
     """
     Background task that performs the actual resync.
     This runs in a separate thread via the task queue.
@@ -1527,7 +1653,7 @@ def resync_task_worker(file_url, userlogin, delegated_auth, google_user_email):
     
     try:
         # Call your existing resync function
-        result = resync(file_url, userlogin, delegated_auth) # pass google_user_email if needed for google sheets only
+        result = resync(file_url, userlogin, delegated_auth) # no need to pass google_user_email for google sheets, it uses token instead
         
         print(f"[Task Worker] Resync completed successfully for {file_url}")
         return {
