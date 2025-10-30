@@ -148,6 +148,7 @@ def is_logged_in():
         if auth_user_info:
             auth_user_email = auth_user_info.get("preferred_username")
             auth_user_name = auth_user_info.get("name")
+        print(f"@@@@@@@ is_logged_in() setting the session = {session}")
 
         return True
     else:
@@ -164,6 +165,7 @@ def is_logged_in():
             session["is_logged_in"] = True
             session["user"] = result.get("id_token_claims")
             session["access_token"] = result["access_token"]
+            print(f"@@@@@@@ is_logged_in() setting the session = {session}")
             auth_user_info = session.get("user")
             if auth_user_info:
                 auth_user_email = auth_user_info.get("preferred_username")
@@ -347,6 +349,60 @@ def clear_schedule_file(sched_file, filename, userlogin):
         print(f"cleared schedule file = {sched_file}, removed {filename} replaced by {new_schedules}")
 
     #return jsonify({"success": True, "message": f"Schedule for '{filename}' cleared."})
+
+
+def load_shared_files(filename):
+    """
+    Load shared_files from JSON file.
+    
+    Args:
+        filename: Path to the JSON file
+        
+    Returns:
+        List of dictionaries (hashes) if file exists, otherwise empty list
+    """
+    if os.path.exists(filename):
+        try:
+            with open(filename, 'r') as f:
+                shared_files = json.load(f)
+            print(f"Loaded {len(shared_files)} entries from {filename}")
+            return shared_files
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON from {filename}: {e}")
+            return []
+        except Exception as e:
+            print(f"Error loading {filename}: {e}")
+            return []
+    else:
+        print(f"File {filename} does not exist. Returning empty list.")
+        return []
+    
+
+def save_shared_files(filename, shared_files):
+    """
+    Save shared_files list to JSON file.
+    
+    Args:
+        filename: Path to the JSON file
+        shared_files: List of dictionaries (hashes) to save
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        
+        # Save to JSON file
+        with open(filename, 'w') as f:
+            json.dump(shared_files, f, indent=2)
+        
+        print(f"Saved {len(shared_files)} entries to {filename}")
+        return True
+    except Exception as e:
+        print(f"Error saving to {filename}: {e}")
+        return False
+
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -887,9 +943,11 @@ def save_local_values(userlogin, values):
 #bar_values = read_file_lines(BAR_FILE)
 #local_file_values = read_file_lines(LOCAL_FILES)
 user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
+shared_files_google = []
+shared_files_sharepoint = []
+shared_files_local = []
 
 #logged_in = False
-
 
 # REDIRECT_PATH callback only required when using user-delegated auth flow.  
 # not needed/used for private client auth flow
@@ -947,6 +1005,7 @@ def index():
 
     # Make sure user is logged into AI Connector before showing main page
     #userlogin = None
+
     if current_user.is_authenticated:
         #global userlogin
         userlogin = current_user.username
@@ -960,6 +1019,10 @@ def index():
     global auth_user_email
     global auth_user_name
     global google_user_email
+    global shared_files_google
+    global shared_files_sharepoint
+    global shared_files_local
+
     #global BAR_FILE
     #global GOOGLE_FILE
     #global LOCAL_FILES
@@ -974,7 +1037,9 @@ def index():
         accounts = cca.get_accounts()
         if accounts:
             print(f"Found {len(accounts)} accounts in token cache")
-            result = cca.acquire_token_silent(SCOPES, account=accounts[0])
+            #result = cca.acquire_token_silent(SCOPES, account=accounts[0])
+            result = cca.acquire_token_silent(SCOPES + ["openid", "profile"], account=accounts[0])
+            
             print("called 'acquire_token_silent'")
             save_cache(cache, userlogin)
             if result:
@@ -985,6 +1050,7 @@ def index():
                 session["user"] = result.get("id_token_claims")
                 session["access_token"] = result["access_token"]
                 auth_user_info = session.get("user")
+                print(f"%%%%%%%%% session = {session}")
                 
                 if auth_user_info:
                     auth_user_email = auth_user_info.get("preferred_username")
@@ -1050,37 +1116,30 @@ def index():
     for s in schedules:  
          schedule_dict[s["filename"]] = s
 
-    '''# Extract text between the first pair of double quotes in each line
-    foo_lines = [re.search(r'"(.*?)"', line).group(1) if re.search(r'"(.*?)"', line) else "" for line in foo_lines]
-
-    if len(foo_lines) >= 3:
-        foo_values = {
-            "jira_url": foo_lines[0],
-            "jira_user": foo_lines[1],
-            "jira_token": foo_lines[2],
-        }
-    '''
-
  
-    if delegated_auth:
-        BAR_FILE = f"./config/.bar_{userlogin}"
-        LOCAL_FILES = f"./config/local_files_{userlogin}"
-        GOOGLE_FILE = f"./config/.google_{userlogin}"
-        print(f"using delegated auth so BAR_FILE = {BAR_FILE}, LOCAL_FILES = {LOCAL_FILES}, GOOGLE_FILE = {GOOGLE_FILE}")
+    #if delegated_auth:
+        #BAR_FILE = f"./config/.bar_{userlogin}"
+        #LOCAL_FILES = f"./config/local_files_{userlogin}"
+        #GOOGLE_FILE = f"./config/.google_{userlogin}"
+        #print(f"using delegated auth so BAR_FILE = {BAR_FILE}, LOCAL_FILES = {LOCAL_FILES}, GOOGLE_FILE = {GOOGLE_FILE}")
    
-    #bar_values = read_file_lines(BAR_FILE)
-    bar_values = get_bar_values(userlogin)
+    #bar_values = get_bar_values(userlogin)
+    shared_files_sharepoint = load_shared_files(f"./config/shared_files_sharepoint_{userlogin}.json")
+    shared_files_google = load_shared_files(f"./config/shared_files_google_{userlogin}.json")
+    shared_files_local = load_shared_files(f"./config/shared_files_local_{userlogin}.json")
+                                            
+                                                
 
-    print(f"/ route loaded bar_values = {bar_values}")
+    #print(f"/ route loaded bar_values = {bar_values}")
 
     #local_file_values = read_file_lines(LOCAL_FILES)
-    local_file_values = get_local_values(userlogin)
-    print(f"/ route loaded local_file_values = {local_file_values}")    
+    #local_file_values = get_local_values(userlogin)
+    #print(f"/ route loaded local_file_values = {local_file_values}")    
 
     #google_values = read_file_lines(GOOGLE_FILE)
-    google_values = get_google_values(userlogin)
+    #google_values = get_google_values(userlogin)
 
-    print(f"/ route loaded google_values = {google_values}")
+    #print(f"/ route loaded google_values = {google_values}")
 
     if not delegated_auth:
         # Synchronize session login status with real token state every request
@@ -1147,6 +1206,7 @@ def index():
                 print(f"{to_remove} not found in bar_values, no action taken")
             #return redirect(url_for('index', section="local"))
             return jsonify({"success": False, "message": "File not found"})
+
         
         elif 'resync_bar' in request.form:
             print("Resyncing file values...")
@@ -1198,6 +1258,9 @@ def index():
 
 
 
+    #if(is_logged_in()):
+
+    print(f"************Current session: {session}")
 
     auth_user_info = session.get("user")
     if auth_user_info:
@@ -1206,20 +1269,24 @@ def index():
         print(f"auth_user_info found in session, user = {auth_user_name}, email= {auth_user_email}")
     else:
         print("No auth_user_info found in session!")
+        auth_user_email = "---"
 
 
     return render_template('form.html',
                            banner_path=BANNER_PATH,
                            foo_values=foo_values,
-                           bar_values=bar_values,
-                           google_values=google_values,
-                           local_values=local_file_values,
+                           shared_files_sharepoint = shared_files_sharepoint,
+                           shared_files_google = shared_files_google,
+                           shared_files_local = shared_files_local,
+                           #bar_values=bar_values,
+                           #google_values=google_values,
+                           #local_values=local_file_values,
                            logged_in=session["is_logged_in"],
                            google_logged_in=google_logged_in,
                            folder_tree=folder_tree,
                            schedule_dict=schedule_dict,
                            username=userlogin,
-                           auth_username=f"{auth_user_email}",
+                           auth_username=auth_user_email,
                            google_username=google_user_email,
                            llm_default=llm_model)
 
@@ -1303,57 +1370,73 @@ def setmodel():
 @app.route("/add_sharepoint", methods=["POST"])
 def add_sharepoint():
     new_val = request.form.get('bar_value', '').strip()
-    BAR_FILE = f"./config/.bar_{current_user.username}"
-    bar_values = get_bar_values(current_user.username)
-    local_file_values = get_local_values(current_user.username)
-    google_values = get_google_values(current_user.username)    
     userlogin = current_user.username
-    print(f"add_sharepoint called with {new_val} for user {current_user.username} into BAR_FILE={BAR_FILE}")
-    print(f"current bar_values = {bar_values}")
+    print(f"/add_sharepoint endpoint called with new_val = {new_val} by {userlogin}")
+    shared_files_sharepoint= load_shared_files(f"./config/shared_files_sharepoint_{current_user.username}.json")
+
     if new_val:
-        print(f"add_bar with bar_value={new_val}")
-        if new_val not in bar_values and new_val not in local_file_values and new_val not in google_values:
-            print(f"{new_val} added to bar_values")   
-            bar_values.append(new_val)
-            #write_file_lines(BAR_FILE, bar_values)    
-            save_bar_values(userlogin, bar_values)  
-            print(f"Updated BAR_FILE={BAR_FILE} with new value {new_val}")                     
-                  
+        print(f"add_sharepoint with shared_files_sharepoint={new_val}")
+       # if new_val not in shared_files_google and new_val not in bar_values and new_val not in local_file_values:
+        if not is_location_in_shared_files(new_val, shared_files_sharepoint):
+            # Add to shared_files_google list
+            from datetime import date
+            shared_files_sharepoint.append({
+                "location": new_val,
+                "user": current_user.username,
+                "datetime": datetime.now().isoformat()            })            
+            print(f"Added to shared_files_sharepoint: {shared_files_sharepoint[-1]}")
+
+          # Save to JSON file
+            json_filename = f"./config/shared_files_sharepoint_{current_user.username}.json"
+            save_shared_files(json_filename, shared_files_sharepoint)
+            print(f"Saved shared_files_sharepoint to {json_filename}")
+
         else:
             print(f"{new_val} already present so no action needed")
             return jsonify({"success": True, "message": "File already present, no action needed"})
-        #return redirect(url_for('index', section="local"))
-        return jsonify({"success": True, "message": "File added successfully"})
-
+        return jsonify({"success": True, "message": "Sharepoint file added successfully"})
+    return jsonify({"success": False, "message": "No file URL provided"})
 
 @app.route("/remove_sharepoint", methods=["POST"])
 def remove_sharepoint():
     to_remove = request.form.get('remove_bar')
     userlogin = current_user.username
-    BAR_FILE = f"./config/.bar_{current_user.username}"
-    bar_values = get_bar_values(current_user.username)
-    print(f"remove_bar called with {to_remove} for user {userlogin} from {BAR_FILE}")
-    if to_remove in bar_values:
-        print(f"{to_remove} found and will be removed")
-        bar_values.remove(to_remove)
-        #write_file_lines(BAR_FILE, bar_values)
-        save_bar_values(userlogin, bar_values)
-        print(f"Removed from BAR_FILE={BAR_FILE} the value {to_remove}")
+    print(f"remove_sharepoint called with {to_remove}")
 
-        # if file was scheduled for resync then remove from schedule.json 
-        clear_schedule_file(user_sched_file, to_remove, userlogin) 
-        schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
-        return jsonify({"success": True, "message": "File removed successfully"})
-    else:
-        print(f"{to_remove} not found in bar_values, no action taken")
-    #return redirect(url_for('index', section="local"))
-    return jsonify({"success": False, "message": "File not found"})
+    # Remove from shared_files_google list (independent check)
+    json_filename = f"./config/shared_files_sharepoint_{userlogin}.json"
+    shared_files_sharepoint = load_shared_files(json_filename)
+    
+    if shared_files_sharepoint:
+        original_length = len(shared_files_sharepoint)
         
+        # Filter out the entry with matching new_val and username
+        shared_files_sharepoint = [
+            entry for entry in shared_files_sharepoint 
+            if not (entry.get('location') == to_remove and entry.get('user') == userlogin)
+        ]
+        
+        # Check if anything was removed
+        if len(shared_files_sharepoint) < original_length:
+            # Save updated list back to disk
+            save_shared_files(json_filename, shared_files_sharepoint)
+            print(f"Removed from shared_files_sharepoint the entry with new_val={to_remove}")
+            #return jsonify({"success": True, "message": "Google Sheet removed successfully"})
+
+            # if file was scheduled for resync then remove from schedule.json 
+            clear_schedule_file(user_sched_file, to_remove, userlogin) 
+            schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+            return jsonify({"success": True, "message": "Sharepoint file removed successfully"})
+        else:
+                # this shoudl never happen because only way to trigger remove is from a listed file on gui
+            print(f"{to_remove} not found in shared_files_sharepoint, no action taken")
+    
+    return jsonify({"success": False, "message": "Sharepoint file collection is empty"})
 
 
 @app.route("/add_local", methods=["POST"])
 def add_local():
-    new_val = request.form.get('local_value', '').strip()
+    '''new_val = request.form.get('local_value', '').strip()
     local_file_values = get_local_values(current_user.username)
     if new_val:
         print(f"add_local with local_value={new_val} for user {current_user.username}")
@@ -1368,13 +1451,42 @@ def add_local():
             return jsonify({"success": True, "message": "File already present, no action needed"})
     #return redirect(url_for('index', section="local"))
     return jsonify({"success": True, "message": "File added successfully"})
+    '''
+    new_val = request.form.get('local_value', '').strip()
+    userlogin = current_user.username
+    print(f"/add_google endpoint called with new_val = {new_val} by {userlogin}")
+    shared_files_local = load_shared_files(f"./config/shared_files_local_{current_user.username}.json")
+
+    if new_val:
+        print(f"add_google with shared_files_local={new_val}")
+        # if new_val not in shared_files_google and new_val not in bar_values and new_val not in local_file_values:
+        container_val = map_windows_path_to_container(new_val)
+        if not is_location_in_shared_files(container_val, shared_files_local):
+            # Add to shared_files_google list
+            from datetime import date
+            shared_files_local.append({
+                "location": container_val,
+                "user": current_user.username,
+                "datetime": datetime.now().isoformat()            })            
+            print(f"Added to shared_files_local: {shared_files_local[-1]}")
+
+          # Save to JSON file
+            json_filename = f"./config/shared_files_local_{current_user.username}.json"
+            save_shared_files(json_filename, shared_files_local)
+            print(f"Saved shared_files_local to {json_filename}")
+
+        else:
+            print(f"{new_val} already present so no action needed")
+            return jsonify({"success": True, "message": "File already present, no action needed"})
+        return jsonify({"success": True, "message": "Local file added successfully"})
+    return jsonify({"success": False, "message": "No file provided"})
+
 
 
 @app.route("/remove_local", methods=["POST"])
 def remove_local():
-    to_remove = request.form.get('remove_local')
+    '''to_remove = request.form.get('remove_local')
     userlogin = current_user.username
-    #LOCAL_FILES = f"./config/files_local_{current_user.username}.json"
     local_file_values = get_local_values(current_user.username)
     print(f"remove_local called with {to_remove}")
     if to_remove in local_file_values:
@@ -1390,7 +1502,40 @@ def remove_local():
         print(f"{to_remove} not found in collection , no action taken")
     #return redirect(url_for('index', section="local"))
     return jsonify({"success": False, "message": "File not found"})
+    '''
 
+    to_remove = request.form.get('remove_local')
+    userlogin = current_user.username
+    print(f"remove_local called with {to_remove}")
+
+    # Remove from shared_files_google list (independent check)
+    json_filename = f"./config/shared_files_local_{userlogin}.json"
+    shared_files_local = load_shared_files(json_filename)
+    
+    if shared_files_local:
+        original_length = len(shared_files_local)
+        
+        # Filter out the entry with matching new_val and username
+        shared_files_local = [
+            entry for entry in shared_files_local 
+            if not (entry.get('location') == to_remove and entry.get('user') == userlogin)
+        ]
+        
+        # Check if anything was removed
+        if len(shared_files_local) < original_length:
+            # Save updated list back to disk
+            save_shared_files(json_filename, shared_files_local)
+            print(f"Removed from shared_files_local the entry with new_val={to_remove}")
+            #return jsonify({"success": True, "message": "Google Sheet removed successfully"})
+
+            # if file was scheduled for resync then remove from schedule.json 
+            clear_schedule_file(user_sched_file, to_remove, userlogin) 
+            schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+            return jsonify({"success": True, "message": "Local file removed successfully"})
+        else:
+            print(f"{to_remove} not found in file collection, no action taken")
+    
+    return jsonify({"success": False, "message": "Local file collection is empty"})
 
 @app.route("/schedule", methods=["POST"])
 def schedule_file():
@@ -1594,22 +1739,47 @@ def resync_sharepoint():
     })
 
 
+def is_location_in_shared_files(location_string, shared_files_google):
+    """
+    Check if a location string exists in the shared_files_google list.
+    
+    Args:
+        location_string: The string to search for
+        shared_files_google: List of dictionaries containing file entries
+        
+    Returns:
+        True if location_string is found in any entry's "location" field, False otherwise
+    """
+    for entry in shared_files_google:
+        if entry.get('location') == location_string:
+            return True
+    return False
+
 #--- Google Sheet routes ---
 @app.route("/add_google", methods=["POST"])
 def add_google():
     new_val = request.form.get('google_value', '').strip()
-    #GOOGLE_FILE = f"./config/.google_{current_user.username}"
-    bar_values = get_bar_values(current_user.username)
-    google_values = get_google_values(current_user.username)
-    local_file_values = get_local_values(current_user.username)
+    userlogin = current_user.username
+    print(f"/add_google endpoint called with new_val = {new_val} by {userlogin}")
+    shared_files_google = load_shared_files(f"./config/shared_files_google_{current_user.username}.json")
+
     if new_val:
-        print(f"add_google with google_value={new_val}")
-        if new_val not in google_values and new_val not in bar_values and new_val not in local_file_values:
-            print(f"{new_val} added to google_values")   
-            google_values.append(new_val)
-            #write_file_lines(GOOGLE_FILE, google_values)    
-            save_google_values(current_user.username, google_values)
-            print(f"Updated google_values with new value {new_val}")                     
+        print(f"add_google with shared_files_google={new_val}")
+       # if new_val not in shared_files_google and new_val not in bar_values and new_val not in local_file_values:
+        if not is_location_in_shared_files(new_val, shared_files_google):
+            # Add to shared_files_google list
+            from datetime import date
+            shared_files_google.append({
+                "location": new_val,
+                "user": current_user.username,
+                "datetime": datetime.now().isoformat()            })            
+            print(f"Added to shared_files_google: {shared_files_google[-1]}")
+
+          # Save to JSON file
+            json_filename = f"./config/shared_files_google_{current_user.username}.json"
+            save_shared_files(json_filename, shared_files_google)
+            print(f"Saved shared_files_google to {json_filename}")
+
         else:
             print(f"{new_val} already present so no action needed")
             return jsonify({"success": True, "message": "File already present, no action needed"})
@@ -1621,23 +1791,36 @@ def add_google():
 def remove_google():
     to_remove = request.form.get('remove_google')
     userlogin = current_user.username
-    #GOOGLE_FILE = f"./config/.google_{current_user.username}"
-    google_values = get_google_values(current_user.username)
     print(f"remove_google called with {to_remove}")
-    if to_remove in google_values:
-        print(f"{to_remove} found and will be removed")
-        google_values.remove(to_remove)
-        #write_file_lines(GOOGLE_FILE, google_values)
-        save_google_values(userlogin, google_values)
-        print(f"Removed from google_values the value {to_remove}")
 
-        # if file was scheduled for resync then remove from schedule.json 
-        clear_schedule_file(user_sched_file, to_remove, userlogin) 
-        schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
-        return jsonify({"success": True, "message": "Google Sheet removed successfully"})
-    else:
-        print(f"{to_remove} not found in google_values, no action taken")
-    return jsonify({"success": False, "message": "File not found"})
+    # Remove from shared_files_google list (independent check)
+    json_filename = f"./config/shared_files_google_{userlogin}.json"
+    shared_files_google = load_shared_files(json_filename)
+    
+    if shared_files_google:
+        original_length = len(shared_files_google)
+        
+        # Filter out the entry with matching new_val and username
+        shared_files_google = [
+            entry for entry in shared_files_google 
+            if not (entry.get('location') == to_remove and entry.get('user') == userlogin)
+        ]
+        
+        # Check if anything was removed
+        if len(shared_files_google) < original_length:
+            # Save updated list back to disk
+            save_shared_files(json_filename, shared_files_google)
+            print(f"Removed from shared_files_google the entry with new_val={to_remove}")
+            #return jsonify({"success": True, "message": "Google Sheet removed successfully"})
+
+            # if file was scheduled for resync then remove from schedule.json 
+            clear_schedule_file(user_sched_file, to_remove, userlogin) 
+            schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+            return jsonify({"success": True, "message": "Google Sheet removed successfully"})
+        else:
+            print(f"{to_remove} not found in google_values, no action taken")
+    
+    return jsonify({"success": False, "message": "Google sheet file collection is empty"})
 
 
 # ============================================================================
