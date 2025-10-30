@@ -75,9 +75,10 @@ def save_google_token(creds, userlogin):
         token.write(creds.to_json())
     print(f"✅ Saved Google token for user={userlogin} to {token_file}")
 
+from google.auth.exceptions import RefreshError
 
 def load_google_token(userlogin):
-    """Load and refresh Google token if exists"""
+    print(f"called load_google_token({userlogin})")
     token_file = get_token_file(userlogin)
     if not os.path.exists(token_file):
         print(f"❌ No Google token file={token_file} for user={userlogin} cwd={os.getcwd()}")
@@ -90,19 +91,34 @@ def load_google_token(userlogin):
     creds = Credentials.from_authorized_user_info(creds_data, SCOPES)
 
     if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-        save_google_token(creds, userlogin)
-        print(f"🔄 Refreshed Google token for user={userlogin}")
+        try:
+            creds.refresh(Request())
+            save_google_token(creds, userlogin)
+            print(f"🔄 Refreshed Google token for user={userlogin}")
+        except RefreshError as e:
+            print(f"❌ Failed to refresh Google token for user={userlogin}: {e}")
+            return None
 
     return creds
 
 
-def is_google_logged_in(userlogin):
-    """Check if user already has a valid token"""
-    creds = load_google_token(userlogin)
-    print(f"✅ is_google_logged_in({userlogin}) determined that Google token valid for user={userlogin}: {creds and creds.valid}")
-    return creds and creds.valid
+from google.auth.exceptions import RefreshError
 
+def is_google_logged_in(userlogin):
+    """Check if user already has a valid Google token"""
+    print(f"called is_google_logged_in({userlogin})")
+
+    try:
+        creds = load_google_token(userlogin)
+        valid = creds and creds.valid
+        print(f"✅ is_google_logged_in({userlogin}) determined that Google token valid for user={userlogin}: {valid}")
+        return valid
+    except RefreshError as e:
+        print(f"❌ Google token refresh failed for user={userlogin}: {e}")
+        return False
+    except Exception as e:
+        print(f"⚠️ Unexpected error checking Google login for user={userlogin}: {e}")
+        return False
 
 def logout_google(userlogin):
     """Delete per-user token file"""

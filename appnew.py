@@ -1037,8 +1037,8 @@ def index():
         accounts = cca.get_accounts()
         if accounts:
             print(f"Found {len(accounts)} accounts in token cache")
-            #result = cca.acquire_token_silent(SCOPES, account=accounts[0])
-            result = cca.acquire_token_silent(SCOPES + ["openid", "profile"], account=accounts[0])
+            result = cca.acquire_token_silent(SCOPES, account=accounts[0])
+            #result = cca.acquire_token_silent(SCOPES + ["openid", "profile"], account=accounts[0])
             
             print("called 'acquire_token_silent'")
             save_cache(cache, userlogin)
@@ -1235,7 +1235,7 @@ def index():
     print(f"Sharepoint Authorization status: {session['is_logged_in']}")
 
 
-    # Check Google login status 
+    # Check Google login status
     google_logged_in = is_google_logged_in(userlogin)
     if google_logged_in:
         from google.oauth2.credentials import Credentials
@@ -1370,6 +1370,7 @@ def setmodel():
 @app.route("/add_sharepoint", methods=["POST"])
 def add_sharepoint():
     new_val = request.form.get('bar_value', '').strip()
+    new_val = unquote(new_val);      # remove %20, etc
     userlogin = current_user.username
     print(f"/add_sharepoint endpoint called with new_val = {new_val} by {userlogin}")
     shared_files_sharepoint= load_shared_files(f"./config/shared_files_sharepoint_{current_user.username}.json")

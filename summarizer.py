@@ -145,7 +145,9 @@ class OllamaSummarizer:
 
         # Combine chunk summaries if multiple
         if len(summaries) > 1:
-            combined_prompt = f"The following is the content you need to summarize:\n{'\n'.join(summaries)}"
+            joined = "\n".join(summaries)
+            combined_prompt = f"The following is the content you need to summarize:\n{joined}"
+            #combined_prompt = f"The following is the content you need to summarize:\n{'\n'.join(summaries)}"
             try:
                 response = ollama.chat(
                     model=self.model_name,

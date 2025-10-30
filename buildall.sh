@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e  # exit if any command fails
 
+pip freeze > requirements.txt
+
 echo "Building ai-connector..."
 docker build -t ai-connector .
 

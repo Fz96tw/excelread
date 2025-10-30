@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Log Explorer</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        h2 { margin-bottom: 10px; }
+        table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background-color: #f0f0f0; }
+        tr:nth-child(even) { background-color: #fafafa; }
+        button { cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>Log Explorer</h2>
+
+    {% if folder_tree %}
+        <table>
+            <thead>
+                <tr>
+                    <th>File Name</th>
+                    <th>Last Modified</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for file in folder_tree %}
+                <tr>
+                    <td>{{ file.name }}</td>
+                    <td>{{ file.modified }}</td>
+                    <td>
+                        <form method="POST" style="display:inline;">
+                            <input type="hidden" name="view_log" value="{{ file.name }}">
+                            <button type="submit">👁️ View</button>
+                        </form>
+                        <form method="POST" style="display:inline;">
+                            <input type="hidden" name="delete_log" value="{{ file.name }}">
+                            <button type="submit">🗑️ Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No log files found.</p>
+    {% endif %}
+
+    {% if viewed_log %}
+        <h3>Viewing: {{ viewed_log }}</h3>
+        <textarea rows="20" cols="100" readonly>{{ log_content }}</textarea>
+    {% endif %}
+</body>
+</html>
