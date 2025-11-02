@@ -432,7 +432,7 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                 value += "  Created: " + issue.fields.created[:10] 
                 print(f"headline value: {value}")
             elif field2 == "key":
-                value = issue.key
+                value = "URL " + issue.key  # we want to turn plain key into hyperlink too in the sheet. 
             elif field2 == "url":
                 value = "URL " + getattr(issue, 'key', None)     # set it to the issue key for now. will be converted to hyperlink by update_sharepoint.py
             elif field2 == "children":

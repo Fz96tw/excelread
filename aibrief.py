@@ -178,6 +178,10 @@ for ref_table in refer_tables:
 email_list = data.get('email',[])
 print(f"{yaml_file} contain email: {email_list}")
 
+llm_prompt = data.get('llm')
+if llm_prompt:
+    print(f"{yaml_file} provided LLM prompt '{llm_prompt}'")
+
 import requests
 from requests.auth import HTTPBasicAuth
 
@@ -207,15 +211,32 @@ def get_summarized_comments(context, sysprompt):
         prompt = sysprompt + ".\n\n" + context
         #prompt = sysprompt + "\n\n" + "\n".join(context)
 
-        prompt_list = [prompt]
+        '''prompt_list = [prompt]
         print(f"calling LLM with prompt = {prompt_list[0][:255]}...")
 
         if llm_model == "OpenAI":
             ENDPOINT = "/summarize_openai"
         else:
             ENDPOINT = "/summarize_local"
+        '''
 
-        #resp = requests.post("http://localhost:8000/summarize", json=prompt_list)
+        # Prepare the payload for the service
+        payload = {
+            "comments": [context]  # service expects a list[str]
+        }
+        if sysprompt:
+            payload["field"] = sysprompt  # include field if provided
+
+        # Determine endpoint
+        ENDPOINT = "/summarize_openai_ex" if llm_model == "OpenAI" else "/summarize_local_ex"
+
+        # Make the POST request
+        resp = requests.post(f"{SUMMARIZER_HOST}{ENDPOINT}", json=payload)
+
+
+
+
+        '''#resp = requests.post("http://localhost:8000/summarize", json=prompt_list)
         resp = requests.post(f"{SUMMARIZER_HOST}{ENDPOINT}", json=prompt_list)
 
         if resp.status_code == 200:
@@ -232,7 +253,28 @@ def get_summarized_comments(context, sysprompt):
         print(f"[EXCEPTION THROWN ERROR] get_summarized_comments failed: {e}")
         #return "[ERROR] Summary could not be generated."
         return f"[EXCEPTION THROWN ERROR] get_summarized_comments failed: {e}"
+        '''
+
+        if resp.status_code == 200:
+            full_response = resp.json().get("summary", "")
+            print(f"LLM endpoint returned {resp.status_code} OK")
+        else:
+            print(f"error LLM endpoint returned {resp.status_code}")
+            full_response = f"[ERROR] Service call failed: {resp.text}"
+
+        # Clean up response
+        full_response = full_response.rstrip("\n").replace("\n", "; ").replace("|", "/")
+        print(f"Full response: {full_response}")
+        return full_response
     
+    except Exception as e:
+        # Log the exception and return a safe default
+        print(f"[EXCEPTION THROWN ERROR] get_summarized_comments failed: {e}")
+        return "[ERROR] Summary could not be generated due to exceptions during LLM interaction."
+
+
+
+
 # Build LLM context from table rows and corresponding jiracsv file
 # so yes, it combines excel table rows (all cells including non-jira ones)
 # and combines with the aisummary.jira.csv file contents
@@ -591,7 +633,7 @@ for table_name, rows in table_rows.items():
 
         # Compose filename
         #filename = f"{source}.{sheet}.{tablename}.{table_name}.aisummary.context.txt"
-        filename = f"{basename}.{table_name}.aisummary.context.txt"
+        filename = f"{basename}.{sheet}.{table_name}.aisummary.context.txt"
         # Save context to file
         with open(filename, "w", encoding="utf-8") as f:
             f.write(context)
@@ -609,7 +651,10 @@ with open(filename, "w", encoding="utf-8") as f:
 
 print(f"<aibrief> Context saved to {filename}")
 
-sysprompt = f"The following text is a csv data separated by | character. Refer to this project as Project {tablename}.  Read all of it and briefly as possible in the form of project status report for executive summary. highlight all milestones,  risks or blocking issues. Also add a paragraph of titled 'Executive Summary' at the top of your response with very brief business executive summary. Provide your summary in HTML format. Convert an items that have corresponding Jira id into URL link for that jira id listed below"
+if llm_prompt:
+    sysprompt = f"The following text is delimited data separated by | character. Follow these instructions exactly. " + llm_prompt
+else:
+    sysprompt = f"The following text is a csv data separated by | character. Refer to this project as Project {tablename}.  Read all of it and briefly as possible in the form of project status report for executive summary. highlight all milestones,  risks or blocking issues. Also add a paragraph of titled 'Executive Summary' at the top of your response with very brief business executive summary. Provide your summary in HTML format. Convert an items that have corresponding Jira id into URL link for that jira id listed below"
 
 if isinstance(aibrief_context, list):
     aibrief_context = "\n".join(aibrief_context)

@@ -171,6 +171,32 @@ def read_google_sheet_as_openpyxl(spreadsheet_url_or_id, sheet_name, userlogin="
     return ws
 
 
+def extract_jira_id(hyperlink_str: str) -> str:
+    """
+    Extracts the Jira issue ID (e.g., 'TES-7') from a HYPERLINK formula string.
+    
+    Example:
+        '=HYPERLINK("https://fz96tw.atlassian.net/browse/TES-7","TES-7")'
+        → 'TES-7'
+    """
+    match = re.search(r'/browse/([A-Z]+-\d+)', hyperlink_str)
+    if match:
+        return match.group(1)
+    return None
+
+def create_hyperlink(value, jira_base_url):
+    """Create JIRA hyperlink from value"""
+    if value.startswith("URL "):
+        value = value.replace("URL", "").strip()
+        if is_valid_jira_id(value):
+            return f"{jira_base_url}/browse/{value}"
+        elif is_jql(value):
+            jql_query = str(value).lower().replace("jql", "").strip()
+            return f"{jira_base_url}/issues/?jql={jql_query}"
+    return None
+
+
+
 def process_jira_table_blocks(filename, worksheet, userlogin):
 
 
@@ -217,13 +243,19 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
         if printing and not import_mode:
             print("About to process update row.")
             first_cell = row[field_index_map["key"]].value
-   
+            
+            if first_cell:
+                if "=HYPERLINK" in first_cell:  # first_cell was forced to lower case earlier so check for url instead URL
+                    # this key was previously converted to hyperlink in a previous run on this sheet
+                    first_cell = extract_jira_id(first_cell)
+    
             if first_cell is not None:
                 first_cell = str(first_cell).lower()
+                first_cell = "url " +  first_cell       # lower case url because the jira_data hashkey was lower() earlier
             else:
                 first_cell = ""
 
-            #print(first_cell)
+            print(f"process_jira_table_blocks checking if {first_cell} is in jira_data {jira_data}")
             if (jira_data and first_cell in jira_data):
                 print(f"Updating row {row[field_index_map['key']].row} with data for {first_cell}")
                 #record = jira_data[first_cell]
@@ -232,8 +264,10 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
                     print(f"Checking field {field} at index {index}")
                     if field in record:
                         print(f"Updating field {field} at index {index} with value {record[field]}")
-                        cell_value = record[field]
+
+                        cell_value = record[field]                    
                         print(f"Cell value for {field}: {cell_value}")
+
                         if cell_value is not None:
                             #print(f"Setting cell value: {cell_value}")
                             #ws.cell(row=row[0].row, column=index + 1, value=cell_value)
@@ -261,6 +295,8 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
             else:
                 print(f"No data found for {first_cell} in jira_data.")
         
+        # we need to find the <key> columnn in the column row before we start printing import rows
+        # because printing import row process requires examiniaton of the key to see if the key row is new or already present
         elif printing and not printing_import_mode:
                 print("Hunting for starting cell for import mode")
                 first_cell = row[field_index_map["key"]].value
@@ -531,7 +567,18 @@ if __name__ == "__main__":
         execsummary_mode = True
 
 
+
+    # Load user settings from config folder
+    ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{userlogin}")
+    load_dotenv(dotenv_path=ENV_PATH_USER)
+    # Get JIRA base URL from environment
+    jira_base_url = os.environ.get("JIRA_URL", "")
+    print(f"Using JIRA base URL: {jira_base_url}")
+
+
+
     field_index_map, jira_data_in = load_jira_file(jiracsv)
+
     print(f"Loaded {len(jira_data)} records from {jiracsv}")
     
     for key, index in field_index_map.items():
