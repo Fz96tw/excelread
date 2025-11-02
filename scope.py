@@ -718,7 +718,7 @@ if __name__ == "__main__":
                 # scenario 2
                 # for all other tables default_value is treated as the prompt for llm
                 print(f"checking for fieldname args for {cell_str}...")
-                match2 = re.search(r"<[^>]+>\s+(.+)", cell_str)
+                match2 = re.search(r"<[^>]+>\s*(.+)", cell_str)
                 value_counts = {}
                 if match2:
                     default_value = match2.group(1)  

@@ -363,7 +363,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                     logger.info(f"Found CYCLETIME scope yaml file {yaml_file}")
                     run_and_log(["python", "-u", cycletime_script, yaml_file, timestamp, userlogin], log, f"cycletime.py {yaml_file} {timestamp} {userlogin}")
 
-                    # cycletime.py has output *.cyc.scope.yaml files that have to be processed                                
+                    # cycletime.py has output *.chain.scope.yaml files that have to be processed                                
                     chain_yaml_pattern = os.path.join(work_dir, f"{input_file_orig}.*.{timestamp}.chain.scope.yaml")
                     chain_yaml_files = glob.glob(chain_yaml_pattern)
                     if not chain_yaml_files:

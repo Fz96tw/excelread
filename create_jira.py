@@ -90,8 +90,6 @@ def move_brackets_to_front(lines):
     """
     result = []
     
-#    pattern = re.compile(r'^(.*)\s+(\[[^\]]+\])$')
-    #pattern = re.compile(r'^(.*?)(?:\s+)(▫️\s*\[[^\]]+\]|\[[^\]]+\])$')
     pattern = re.compile(r'^(.*?)\s+(?:▫️\s*)?(\[[^\]]+\])$')
 
 

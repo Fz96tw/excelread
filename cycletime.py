@@ -595,7 +595,7 @@ import hashlib, re
 
 def to_filename(path: str, max_len=200):
     # Make filesystem-safe
-    clean = re.sub(r'\s*→\s*', '_', path.lower()).replace(' ', '-')
+    clean = re.sub(r'\s*→\s*', '_', path).replace(' ', '-')
     
     # Hash full path for uniqueness
     hash_suffix = hashlib.md5(path.encode()).hexdigest()[:6]
@@ -717,7 +717,61 @@ def get_llm_model(llm_config_file):
     return None
 
 
-def get_summarized_comments(context, sysprompt):
+# variable names refer to comments but they don't have to be.  This function used for any field that were found to have an LLM prompt 
+def get_summarized_comments(comments_list_asc, field_arg=None):
+    """
+    Summarize comments for LLM processing.
+    This function takes a list of comments in ascending order and returns a summarized version.
+    Optionally, a specific field name can be passed via `field_arg`.
+    """
+    try:
+        if not comments_list_asc:
+            return "No comments available."
+
+        # Only join if it's a list or tuple
+        if isinstance(comments_list_asc, (list, tuple)):
+            comments_str = "; ".join(comments_list_asc)
+        else:
+            comments_str = comments_list_asc  # already a string
+
+        comments_str = comments_str.replace("\n", "").replace("\r", "")
+
+        # Prepare the payload for the service
+        payload = {
+            "comments": [comments_str]  # service expects a list[str]
+        }
+        if field_arg:
+            payload["field"] = field_arg  # include field if provided
+
+        llm_model = get_llm_model(LLMCONFIG_FILE)
+        # Determine endpoint
+        ENDPOINT = "/summarize_openai_ex" if llm_model == "OpenAI" else "/summarize_local_ex"
+
+        # Make the POST request
+        resp = requests.post(f"{SUMMARIZER_HOST}{ENDPOINT}", json=payload)
+
+        if resp.status_code == 200:
+            full_response = resp.json().get("summary", "")
+            print(f"LLM endpoint returned {resp.status_code} OK")
+        else:
+            print(f"error LLM endpoint returned {resp.status_code}")
+            full_response = f"[ERROR] Service call failed: {resp.text}"
+
+        # Clean up response
+        full_response = full_response.rstrip("\n").replace("\n", "; ").replace("|", "/")
+
+        print(f"Full response: {full_response}")
+
+        return full_response
+    
+    except Exception as e:
+        # Log the exception and return a safe default
+        print(f"[EXCEPTION ERROR] LLM could not be engaged, get_summarized_comments failed: {e}")
+        #return "[ERROR] LLM could not be engaged due to exceptions during LLM interaction."
+        return f"[EXCEPTION ERROR] LLM could not be engaged, get_summarized_comments failed: {e}"
+
+
+def get_summarized_comments_old(context, sysprompt):
     """
     Summarize comments for LLM processing.
     This function takes a list of comments in ascending order and returns a summarized version.
@@ -905,7 +959,16 @@ print(f"jql from yaml: {jql_str}")
 
 llm_user_prompt = data.get('llm', "Read all of it and briefly as possible categorize types of issues and work that was done. Mention any reason you see that could have blocked work on these issues or could have been done more quickly or correctly." )
 
+# other prompt ideas:
+# idea 1
+# Read all the comments in the jira issues and list out any issues that are blocked and reason.  
+# Also mention any improvements we can make that will allow work t be completed more quickly or correctly.
+#
+# idea 2
+# <llm> Read all the comments in the jira issues that provide or suggest  improvements idea to get things done more efficiently or correctly
 # add my prefix prompt regardless of user specified prompt or default prompt
+
+
 sysprompt = "The following text is a delimited data separated by | character. These are rows of jira issues. " + llm_user_prompt
 
 print (f"llm prompt = {sysprompt}")
@@ -946,7 +1009,7 @@ if not JIRA_API_TOKEN:
 # to processing chain.jira.csv in this scenario
 
 context = ""
-csv = os.path.join(os.getcwd(), f"{basename}.*.{timestamp}.chain.jira.csv")
+csv = os.path.join(os.getcwd(), f"{basename}.{sheet}.{tablename}.*.{timestamp}.chain.jira.csv")
 csv_files = glob.glob(csv)
 
 if csv_files:
@@ -962,12 +1025,12 @@ if csv_files:
                 context += line 
 
 
-        match = re.match(rf"{re.escape(basename)}\.(.+?)\.chain\.jira\.csv", os.path.basename(csv_file))
+        match = re.match(rf"{re.escape(basename)}\.{sheet}\.{tablename}\.(.+?)\.chain\.jira\.csv", os.path.basename(csv_file))
         if match:
             substring = match.group(1)
-            output_file = f"{basename}.{substring}.chain.llm.txt"
-            context_output_file =  f"{basename}.{substring}.chain.context.txt"
-            chain_yaml_file =  f"{basename}.{substring}.chain.scope.yaml"
+            output_file = f"{basename}.{sheet}.{tablename}.{substring}.chain.llm.txt"
+            context_output_file =  f"{basename}.{sheet}.{tablename}.{substring}.chain.context.txt"
+            chain_yaml_file =  f"{basename}.{sheet}.{tablename}.{substring}.chain.scope.yaml"
             print(f"context for {csv_file} will be saved in {output_file}")
             print(f"chain row for {csv_file} will be looked in {chain_yaml_file}")
         else:

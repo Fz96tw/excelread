@@ -50,12 +50,14 @@ def get_token_file(userlogin):
     return os.path.join(CONFIG_DIR, f"google_token_{userlogin}.json")
 
 
-def get_google_flow(userlogin):
+    
+def get_google_flow(userlogin,redirectpath):
     """Initialize Google OAuth flow for this user"""
+    print(f"inside get_google_flow params userlogin={userlogin} redirectpath={redirectpath}")
     return Flow.from_client_secrets_file(
         GOOGLE_CLIENT_SECRETS_FILE,
         scopes=SCOPES,
-        redirect_uri="http://localhost:5000/google/callback"
+        redirect_url = f"{redirectpath}/google/callback"
     )
 
 

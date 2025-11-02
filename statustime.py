@@ -890,15 +890,28 @@ for (from_status, to_status), data in sorted_transitions:
     else:
         prefix = "INSERT"
 
-    print(f"\n{from_status} → {to_status}")    
+    print(f"\n{from_status} → {to_status}")   
+
+
+    median_days = data['median_hours'] / 24.0
+    stdev_days = data['stddev_hours'] / 24.0
+    min_days = data['min_hours'] / 24.0
+    max_days = data['max_hours'] / 24.0
+    
     changes_list.append(f"{get_column_letter(excel_col)}{r} = {prefix} {from_status} || ")  # add INSERT only to first row since rest are in sme row
     changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = {to_status} || ")  # add INSERT only to first row since rest are in sme row
-    changes_list.append(f"{get_column_letter(excel_col + 2)}{r} =  {data['average_hours']:.1f} hours ({data['average_days']:.1f} days) || ")
-    changes_list.append(f"{get_column_letter(excel_col + 3)}{r} =  {data['median_hours']:.1f} hours || ")
-    changes_list.append(f"{get_column_letter(excel_col + 4)}{r} =  {data['stddev_hours']:.1f} hours || ")
-    #changes_list.append(f"{get_column_letter(excel_col + 3)}{r} = INSERT {data['min_hours']:.1f} - {data['max_hours']:.1f} hours || ")
+    changes_list.append(f"{get_column_letter(excel_col + 2)}{r} =  {data['average_hours']:.1f} hrs ({data['average_days']:.1f}d) || ")
+    changes_list.append(f"{get_column_letter(excel_col + 3)}{r} =  {data['median_hours']:.1f} hrs ({median_days:.1f}d)|| ")
+    changes_list.append(f"{get_column_letter(excel_col + 4)}{r} =  {data['stddev_hours']:.1f} hrs ({stdev_days:.1f} days) || ")
+    changes_list.append(f"{get_column_letter(excel_col + 5)}{r} =  {data['min_hours']:.1f} hrs ({min_days:.1f}d) || ")
+    changes_list.append(f"{get_column_letter(excel_col + 6)}{r} =  {data['max_hours']:.1f} hrs ({max_days:.1f}d) || ")    
+    
+    '''changes_list.append(f"{get_column_letter(excel_col + 2)}{r} =  {data['average_hours']:.1f} hrs ({data['average_days']:.1f}d) || ")
+    changes_list.append(f"{get_column_letter(excel_col + 3)}{r} =  {data['median_hours']:.1f} hrs || ")
+    changes_list.append(f"{get_column_letter(excel_col + 4)}{r} =  {data['stddev_hours']:.1f} hrs || ")
     changes_list.append(f"{get_column_letter(excel_col + 5)}{r} =  {data['min_hours']:.1f} hours || ")
     changes_list.append(f"{get_column_letter(excel_col + 6)}{r} =  {data['max_hours']:.1f} hours || ")
+    '''
 
     jql = "key in ("
     # Print only the issue keys for this transition

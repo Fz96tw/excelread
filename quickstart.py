@@ -97,9 +97,10 @@ last_excel_row = data.get('lastrow', None)
 print(f"last_excel_row from yaml: {last_excel_row}")
 
 # validate
-if not jira_projects_list or quickstart_table_row is None or quickstart_table_col is None or last_excel_row is None:
+if quickstart_table_row is None or quickstart_table_col is None or last_excel_row is None:
     print("❌ Error: Missing required fields in YAML file")
     sys.exit(1)
+
 
 '''
 The output will be:
@@ -109,12 +110,15 @@ The output will be:
 
 
 # join list into comma-separated string
-jira_projects_str = ",".join(jira_projects_list)
-
+if jira_projects_list:
+    jira_projects_str = ",".join(jira_projects_list)
+    jql_str = f"project in ({jira_projects_str}) and"
+else:
+    jql_str = ""
 
 # Multiline definition (for readability)
 changes_epics = [
-    f"Project Epics<jira> jql project in ({jira_projects_str}) and issuetype = Epic",
+    f"Project Epics<jira> jql {jql_str} issuetype = epic and (updated >= -52w or created >= -52w)",
     "Jira ID <key>",
     "Jink Link <url>",
     "Title <summary>",
@@ -125,15 +129,18 @@ changes_epics = [
     "Jira Linked <links>",
     "Assignee <assignee>",
     "Reporter <reporter>",
-    "Comments Summary <ai>"
+    "Comments Summary <comments>Summarize all the comments into a few sentences highligthing objectives, accomplishments and risks that are blocking progress of the work"
 ]
 
 changes_resolved_velocity = [
-    f"Resolved Velocity<rate resolved><months>jql project in ({jira_projects_str}) and resolved >= -13w"
+    f"Resolved Velocity<rate resolved><months>jql {jql_str} resolved >= -12w"
 ]
 
 changes_assignee_velocity = [
-    f"Assignee Velocity<rate assignee><months>jql project in ({jira_projects_str}) and resolved >= -13w"
+    f"Assignee Velocity<rate assignee><months>jql {jql_str} resolved >= -12w"
+]
+changes_assignee_velocity_llm = [
+    "<llm> Read all the comments in the jira issues and suggest  improvements that we can make to get things done faster, more efficiently or correctly."
 ]
 
 changes_overall_status = [
@@ -141,11 +148,15 @@ changes_overall_status = [
 ]
 
 changes_cycletime = [
-    f"Cycle Time<cycletime> jql project in ({jira_projects_str}) and created >= -13w"
+    f"Cycle Time<cycletime> jql {jql_str} resolved >= -12w and status in (done, completed, closed)"   
+]
+
+changes_cycletime_llm = [
+    "<llm> Read all the comments in the jira issues and suggest  improvements that we can make to get things done faster, more efficiently or correctly."
 ]
 
 changes_statustime = [
-    f"Status Time<statustime> jql project in ({jira_projects_str}) and created >= -13w"
+    f"Status Time<statustime> jql {jql_str} resolved >= -12w and status in (done, completed, closed)"
 ]
 
 
@@ -157,12 +168,16 @@ excel_col = quickstart_table_col + 1
 
 changes_list.append(f"{get_column_letter(excel_col)}{r} = {changes_overall_status[0]} || ")
 r += 5
+
 changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = {changes_resolved_velocity[0]} || ")
 r += 10
+
 changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = {changes_assignee_velocity[0]} || ")
+changes_list.append(f"{get_column_letter(excel_col + 2)}{r} = {changes_assignee_velocity_llm[0]} || ")
 r += 10
 
 changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = {changes_cycletime[0]} || ")
+changes_list.append(f"{get_column_letter(excel_col + 2)}{r} = {changes_cycletime_llm[0]} || ")
 r += 10
 
 changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = {changes_statustime[0]} || ")

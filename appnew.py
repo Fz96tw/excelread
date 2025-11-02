@@ -21,6 +21,38 @@ os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Allow HTTP for local dev
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key")  # Use a real secret in production
 
+from flask_login import LoginManager, current_user
+
+# --- Flask-Login setup ---
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+    
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+app.wsgi_app = ProxyFix(
+    app.wsgi_app,
+    x_for=1,       # client IP
+    x_proto=1,     # scheme (http/https)
+    x_host=1,      # host header
+    x_port=1,
+    x_prefix=1
+)
+
+
+'''app.config.update(
+    SESSION_COOKIE_SECURE=True,    # only sent over HTTPS
+    SESSION_COOKIE_SAMESITE="None", # allow cross-site redirects (OAuth)
+    SESSION_PERMANENT=False
+)'''
+
+app.config.update(
+    SESSION_COOKIE_SECURE=True,  # only send cookie over HTTPS
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',  # prevents CSRF issues
+)
+
 
 #FOO_FILE = './config/.env'
 #BAR_FILE = './config/.bar'
@@ -60,7 +92,7 @@ SCOPES = ["https://graph.microsoft.com/.default"]
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 #AUTHORITY = "https://login.microsoftonline.com/common"   # to allow users from any tenant to authorize my app
 REDIRECT_PATH = "/getAToken"
-REDIRECT_URI = f"http://localhost:5000{REDIRECT_PATH}"
+REDIRECT_URI = f"https://demo.cloudcurio.com{REDIRECT_PATH}"
 
 # default token cache file used when private client auth flow. 
 # file name is overwritten later if using delegated auth flow.
@@ -539,8 +571,16 @@ def google_login():
     if not current_user.is_authenticated:
         return redirect(url_for("home"))
 
+    global callback_host
+    if callback_host:
+        redirectpath = f"http://{callback_host}"
+    else:
+        redirectpath = "https://demo.cloudcurio.com"
+
     userlogin = current_user.username
-    flow = get_google_flow(userlogin)
+
+    print(f"/google/login about to call get_googe_flow({userlogin},{redirectpath})")
+    flow = get_google_flow(userlogin, redirectpath)
     auth_url, state = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
@@ -557,9 +597,18 @@ def google_callback():
     userlogin = session.get("google_user")
     if not userlogin:
         return "Missing session user", 400
+    
+    global callback_host
+    if callback_host:
+        redirectpath = f"http://{callback_host}"
+    else:
+        redirectpath = "https://demo.cloudcurio.com"
 
-    flow = get_google_flow(userlogin)
+    print(f"/google/callback called.  userlogin ={userlogin}")
+    flow = get_google_flow(userlogin, redirectpath)
     flow.fetch_token(authorization_response=request.url)
+    print(f"proceeding after flow.fetch_token()")
+
     creds = flow.credentials
     save_google_token(creds, userlogin)
 
@@ -699,8 +748,58 @@ else:
 
 
 
+import argparse
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description='Flask application with configurable port')
+    parser.add_argument('--port', type=int, default=5000, 
+                        help='Port number to run the Flask server on (default: 5000)')
+    parser.add_argument('--auth', '--auth-mode', dest='auth_mode', default=None,
+                        help='Authentication mode (e.g., user_auth)')
+    parser.add_argument('--callback', type=str, default=None,
+                        help='OAuth2 Callback host (e.g., localhost:7000)')
+
+    return parser.parse_args()
+
+# Parse arguments
+args = parse_arguments()
+PORT = args.port
+callback_host = args.callback
+
+if callback_host:
+    print(f"callback_host provided as: {callback_host}")
+
+
+
 delegated_auth = False  # set to False to use app-only auth (no user context)
-if len(sys.argv) == 2:
+
+
+if args.auth_mode and "user_auth" in args.auth_mode:
+    print(f"detected argument '{args.auth_mode}' so will use delegated authorization instead of app auth flow")
+    delegated_auth = True
+    CLIENT_ID = os.environ["CLIENT_ID2"]
+    CLIENT_SECRET = os.environ["CLIENT_SECRET2"] # only needed for app-only auth. Not used for delegated user auth.
+    TENANT_ID = os.environ["TENANT_ID"]
+    # Do NOT include reserved scopes here — MSAL adds them automatically
+    SCOPES = ["User.Read","Files.ReadWrite.All", "Sites.ReadWrite.All"]
+    #AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+    AUTHORITY = "https://login.microsoftonline.com/common"   # to allow users from any tenant to authorize my app
+    print (f"Tenant id: {TENANT_ID}")
+    print (f"Client id: {CLIENT_ID}")
+    print (f"Client secret: {CLIENT_SECRET}")
+    print (f"Authority: {AUTHORITY}")
+    cache = load_cache(userlogin)
+    cca = _build_msal_app(cache)
+else:
+    print(f"defaulting to application authorization since user_auth argument not specified")
+    cache = load_cache()
+    print("calling build_msal_app(cache)")
+    cca = build_msal_app(cache)
+
+
+
+
+'''if len(sys.argv) == 2:
     auth_param = sys.argv[1]
     if "user_auth" in auth_param:
         print(f"detected argument '{auth_param}' so will use delegated authorization instead of app auth flow")
@@ -723,6 +822,7 @@ else:
     cache = load_cache()
     print("calling build_msal_app(cache)")
     cca = build_msal_app(cache)
+'''
 
 # -----------------------------------------------------------------------------
 # Global scheduler
@@ -949,7 +1049,49 @@ shared_files_local = []
 
 #logged_in = False
 
-# REDIRECT_PATH callback only required when using user-delegated auth flow.  
+# --- OAuth callback ---
+@app.route(REDIRECT_PATH)
+def authorized():
+    if not current_user.is_authenticated:
+        return "User session lost. Make sure you are logged in."
+
+    code = request.args.get("code")
+    if not code:
+        return "No code found in redirect."
+
+    cache = load_cache(current_user.username)
+    cca = _build_msal_app(cache)
+
+    print(f"calling cca.acquire_token_by_authorization_code({code}), {SCOPES}, {REDIRECT_URI}")
+    result = cca.acquire_token_by_authorization_code(
+        code,
+        scopes=SCOPES,
+        redirect_uri=REDIRECT_URI
+    )
+    save_cache(cache, current_user.username)
+
+    if "access_token" in result:
+        print("found access_token in result")
+        session["access_token"] = result["access_token"]
+        session["user"] = result.get("id_token_claims")
+        return """
+        <html>
+        <body style="font-family:sans-serif;text-align:center;padding:40px;">
+            <h2>✅ Login Successful</h2>
+            <script>
+                try { window.opener && window.opener.postMessage('login-success', '*'); } catch(e) {}
+                window.close();
+            </script>
+            <p>You may close this window if it doesn’t close automatically.</p>
+        </body>
+        </html>
+        """
+    else:
+        print(f"Error: {result.get('error_description')}")
+        return f"Error: {result.get('error_description')}"
+
+
+'''# REDIRECT_PATH callback only required when using user-delegated auth flow.  
 # not needed/used for private client auth flow
 @app.route(REDIRECT_PATH)
 def authorized():
@@ -994,6 +1136,7 @@ def authorized():
         else:
             return f"Error: {result.get('error_description')}"
     return "No code provided."
+    '''
 
 
 auth_user_email = ""
@@ -1905,5 +2048,5 @@ def get_latest_log(run):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
-
+    print(f"Starting Flask app on port {PORT}")
+    app.run(host="0.0.0.0", port=PORT, debug=True, use_reloader=False)
