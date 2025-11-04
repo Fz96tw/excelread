@@ -24,6 +24,29 @@ from my_utils import *
     return df.values.tolist()
 '''
 
+import re
+from typing import Optional
+
+def extract_rows_count(text: str) -> Optional[int]:
+    """
+    Extract the number of rows mentioned in a message.
+    Matches numbers like:
+      "3 rows updated on 2025-11-03 14:38:54 by Trinket" -> 3
+      "1 row updated ..." -> 1
+      "1,234 rows ..." -> 1234
+    Returns an int if found, otherwise None.
+    """
+    match = re.search(r'([\d,]+)\s+rows?\b', text, flags=re.IGNORECASE)
+    if not match:
+        return None
+    number_str = match.group(1).replace(',', '')
+    try:
+        return int(number_str)
+    except ValueError:
+        return None
+    
+
+    
 def read_excel_rows(filename, sheet_name=0):
     df = pd.read_excel(filename, sheet_name=sheet_name, header=None)
     return df.values.tolist()
@@ -433,6 +456,13 @@ if __name__ == "__main__":
                     yaml.dump({"email":email_list}, f, default_flow_style=False)
                 continue        # we may have <jira> in same row so continue processing
 
+            elif "rows updated on" in cell_str:  # can be on same row as <jira> tag or differnt row for <cycletime> <statustime> tables
+                r = extract_rows_count(cell_str)
+                print(f"'rows updated on' found  = {r}")
+
+                with open(scope_output_file, 'a') as f:
+                    yaml.dump({"last_update_row_count":r}, f, default_flow_style=False)
+ 
             elif "<cycletime>" in cell_str or "<statustime>" in cell_str:
                 print(f"<cycletime> found in cell_str={cell_str}")
                 #cell_after_tag = cell_str.split("<cycletime>", 1)[1].strip()
@@ -482,7 +512,6 @@ if __name__ == "__main__":
                     yaml.dump({"row":row_count}, f, default_flow_style=False)
                     yaml.dump({"col":idx}, f, default_flow_style=False)
                     yaml.dump({"lastrow":last_excel_row}, f, default_flow_style=False)
-
 
                 # Look ahead from the next row
                 nonblank_count = 0
@@ -681,7 +710,7 @@ if __name__ == "__main__":
                 elif "create" in cell_str:
                     jira_create_found = True
                     print("CREATE found in table name: ", cell_str)
-
+                
                 runrate_found = False  # just make sure this is alwayd reset to false if we had a <rate> table before this. 
                 cleaned_value = str(cell).rsplit("<jira>", 1)[0].strip().replace(" ", "_")
                 scope_output_file = set_output_filename(filename, sheet, cleaned_value, timestamp, jira_import_found, jira_create_found, runrate_found)
@@ -690,7 +719,18 @@ if __name__ == "__main__":
                 file_info["table"] = cleaned_value
                 with open(scope_output_file, 'w') as f:
                     yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
-       
+
+                if idx + 1 < len(row):
+                    adjacent_cell_str = row[idx + 1]
+                    print(f"adjacent cell look ahead = {adjacent_cell_str}")
+                    r = extract_rows_count(adjacent_cell_str)
+                    print(f"<jira> tag adjacent cell last update string = {r}")
+                    with open(scope_output_file, 'a') as f:
+                        yaml.dump({"last_update_row_count":r}, f, default_flow_style=False)
+                else:
+                    print("No adjacent cell to the right — skipping search for 'rows updated on' string.")
+
+                            
                 break   # break out of for loop and continue with next row.  Cannot have anything else in same row after <jira> table tag is found
 
             

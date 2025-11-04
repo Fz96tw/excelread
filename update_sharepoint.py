@@ -201,8 +201,8 @@ def build_batch_requests(row_updates, worksheet_name, site_id, item_id, jira_bas
                     hyperlink = create_hyperlink(new_val, jira_base_url)
                     if hyperlink:
                         new_val = new_val.replace("URL", "").strip()
-                        if "jql" in str(new_val).lower():
-                            new_val = "Link"
+                        #if "jql" in str(new_val).lower():
+                        #    new_val = "Link"
                         new_val = _make_hyperlink_formula(hyperlink, new_val)
                 else:
                     # Convert semicolons to newlines

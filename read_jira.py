@@ -739,7 +739,7 @@ if jql_ids:
                 elif field2 == "key":
                     print(f"Key list: {key_list}")
                     #synopsis_str = ", ".join(key_list)  # put key into synopsis field, do not over
-                    value = jql_id
+                    value = "URL " + jql_id
                 elif field2 == "comments":
                     # Flatten the list
                     cleaned_comments = ";".join(comments_list)
@@ -772,22 +772,19 @@ if jql_ids:
                         value_str = value_from_llm
                 else:
                     print(f"field_args[{field}] not found")
-            
 
-
-                values.append(value_str)
-                
-                
+                values.append(value_str)                
                 
             print('|'.join(values))
             with open(output_file, "a") as outfile:
                 outfile.write('|'.join(values) + "\n")
+        
         except Exception as e:
             print(f"❌ Failed to run JQL query '{jql_id}': {e}")
             
             for field in field_values:
                 if field == "key":
-                    value = jql_id
+                    value = "URL " + jql_id
                 else:
                     value = "Bad JQL query"
             
@@ -801,5 +798,5 @@ print(f"Data written to {output_file}")
 print(f"CSV_CREATED:{output_file}")
 
 # process Exec Summary now
-if "ExecSummary" in yaml_file:
-    print(f"This is an ExecSummary yaml file = {yaml_file} ")
+#if "ExecSummary" in yaml_file:
+#    print(f"This is an ExecSummary yaml file = {yaml_file} ")

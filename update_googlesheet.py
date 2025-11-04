@@ -164,8 +164,8 @@ def build_all_updates(all_rows, sheet_id, sheet_name, jira_base_url):
                 hyperlink = create_hyperlink(new_val, jira_base_url)
                 if hyperlink:
                     new_val = new_val.replace("URL", "").strip()
-                    if "jql" in str(new_val).lower():
-                        new_val = "Link"
+                    #if "jql" in str(new_val).lower():
+                    #    new_val = "Link"
                     
                     cell_range = f"{sheet_name}!{col_letter}{row_num}"
                     all_value_data.append({

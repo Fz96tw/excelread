@@ -2,8 +2,7 @@ import sys
 from openpyxl.styles import Alignment
 
 import re
-
-
+from datetime import datetime
 from my_utils import *
 
 
@@ -181,7 +180,12 @@ def extract_jira_id(hyperlink_str: str) -> str:
     """
     match = re.search(r'/browse/([A-Z]+-\d+)', hyperlink_str)
     if match:
-        return match.group(1)
+        return match.group(1).strip()
+
+    match = re.search(r'\?jql=([^"]+)', hyperlink_str)
+    if match:
+        return "jql " + match.group(1).strip()    
+
     return None
 
 def create_hyperlink(value, jira_base_url):
@@ -216,6 +220,13 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
     printing_import_mode = False # flag to track when we're in a jira table block in import mode
 
     last_known_row_num = 0
+    blank_row_found = False # used for import table logic
+
+    # following used to figure out where to write the "last updated on..." in the sheet next to <jira> table
+    table_row = None                # location of <jira> tag in sheet    
+    table_col = None                # location of <jira> tag in sheet 
+    
+    total_jira = len(jira_data)    # number of results returned by Jira query
 
     for row in ws.iter_rows():
         #print(f"Processing row {row[0].row}: {[cell.value for cell in row]}")
@@ -235,12 +246,17 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
             if file_info["table"] in cleaned_value and "<jira>" in cleaned_value:
                 print(f"Found table header '{file_info['table']}' in cell {cell.coordinate}")
                 printing = True
+                table_row = cell.row
+                table_col = cell.column 
                 break
             
         #print(f"Printing flag is {'ON' if printing else 'OFF'} for row {row[0].row}")
         #print(f"Import mode is {'ON' if import_mode else 'OFF'}")
 
         if printing and not import_mode:
+            #
+            # This is regular <jira> table so walk down each row to look for keys in jira_data and update those rows
+            #
             print("About to process update row.")
             first_cell = row[field_index_map["key"]].value
             
@@ -251,12 +267,13 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
     
             if first_cell is not None:
                 first_cell = str(first_cell).lower()
-                first_cell = "url " +  first_cell       # lower case url because the jira_data hashkey was lower() earlier
-            else:
-                first_cell = ""
+                first_cell = "url " +  first_cell       # lower case url because we'll compare with jira_data hashkey was that was lower() earlier
+            #else:
+            #    first_cell = ""
 
-            print(f"process_jira_table_blocks checking if {first_cell} is in jira_data {jira_data}")
-            if (jira_data and first_cell in jira_data):
+            print(f"process_jira_table_blocks checking if key={first_cell} is in jira_data {jira_data}")
+            #if (jira_data and first_cell in jira_data):
+            if first_cell is not None and jira_data and first_cell in jira_data:
                 print(f"Updating row {row[field_index_map['key']].row} with data for {first_cell}")
                 #record = jira_data[first_cell]
                 record = jira_data.pop(first_cell)
@@ -302,18 +319,30 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
                 first_cell = row[field_index_map["key"]].value
                 if first_cell is not None:
                     first_cell = str(first_cell).lower()
+                    if "<key>" in str(first_cell).lower():
+                        print("Found <key> header row, let's skip to next row")
+                        printing_import_mode = True
+                        blank_row_found = False         # initialize to False altho not if it matter at this point
+                        continue
                 else:
-                    first_cell = ""
+                    print("need to keep looking...")
 
-                if "<key>" in str(first_cell).lower():
+                #else:
+                #    first_cell = ""
+
+                '''if "<key>" in str(first_cell).lower():
                     print("Found <key> header row, let's skip to next row")
                     printing_import_mode = True
                     continue
                 else:
                     print("need to keep looking...")
-                    
+                ''' 
             
         elif printing and import_mode and printing_import_mode:
+            #
+            # This block handles the  <jira> jql... type of import table where rows will be inserted contiguously, 
+            # including use of STRIKEOUT
+            #
             print(f"About to process import row - checking column {field_index_map['key']}")
             first_cell = row[field_index_map["key"]].value
             
@@ -324,7 +353,25 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
             #    first_cell = ""
             print(f"First cell in import row: {first_cell}")
 
-            if jira_data and (first_cell is None or first_cell == ""):
+            if first_cell:
+                if "=HYPERLINK" in first_cell:  # first_cell was forced to lower case earlier so check for url instead URL
+                    # this key was previously converted to hyperlink in a previous run on this sheet
+                    first_cell = extract_jira_id(first_cell)
+        
+            if first_cell is not None:
+                first_cell = str(first_cell).lower()
+                first_cell = "url " +  first_cell       # lower case url because the jira_data hashkey was lower() earlier
+            #else:
+            #    first_cell = ""
+
+
+            #if jira_data and (first_cell is None or first_cell == ""):
+            if jira_data and (first_cell is None or blank_row_found):
+
+                # as soon we get blank key cell, assume blank row and just keep inserting from here onwards
+                # do not examine subsequent rows for STRIKEOUT.
+                blank_row_found = True
+
                 print("First cell is blank")
                 print(f"Import mode: Adding new row for {first_cell}")
    
@@ -344,7 +391,7 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
                             print(f"Setting cell {target_cell.coordinate} = {cell_value}")  # <-- Coordinate logging
                             target_cell.value = cell_value.replace(";", "\n")  # Replace ; with newline
                                                     
-                            # Enable text wrapping to show newlines
+                            '''# Enable text wrapping to show newlines
                             target_cell.alignment = Alignment(wrapText=True)
 
                             if field == "key" and is_valid_jira_id(cell_value):
@@ -353,7 +400,7 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
                             elif field == "key" and is_JQL(cell_value):
                                 target_cell.hyperlink = "https://fz96tw.atlassian.net/issues/?jql=" + cell_value.lower().replace("jql", "")  # The actual link
                                 target_cell.style = "Hyperlink"
-                            
+                            '''
                             # Save coordinate + value to list
                             cv = target_cell.value.replace('\n',';')
                             # enforce INSERT for this row since it is presumed to be blank. we don't want to fill up this blank row, ie preserve whatever blank rows were
@@ -363,7 +410,7 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
             
             elif not jira_data and first_cell is not None:
                 if first_cell is not None: #and is_valid_jira_id(first_cell)
-                    print(f"No more items in jira_data but first_cell '{first_cell} has text so let's keep going down until blank cell")
+                    print(f"No more items in jira_data but first_cell '{first_cell}' has text so lets keep going down until blank cell")
                     # cannot exit loop yet because there may be rows below current row that
                     # were populated previously because they were in the jql result.
                     # And now they're not in current result set and must be STRIKEOUT
@@ -401,7 +448,7 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
 
 
             #elif is_valid_jira_id(first_cell):
-            elif jira_data and first_cell is not None:
+            elif jira_data and first_cell is not None and not blank_row_found:
                 #print(f"This row already contains valid jira id {first_cell}. Will just update instead of overwriting.")
                 print("This rows contains some text already")
                 # if the text in cell matches the Jira id we are looking for then
@@ -412,17 +459,17 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
                 if "STRIKEOUT" in first_cell:
                     print(f"Already contains STRIKEOUT removing it from first_cell '{first_cell}'")
                     first_cell = first_cell.replace("STRIKEOUT ","")
-                    print(f"STRIKEOUT removed, first_cell is no '{first_cell}'")
+                    print(f"STRIKEOUT removed, first_cell is now '{first_cell}'")
 
                 # was this jira previously in the cell? 
                 # if yes then update all the fields columns and remove strikeout
                 # we want to preserve this row incawe there were user notes in this row as well
                 if first_cell is not None:
                     first_cell = str(first_cell).lower()
-                else:
-                    first_cell = ""
+                #else:
+                #    first_cell = ""
 
-                if first_cell in jira_data:
+                if first_cell is not None and first_cell in jira_data:
                     print("This first_cell is still part of the jira_data result set")
                     print(f"Popping {first_cell} from jira_data for update.")
                     record = jira_data.pop(first_cell)
@@ -446,7 +493,7 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
                                 print(f"Setting cell {target_cell.coordinate} = {cell_value}")  # <-- Coordinate logging
                                 target_cell.value = cell_value.replace(";", "\n")  # Replace ; with newline
                                                         
-                                # Enable text wrapping to show newlines
+                                '''# Enable text wrapping to show newlines
                                 target_cell.alignment = Alignment(wrapText=True)
 
                                 if field == "key" and is_valid_jira_id(cell_value):
@@ -455,7 +502,7 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
                                 elif field == "key" and is_JQL(cell_value):
                                     target_cell.hyperlink = "https://fz96tw.atlassian.net/issues/?jql=" + cell_value.lower().replace("jql", "")  # The actual link
                                     target_cell.style = "Hyperlink"
-                                
+                                '''
                                 # Save coordinate + value to list
                                 cv = target_cell.value.replace('\n',';')
                                 # DO NOT enforce INSERT for this row since the sheet row already contains a key
@@ -532,11 +579,16 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
                         change_list.append(f"{target_cell_coordinate}= INSERT {cv}||{old_value}")
                         #change_list.append(f"{target_cell_coordinate}={cell_value.replace('\n',';')}||{old_value}")
 
+    # write the "updated on.." in sheet
+    table_coord = get_column_letter(table_col + 1) + str(table_row)
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    change_list.append(f"{table_coord}= {total_jira} rows updated on {now_str} by Trinket||{old_value}")
 
 
     # Save updates to the same file
     #print(f"Saving updates to {filename}")
     #wb.save(filename)                
+
 
 
 if __name__ == "__main__":

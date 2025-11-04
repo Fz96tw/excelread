@@ -909,7 +909,14 @@ else:
     sys.exit(1)
 
 fields = data.get('fields', [])
-scan_ahead_nonblank_rows = data.get('scan_ahead_nonblank_rows', 0)
+#scan_ahead_nonblank_rows = data.get('scan_ahead_nonblank_rows', 0)
+
+scan_ahead_nonblank_rows = data.get('last_update_row_count',0) 
+if scan_ahead_nonblank_rows:
+    scan_ahead_nonblank_rows = scan_ahead_nonblank_rows  # +1 for the timestamp row  +1 for column heading row too
+
+print(f"scan_ahead_nonblank_rows initialized = {scan_ahead_nonblank_rows}")
+
 
 # Convert list of dicts into a dictionary
 fields_dict = {field["value"]: field.get("index", "<blank>") for field in fields}
@@ -999,6 +1006,29 @@ JIRA_EMAIL = os.environ.get("JIRA_EMAIL")
 if not JIRA_API_TOKEN:
     print("Error: JIRA_API_TOKEN environment variable not set.")
     sys.exit(1)
+
+
+
+    import re
+    from typing import Optional
+
+    def extract_rows_count(text: str) -> Optional[int]:
+        """
+        Extract the number of rows mentioned in a message.
+        Matches numbers like:
+        "3 rows updated on 2025-11-03 14:38:54 by Trinket" -> 3
+        "1 row updated ..." -> 1
+        "1,234 rows ..." -> 1234
+        Returns an int if found, otherwise None.
+        """
+        match = re.search(r'([\d,]+)\s+rows?\b', text, flags=re.IGNORECASE)
+        if not match:
+            return None
+        number_str = match.group(1).replace(',', '')
+        try:
+            return int(number_str)
+        except ValueError:
+            return None
 
 
 #########################
@@ -1143,22 +1173,32 @@ changes_list = []
 r = cycletime_table_row 
 excel_col = cycletime_table_col + 1
 
+
+#last_update_count = extract_rows_count(s)
+
 if scan_ahead_nonblank_rows:
     prefix = ""
-    scan_ahead_nonblank_rows -= 1
+    #scan_ahead_nonblank_rows -= 1      # don't subtract since we didn't include this row in the scan_ahead count
 else:
     prefix = "INSERT"
+
 
 r += 1  # bump row one more time so INSERT are done at the row right below the cycletime tag
 
 # write out the timestamp in cell adjacent to <> so we can tell when the update occurred
 coord = f"{get_column_letter(excel_col)}{r}"
 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-entry = f"{coord} = {prefix} {now_str} ||"
+entry = f"{coord} = {prefix} {len(results)} rows updated on {now_str} by Trinket ||"
 print(entry)
 changes_list.append(entry)
 
 r += 1  # bump row one more time so INSERT are done at the row right below the cycletime tag
+
+if scan_ahead_nonblank_rows:
+    prefix = ""
+    #scan_ahead_nonblank_rows -= 1  # don't substract since we didn't count the headings row in scan_ahead count 
+else:
+    prefix = "INSERT"
 
 changes_list.append(f"{get_column_letter(excel_col)}{r} = {prefix} TRANSITION CHAIN || ")
 changes_list.append(f"{get_column_letter(excel_col + 1)}{r} =   AVERAGE || ")
@@ -1170,9 +1210,7 @@ changes_list.append(f"{get_column_letter(excel_col + 6)}{r} =   SAMPLE SIZE || "
 changes_list.append(f"{get_column_letter(excel_col + 7)}{r} =   % of Total Jira || ")
 changes_list.append(f"{get_column_letter(excel_col + 8)}{r} =   {llm_user_prompt} || ")
 
-r += 1
 
-# get total number of issues
 total_jira = 0 
 for chain_str, data in sorted_chains:
     total_jira += data['count']
@@ -1181,11 +1219,13 @@ print(f"total_jira = {total_jira} for chain % calculation")
 
 for chain_str, data in sorted_chains:
 
+    r += 1
+
     if scan_ahead_nonblank_rows:
         prefix = ""
         scan_ahead_nonblank_rows -= 1
     else:
-        prefix = "INSERT"
+        prefix = "INSERT"# get total number of issues
 
     print(f"\n{chain_str}")
     median_days = data['median_hours'] / 24.0
@@ -1223,9 +1263,14 @@ for chain_str, data in sorted_chains:
     print(f"{data['count']}/{total_jira} = {percent:.1f}% ")
     changes_list.append(f"{get_column_letter(excel_col + 7)}{r} =  {percent:.1f}% || ")
    
-    r += 1
+    '''r += 1
 
-
+    if scan_ahead_nonblank_rows:
+        prefix = ""
+        scan_ahead_nonblank_rows -= 1
+    else:
+        prefix = "INSERT"
+    '''
     write_execsummary_yaml(jira_ids, fileinfo, chain_str, chain_row,  timestamp)
 
 
@@ -1234,7 +1279,12 @@ for chain_str, data in sorted_chains:
     print(f"  Range:        {data['min_hours']:.1f} - {data['max_hours']:.1f} hours")
     print(f"  Sample Size:  {data['count']} issues")
 
-changes_list.append(f"{get_column_letter(excel_col)}{r} =  INSERT ----- || ")
+print(f"scan_ahead_nonblank_rows remaining = {scan_ahead_nonblank_rows}")
+while (scan_ahead_nonblank_rows):
+    print(f"filling in remaining rows with -----")
+    r +=1
+    scan_ahead_nonblank_rows -= 1
+    changes_list.append(f"{get_column_letter(excel_col)}{r} =  ----- || ")
 
 ###########################
 
