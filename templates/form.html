@@ -134,10 +134,10 @@
         }
 
         .user-header img {
-            width: 48px;
-            height: 48px;
+            width: 55px;
+            height: 55px;
             border-radius: 50%;
-            background: var(--primary-light);
+            background: var(--bg-white);
             padding: 8px;
         }
 
@@ -605,6 +605,59 @@
         #weeklyDays input[type="checkbox"] {
             margin-right: 4px;
         }
+
+        .menu-item-container {
+            position: relative;
+        }
+
+        .menu-item-with-submenu {
+            position: relative;
+        }
+
+        .menu-arrow {
+            margin-left: auto;
+            transition: transform 0.2s;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .menu-item-with-submenu.expanded .menu-arrow {
+            transform: rotate(90deg);
+        }
+
+        .submenu {
+            display: none;
+            flex-direction: column;
+            padding-left: 52px;
+            gap: 2px;
+            margin-top: 4px;
+            margin-bottom: 4px;
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .submenu.show {
+            display: flex;
+            max-height: 200px;
+        }
+
+        .submenu-item {
+            padding: 10px 16px;
+            color: #6b7280;
+            text-decoration: none;
+            font-size: 15px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            display: block;
+        }
+
+        .submenu-item:hover {
+            background: rgba(0, 0, 0, 0.05);
+            color: #4a4a4a;
+            transform: translateX(2px);
+        }
+
     </style>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -652,9 +705,23 @@
                 
                 <div class="menu-divider"></div>
                 
-                <button id="btn-section7">
-                    <img src="/static/versioninfoicon.png" alt="">
-                    <span>Info</span>
+                <div class="menu-item-container">
+                    <button id="btn-section7" class="menu-item-with-submenu">
+                        <img src="/static/versioninfoicon.png" alt="">
+                        <span>Info</span>
+                        <span class="menu-arrow">›</span>
+                    </button>
+                    <div class="submenu" id="submenu-info">
+                        <a href="/about" class="submenu-item">About</a>
+                        <a href="/system-info" class="submenu-item">System Info</a>
+                        <a href="#section3" class="submenu-item" onclick="showSection('section3'); return false;">Debug Logs</a>
+
+                    </div>
+                </div>
+
+                <button id="btn-section8">
+                    <img src="/static/feedbackicon.png" alt="">
+                    <span>Give us feedback!</span>
                 </button>
                 <button id="btn-section3">
                     <img src="/static/debuglogs.png" alt="">
@@ -1065,6 +1132,52 @@
         </main>
     </div>
 
+
+    <!-- Section 7: Info -->
+    <div id="section7" class="section-content">
+        <div class="user-header">
+            <img src="/static/usericon2.png" alt="User">
+            <span>{{username}}</span>
+        </div>
+        <div class="card">
+            <h2>System Information</h2>
+            <p style="color: var(--text-light);">Version and system details will appear here.</p>
+        </div>
+    </div>
+
+    <!-- Section 8: Feedback -->
+    <div id="section8" class="section-content">
+        <div class="user-header">
+            <img src="/static/usericon2.png" alt="User">
+            <span>{{username}}</span>
+        </div>
+        <div class="card">
+            <h2>
+                <img src="/static/feedbackicon.png" alt="Feedback">
+                Give us feedback!
+            </h2>
+            <p style="color: var(--text-light); margin-bottom: 20px;">We'd love to hear your thoughts and suggestions!</p>
+            <form class="left-form">
+                <div class="form-row">
+                    <label>Your Name</label>
+                    <input type="text" name="feedback_name" placeholder="Enter your name">
+                </div>
+                <div class="form-row">
+                    <label>Email</label>
+                    <input type="text" name="feedback_email" placeholder="your@email.com">
+                </div>
+                <div class="form-row" style="flex-direction: column; align-items: flex-start;">
+                    <label>Feedback</label>
+                    <textarea name="feedback_message" rows="6" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical;" placeholder="Tell us what you think..."></textarea>
+                </div>
+                <button type="submit">
+                    Submit Feedback
+                </button>
+            </form>
+        </div>
+    </div>
+
+
     <!-- Schedule Modal -->
     <div id="scheduleModal" class="modal">
         <div class="modal-content">
@@ -1147,7 +1260,8 @@
             section4: document.getElementById('section4'),
             section5: document.getElementById('section5'),
             section6: document.getElementById('section6'),
-            section7: document.getElementById('section7')
+            section7: document.getElementById('section7'),
+            section8: document.getElementById('section8')
         };
 
         const buttons = {
@@ -1157,8 +1271,29 @@
             section4: document.getElementById('btn-section4'),
             section5: document.getElementById('btn-section5'),
             section6: document.getElementById('btn-section6'),
-            section7: document.getElementById('btn-section7')
+            section7: document.getElementById('btn-section7'),
+            section8: document.getElementById('btn-section8')
         };
+
+        /* Info Menu Expandable */
+        const infoBtn = document.getElementById('btn-section7');
+        const infoSubmenu = document.getElementById('submenu-info');
+
+        if (infoBtn && infoSubmenu) {
+            infoBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const isExpanded = infoSubmenu.classList.contains('show');
+                
+                if (isExpanded) {
+                    infoSubmenu.classList.remove('show');
+                    infoBtn.classList.remove('expanded');
+                } else {
+                    infoSubmenu.classList.add('show');
+                    infoBtn.classList.add('expanded');
+                }
+            });
+        }
+
 
         function showSection(sectionId) {
             Object.keys(sections).forEach(key => {
@@ -1174,7 +1309,9 @@
 
         Object.keys(buttons).forEach(key => {
             const btn = buttons[key];
-            if (btn) btn.addEventListener('click', () => showSection(key));
+            if (btn && key !== 'section7') {  // Added this condition
+                btn.addEventListener('click', () => showSection(key));
+            }
         });
 
         window.addEventListener("DOMContentLoaded", () => {

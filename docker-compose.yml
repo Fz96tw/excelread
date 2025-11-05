@@ -2,17 +2,48 @@ version: "3.9"
 
 services:
 
+  namecheap_ddns:
+    image: curlimages/curl:latest
+    container_name: namecheap_ddns
+    restart: unless-stopped
+    entrypoint: >
+      /bin/sh -c "while true;
+        do
+          curl -s \"https://dynamicdns.park-your-domain.com/update?host=poc&domain=cloudcurio.com&password=9e6c63261fec47b9a2baa765fda4e375&ip=$(curl -s ifconfig.me)\";
+          sleep ${INTERVAL:-600};
+        done"
+    environment:
+      - HOST=@                            # ✅ FIXED (was 'app=' before)
+      - DOMAIN=cloudcurio.com
+      - PASSWORD=2c3fead7c88a4613b1b0b3ca4e9639e8
+      - INTERVAL=600
+
+  nginxproxymanager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx_proxy_manager
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "81:81"
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    networks:
+      - appnet
+
   ollama:
-    image: fz96tw/llama3.2-1b:v1   # prebuilt Ollama image
+    image: llama3.2-1b
     container_name: llama
     ports:
-      - "11434:11434"           # default Ollama API port
+      - "11434:11434"
     restart: unless-stopped
     networks:
       - appnet
 
   ai-connector:
-    image: fz96tw/ai-connector:v1  # must be built/tagged ahead of time
+    image: ai-connector
+    container_name: ai_connector
     ports:
       - "5000:5000"
     depends_on:
@@ -21,13 +52,13 @@ services:
       - appnet
     volumes:
       - config:/appnew/config
-      - /c:/mnt/c         
-
+      - /c:/mnt/c
     environment:
       - SUMMARIZER_HOST=http://summarizer:8000
 
   summarizer:
-    image: fz96tw/summarizer:v1    # must be built/tagged ahead of time
+    image: summarizer
+    container_name: summarizer
     ports:
       - "8000:8000"
     depends_on:
@@ -38,7 +69,7 @@ services:
       - config:/summarizer/config
     environment:
       - OLLAMA_HOST=http://ollama:11434
-    
+
 networks:
   appnet:
     driver: bridge
