@@ -267,7 +267,7 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
     
             if first_cell is not None:
                 first_cell = str(first_cell).lower()
-                first_cell = "url " +  first_cell       # lower case url because we'll compare with jira_data hashkey was that was lower() earlier
+                first_cell = "url " +  first_cell if "url" not in first_cell else first_cell      # lower case url because we'll compare with jira_data hashkey was that was lower() earlier
             #else:
             #    first_cell = ""
 
@@ -360,7 +360,7 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
         
             if first_cell is not None:
                 first_cell = str(first_cell).lower()
-                first_cell = "url " +  first_cell       # lower case url because the jira_data hashkey was lower() earlier
+                first_cell = "url " +  first_cell  if "url" not in first_cell else first_cell       # lower case url because the jira_data hashkey was lower() earlier
             #else:
             #    first_cell = ""
 
@@ -425,12 +425,12 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
                     old_value = target_cell.value
                     old_value = str(old_value).replace("\n", ";") if old_value else None  # Replace newlines with semicolons for comparison
                     print(f"Old value for {target_cell.coordinate}: {old_value}")
-                    print(f"Setting cell {target_cell.coordinate} = STRIKEOUT {first_cell}")  # <-- Coordinate logging
+                    print(f"Setting cell {target_cell.coordinate} = ⛔ {first_cell}")  # <-- Coordinate logging
                     
-                    if "STRIKEOUT" in target_cell.value:
+                    if "⛔" in target_cell.value:
                         print(f"target_cell '{target_cell.value}' already has STRIKEOUT prefix. Do nothing")
                     else:
-                        target_cell.value = "STRIKEOUT " + first_cell  # add marker to indicate it needs strick out 
+                        target_cell.value = "⛔ " + first_cell  # add marker to indicate it needs strick out 
                         print(f"STRIKEOUT added to target_cell '{target_cell}'")
                         target_cell.font = target_cell.font.copy(strike=True)  # Apply strikeout
                         target_cell.alignment = Alignment(wrapText=True)                 
@@ -456,9 +456,9 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
                 # and update all the field cells applicable in this row
 
                 # if previously had strikeout then remove it
-                if "STRIKEOUT" in first_cell:
+                if "⛔" in first_cell:
                     print(f"Already contains STRIKEOUT removing it from first_cell '{first_cell}'")
-                    first_cell = first_cell.replace("STRIKEOUT ","")
+                    first_cell = first_cell.replace("⛔ ","")       
                     print(f"STRIKEOUT removed, first_cell is now '{first_cell}'")
 
                 # was this jira previously in the cell? 
@@ -514,7 +514,7 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
 
                 else:
                     # Mark the cell for strikeout if isn't in jira_ids for this JQL result
-                    print(f"About to STRIKEOUT {first_cell} not in jira_data, marking for strikeout.")
+                    print(f"About to STRIKEOUT {first_cell} not in jira_data = {jira_data}, marking for strikeout.")
                     index = field_index_map["key"]  # get the index of the "key" field to find the blank cell
                     print("target index for 'key': ", index)
 
@@ -522,12 +522,12 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
                     old_value = target_cell.value
                     old_value = str(old_value).replace("\n", ";") if old_value else None  # Replace newlines with semicolons for comparison
                     print(f"Old value for {target_cell.coordinate}: {old_value}")
-                    print(f"Setting cell {target_cell.coordinate} = STRIKEOUT {first_cell}")  # <-- Coordinate logging
+                    print(f"Setting cell {target_cell.coordinate} = ⛔ {first_cell}")  # <-- Coordinate logging
                     
-                    if "STRIKEOUT" in target_cell.value:
+                    if "⛔" in target_cell.value:
                         print(f"target_cell '{target_cell.value}' already has STRIKEOUT prefix. Do nothing")
                     else:
-                        target_cell.value = "STRIKEOUT " + first_cell  # add marker to indicate it needs strick out 
+                        target_cell.value = "⛔ " + first_cell  # add marker to indicate it needs strick out 
                         print(f"STRIKEOUT added to target_cell '{target_cell}'")
                         target_cell.font = target_cell.font.copy(strike=True)  # Apply strikeout
                         target_cell.alignment = Alignment(wrapText=True)

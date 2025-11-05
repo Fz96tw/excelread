@@ -29,8 +29,6 @@ model_name = "llama3.2:1b"  # Default model name
 SUMMARIZER_HOST = os.getenv("SUMMARIZER_HOST", "http://localhost:8000")
 
 
-LLMCONFIG_FILE = "../../../config/llmconfig.json"
-
 
 '''def get_summarized_comments_old(comments_list_asc, field_arg=None):
     """
@@ -104,7 +102,14 @@ def get_summarized_comments(comments_list_asc, field_arg=None):
             payload["field"] = field_arg  # include field if provided
 
         # Determine endpoint
-        ENDPOINT = "/summarize_openai_ex" if llm_model == "OpenAI" else "/summarize_local_ex"
+        if llm_model == "OpenAI":
+            ENDPOINT = "/summarize_openai_ex"
+        elif llm_model == "Local":
+            ENDPOINT = "/summarize_local_ex"
+        elif llm_model == "Claude":
+            ENDPOINT = "/summarize_claude_ex"
+        else:
+            ENDPOINT = "/summarize_local_ex"
 
         # Make the POST request
         resp = requests.post(f"{SUMMARIZER_HOST}{ENDPOINT}", json=payload)
@@ -291,7 +296,7 @@ else:
     execsummary_mode = False
     output_file = basename + "." + sheet + "." + tablename + "." + timestamp + ".jira.csv"
 
-
+LLMCONFIG_FILE = f"../../../config/llmconfig_{userlogin}.json"
 llm_model = get_llm_model(LLMCONFIG_FILE)
 if not llm_model:
     llm_model = "Local"

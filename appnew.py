@@ -16,6 +16,10 @@ from refresh import *
 from my_scheduler import *
 from my_utils import *
 
+import logging
+from flask import Flask, request, g
+from datetime import datetime
+
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Allow HTTP for local dev
 
 app = Flask(__name__)
@@ -52,6 +56,80 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',  # prevents CSRF issues
 )
+
+
+#---------------------------------------------------------
+# Configure Flask's logger (single centralized log file)
+# ---------------------------------------------------------
+formatter = logging.Formatter(
+    "%(asctime)s | %(levelname)s | USER=%(user)s | METHOD=%(method)s | PATH=%(path)s | STATUS=%(status)s | %(message)s"
+)
+
+# --------------------------
+# Ensure logs directory exists
+# --------------------------
+log_dir = "./logs"
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, "user_activity.log")
+
+# --------------------------
+# Custom request filter
+# --------------------------
+class RequestFilter(logging.Filter):
+    def filter(self, record):
+        # Skip static files, favicon, and OPTIONS requests
+        path = getattr(request, "path", "")
+        method = getattr(request, "method", "")
+        if path.startswith("/static/") or path.startswith("/tasks/status") or path == "/favicon.ico" or method == "OPTIONS":
+            return False
+
+        # Add user info (string) to the log
+        record.user = getattr(g, "current_user", "anonymous")
+        record.method = method or "-"
+        record.path = path or "-"
+        record.status = getattr(g, "last_status", "-")
+        return True
+
+# --------------------------
+# Configure RotatingFileHandler
+# --------------------------
+file_handler = RotatingFileHandler(
+    log_file,
+    maxBytes=1*1024*1024,  # 1 MB per file
+    backupCount=5,         # keep last 5 rotated logs
+    encoding="utf-8",
+    delay=True             # create file on first log
+)
+
+file_handler.setFormatter(formatter)
+file_handler.addFilter(RequestFilter())
+
+app.logger.addHandler(file_handler)
+app.logger.setLevel(logging.INFO)
+
+
+
+# ---------------------------------------------------------
+# Example middleware hooks
+# ---------------------------------------------------------
+@app.before_request
+def before_request_logging():
+    # Assume you set g.current_user from your auth layer
+    #g.current_user = request.headers.get("X-User", "anonymous")  # demo only
+    if current_user.is_authenticated:
+        g.current_user = current_user.username
+    else:
+        g.current_user = "anonymous"
+    app.logger.info("Request started")
+
+
+@app.after_request
+def after_request_logging(response):
+    g.last_status = response.status_code
+    app.logger.info("Request completed")
+    return response
+
+
 
 
 #FOO_FILE = './config/.env'
@@ -314,13 +392,15 @@ def save_users(users):
 
 
 class User(UserMixin):
-    def __init__(self, id, username, password, first_name, last_name, date_registered):
+    def __init__(self, id, username, password, first_name, last_name, date_registered, email=None):
         self.id = id
         self.username = username
         self.password = password  # NOTE: hash in real life
         self.first_name = first_name
         self.last_name = last_name
         self.date_registered = date_registered
+        self.email = email
+    
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -337,6 +417,7 @@ def load_llm_config(llm_config_file):
         with open(llm_config_file, "r") as f:
             print(f"loading llm config file = {llm_config_file}")
             llm_model_set = json.load(f)
+
             return llm_model_set
     else:
         print(f"ERROR: load_llm_config file {llm_config_file} was not found")
@@ -445,6 +526,7 @@ def register():
         last_name = request.form["last_name"]
         username = request.form["username"]
         password = request.form["password"]
+        email = request.form["email"]
 
         # check if username already exists
         if any(u["username"] == username for u in users):
@@ -456,11 +538,13 @@ def register():
             "password": password,  # hash this in production
             "first_name": first_name,
             "last_name": last_name,
+            "email":email,
             "date_registered": datetime.utcnow().isoformat()
         }
 
         users.append(new_user)
         save_users(users)
+        app.logger.info(f"{username} registered successafully")
 
         print(f"✅ Registered {first_name} {last_name} ({username})")
 
@@ -474,6 +558,7 @@ from flask_login import logout_user, login_required
 @app.route("/logout")
 @login_required
 def logout():
+    app.logger.info(f"{current_user.username} attempted logout")
     logout_user()          # Clears current_user
     session.clear()        # Optional: clear session data
     return redirect(url_for("home"))  # Redirect to login page
@@ -573,9 +658,9 @@ def google_login():
 
     global callback_host
     if callback_host:
-        redirectpath = f"http://{callback_host}"
+        redirectpath = f"{callback_host}"
     else:
-        redirectpath = "https://demo.cloudcurio.com"
+        redirectpath = "https://trinket.cloudcurio.com"
 
     userlogin = current_user.username
 
@@ -600,9 +685,9 @@ def google_callback():
     
     global callback_host
     if callback_host:
-        redirectpath = f"http://{callback_host}"
+        redirectpath = f"{callback_host}"
     else:
-        redirectpath = "https://demo.cloudcurio.com"
+        redirectpath = "https://trinket.cloudcurio.com"
 
     print(f"/google/callback called.  userlogin ={userlogin}")
     flow = get_google_flow(userlogin, redirectpath)
@@ -699,8 +784,7 @@ def logs():
 #@app.route('/home')
 #def home():
 @app.route("/home", methods=["GET", "POST"])
-def home():
-
+def home():    
     if current_user.is_authenticated:
         print(f"current_user.is_authenticated TRUE")
         return redirect(url_for("index"))
@@ -712,10 +796,14 @@ def home():
         print(f"Searching for user in users.json. username={username}")
         for u in users:
             if u["username"] == username and u["password"] == password:
-                print("found {username} {password} in users.json")
+                print(f"found {username} {password} in users.json")
                 user = User(**u)
                 login_user(user)
+                app.logger.info(f"{username} logged in successfully ")
                 return redirect(url_for("index"))
+        
+        app.logger.info(f"{username} attempted login failed - unregistered user")
+
     
         print(f"Invalid creds provided for {username} {password} in users.json")
         # ❌ Invalid credentials → flash message
@@ -732,7 +820,7 @@ llm_model = "Local"
 
 # File to store schedules
 SCHEDULE_FILE = "./config/schedules.json"
-LLMCONFIG_FILE = "./config/llmconfig.json"
+#LLMCONFIG_FILE = "./config/llmconfig.json"
 #LOCAL_FILES = "./config/files_local.json"
 
 # gloabals ^^^
@@ -749,7 +837,8 @@ else:
 
 
 import argparse
-def parse_arguments():
+
+'''def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description='Flask application with configurable port')
     parser.add_argument('--port', type=int, default=5000, 
@@ -758,6 +847,8 @@ def parse_arguments():
                         help='Authentication mode (e.g., user_auth)')
     parser.add_argument('--callback', type=str, default=None,
                         help='OAuth2 Callback host (e.g., localhost:7000)')
+    parser.add_argument('--env', type=str, default=None,
+                        help='Gunitherwise gunicorn')
 
     return parser.parse_args()
 
@@ -765,17 +856,44 @@ def parse_arguments():
 args = parse_arguments()
 PORT = args.port
 callback_host = args.callback
+env = args.env
+'''
 
-if callback_host:
-    print(f"callback_host provided as: {callback_host}")
 
+def get_args():
+    # Check if running under Gunicorn (no CLI args)
+    if "gunicorn" in os.environ.get("SERVER_SOFTWARE", ""):
+        return {
+            "port": int(os.environ.get("PORT", 5000)),
+            "auth": os.environ.get("AUTH", ""),
+            "callback": os.environ.get("CALLBACK", "https://trinket.cloudcurio.com"),
+            "env": os.environ.get("ENV", ""),
+        }
+    else:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--port", type=int, required=True)
+        parser.add_argument("--auth", type=str, required=True)
+        parser.add_argument("--callback", type=str, required=True)
+        parser.add_argument("--env", type=str, default="dev")
+        args = parser.parse_args()
+        return vars(args)
+
+args = get_args()
+
+PORT = args["port"]
+AUTH = args["auth"]
+callback_host = args["callback"]
+env = args["env"]
+
+print(f"callback_host provided as: {callback_host}")
 
 
 delegated_auth = False  # set to False to use app-only auth (no user context)
 
 
-if args.auth_mode and "user_auth" in args.auth_mode:
-    print(f"detected argument '{args.auth_mode}' so will use delegated authorization instead of app auth flow")
+#if args.auth_mode and "user_auth" in args.auth_mode:
+if "user_auth" in AUTH:
+    print(f"detected argument '{AUTH}' so will use delegated authorization instead of app auth flow")
     delegated_auth = True
     CLIENT_ID = os.environ["CLIENT_ID2"]
     CLIENT_SECRET = os.environ["CLIENT_SECRET2"] # only needed for app-only auth. Not used for delegated user auth.
@@ -1217,14 +1335,15 @@ def index():
     if not os.path.exists(user_sched_file):
         with open(user_sched_file, "w") as f:
             print(f"creating schedule file = {user_sched_file}")
-            json.dump([], f)
+            json.dump({}, f)
     else:
         print(f"Schedule file already exists {user_sched_file}")
 
+    LLMCONFIG_FILE = f"./config/llmconfig_{current_user.username}.json"
     if not os.path.exists(LLMCONFIG_FILE):
         with open(LLMCONFIG_FILE, "w") as f:
             print(f"creating LLM config settings file = {LLMCONFIG_FILE}")
-            json.dump([], f)
+            json.dump({}, f)
     else:
         print(f"LLM config settings file already exists {LLMCONFIG_FILE}")
 
@@ -1247,6 +1366,9 @@ def index():
     schedules = load_schedules(user_sched_file,userlogin)
 
     llm_settings_from_config_file = load_llm_config(LLMCONFIG_FILE)
+    if not llm_settings_from_config_file:
+        llm_settings_from_config_file['model'] = "Local"  # default to local if file is empty
+
     if llm_settings_from_config_file:
         llm_model = llm_settings_from_config_file.get("model")  # This will be 'OpenAI'
         print(f"setting llm_model to {llm_model} from config file")
@@ -1496,6 +1618,7 @@ def setmodel():
     
     print(f"/setmodel setting model to {llm_model}")
 
+    LLMCONFIG_FILE = f"./config/llmconfig_{current_user.username}.json"
      # Ensure config folder exists
     os.makedirs(os.path.dirname(LLMCONFIG_FILE), exist_ok=True)
 
@@ -1580,29 +1703,13 @@ def remove_sharepoint():
 
 @app.route("/add_local", methods=["POST"])
 def add_local():
-    '''new_val = request.form.get('local_value', '').strip()
-    local_file_values = get_local_values(current_user.username)
-    if new_val:
-        print(f"add_local with local_value={new_val} for user {current_user.username}")
-        if new_val not in local_file_values:
-            container_val = map_windows_path_to_container(new_val)
-            local_file_values.append(container_val)
-            #write_file_lines(LOCAL_FILES, local_file_values)   
-            save_local_values(current_user.username, local_file_values)  
-            print(f"{new_val} added to local_file_values as {container_val} for user {current_user.username}")             
-        else:
-            print(f"{new_val} already present so no action needed")
-            return jsonify({"success": True, "message": "File already present, no action needed"})
-    #return redirect(url_for('index', section="local"))
-    return jsonify({"success": True, "message": "File added successfully"})
-    '''
     new_val = request.form.get('local_value', '').strip()
     userlogin = current_user.username
-    print(f"/add_google endpoint called with new_val = {new_val} by {userlogin}")
+    print(f"/add_local endpoint called with new_val = {new_val} by {userlogin}")
     shared_files_local = load_shared_files(f"./config/shared_files_local_{current_user.username}.json")
 
     if new_val:
-        print(f"add_google with shared_files_local={new_val}")
+        print(f"add_local with shared_files_local={new_val}")
         # if new_val not in shared_files_google and new_val not in bar_values and new_val not in local_file_values:
         container_val = map_windows_path_to_container(new_val)
         if not is_location_in_shared_files(container_val, shared_files_local):
@@ -1629,25 +1736,6 @@ def add_local():
 
 @app.route("/remove_local", methods=["POST"])
 def remove_local():
-    '''to_remove = request.form.get('remove_local')
-    userlogin = current_user.username
-    local_file_values = get_local_values(current_user.username)
-    print(f"remove_local called with {to_remove}")
-    if to_remove in local_file_values:
-        print(f"{to_remove} found and will be removed")
-        local_file_values.remove(to_remove)
-        #write_file_lines(LOCAL_FILES, local_file_values)
-        save_local_values(userlogin, local_file_values)
-        # if file was scheduled for resync then remove from schedule.json 
-        clear_schedule_file(user_sched_file, to_remove, userlogin) 
-        schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
-        return jsonify({"success": True, "message": "File removed successfully"})
-    else:
-        print(f"{to_remove} not found in collection , no action taken")
-    #return redirect(url_for('index', section="local"))
-    return jsonify({"success": False, "message": "File not found"})
-    '''
-
     to_remove = request.form.get('remove_local')
     userlogin = current_user.username
     print(f"remove_local called with {to_remove}")
@@ -1680,6 +1768,7 @@ def remove_local():
             print(f"{to_remove} not found in file collection, no action taken")
     
     return jsonify({"success": False, "message": "Local file collection is empty"})
+
 
 @app.route("/schedule", methods=["POST"])
 def schedule_file():
@@ -1899,6 +1988,100 @@ def is_location_in_shared_files(location_string, shared_files_google):
             return True
     return False
 
+
+
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+import re
+
+
+def extract_sheet_id_and_name(url_or_id):
+    """
+    Extract Google Sheets ID and sheet name from URL or return ID as-is.
+    Handles URLs with fragments (e.g., #sheetname or #gid=123).
+    
+    Args:
+        url_or_id: Either a full Google Sheets URL or just the sheet ID
+                   Example: https://docs.google.com/spreadsheets/d/1ABC.../edit#Sheet1
+        
+    Returns:
+        tuple: (sheet_id, sheet_name) where sheet_name is None if not present
+    """
+    sheet_name = None
+    
+    # Extract sheet name from fragment if present
+    if '#' in url_or_id:
+        url_part, fragment = url_or_id.split('#', 1)
+        # Check if it's a sheet name (not gid=...)
+        if not fragment.startswith('gid='):
+            sheet_name = fragment
+    else:
+        url_part = url_or_id
+    
+    # Extract sheet ID
+    if "docs.google.com/spreadsheets" in url_part:
+        parts = url_part.split("/d/")
+        if len(parts) > 1:
+            sheet_id = parts[1].split("/")[0]
+            return sheet_id, sheet_name
+    
+    return url_part, sheet_name
+
+
+def get_google_sheet_filename(creds, url_or_id):
+    """
+    Get the filename and sheet name of a Google Sheet from its URL or ID.
+    
+    Args:
+        creds: Valid Google credentials object (from google.oauth2)
+        url_or_id: Either a full Google Sheets URL or just the sheet ID
+                   Example URL: https://docs.google.com/spreadsheets/d/1ABC.../edit
+                   Example URL with sheet: https://docs.google.com/spreadsheets/d/1ABC.../edit#Sheet1
+                   Example ID: 1ABC...
+        
+    Returns:
+        dict: {
+            'filename': str,  # The Google Drive filename
+            'sheet_name': str or None  # The sheet name if present in URL fragment
+        }
+        
+    Raises:
+        ValueError: If the sheet ID cannot be extracted or sheet not found
+        HttpError: If there's an API error accessing the sheet
+    """
+    # Extract the sheet ID and sheet name from URL if present
+    sheet_id, sheet_name = extract_sheet_id_and_name(url_or_id)
+    
+    if not sheet_id:
+        raise ValueError(f"Could not extract sheet ID from: {url_or_id}")
+    
+    try:
+        # Build Google Drive service (not Sheets - we need file metadata)
+        service = build('drive', 'v3', credentials=creds)
+        
+        # Get file metadata - only request the name field for efficiency
+        file_metadata = service.files().get(
+            fileId=sheet_id,
+            fields='name'
+        ).execute()
+        
+        filename = file_metadata.get('name')
+        
+        if not filename:
+            raise ValueError(f"No filename found for sheet ID: {sheet_id}")
+            
+        return {
+            'filename': filename,
+            'sheet_name': sheet_name
+        }
+        
+    except HttpError as e:
+        if e.resp.status == 404:
+            raise ValueError(f"Sheet not found with ID: {sheet_id}")
+        else:
+            raise
+
+
 #--- Google Sheet routes ---
 @app.route("/add_google", methods=["POST"])
 def add_google():
@@ -1908,12 +2091,21 @@ def add_google():
     shared_files_google = load_shared_files(f"./config/shared_files_google_{current_user.username}.json")
 
     if new_val:
-        print(f"add_google with shared_files_google={new_val}")
+
+        # Load credentials
+        creds = load_google_token(current_user.username)
+        result = get_google_sheet_filename(creds, new_val)
+        fname = result["filename"]
+        sheet = result['sheet_name']
+
+        print(f"add_google with shared_files_google={new_val} filename={fname} sheet={sheet}")
        # if new_val not in shared_files_google and new_val not in bar_values and new_val not in local_file_values:
         if not is_location_in_shared_files(new_val, shared_files_google):
             # Add to shared_files_google list
             from datetime import date
             shared_files_google.append({
+                "filename": fname,
+                "sheet": sheet,
                 "location": new_val,
                 "user": current_user.username,
                 "datetime": datetime.now().isoformat()            })            
@@ -1925,9 +2117,9 @@ def add_google():
             print(f"Saved shared_files_google to {json_filename}")
 
         else:
-            print(f"{new_val} already present so no action needed")
-            return jsonify({"success": True, "message": "File already present, no action needed"})
-        return jsonify({"success": True, "message": "Google Sheet added successfully"})
+            print(f"{new_val} filename={fname} sheet={sheet} already present so no action needed")
+            return jsonify({"success": True, "message": f"File {fname} {sheet} already present, no action needed"})
+        return jsonify({"success": True, "message": f"Google Sheet {fname} {sheet} added successfully"})
     return jsonify({"success": False, "message": "No file URL provided"})
 
 
@@ -2047,6 +2239,6 @@ def get_latest_log(run):
     return send_from_directory(run_path, log_file)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and env == "dev":
     print(f"Starting Flask app on port {PORT}")
     app.run(host="0.0.0.0", port=PORT, debug=True, use_reloader=False)

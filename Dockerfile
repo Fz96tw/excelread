@@ -31,4 +31,9 @@ ENV TZ=America/New_York
 ENV SUMMARIZER_HOST=http://summarizer:8000
 
 EXPOSE 5000
-CMD ["python", "appnew.py", "--auth", "user_auth"]
+
+# for appnew when running in gunicorn
+ENV AUTH=user_auth
+
+#CMD ["python", "appnew.py", "--auth", "user_auth"]
+CMD ["gunicorn", "appnew:app", "--bind", "0.0.0.0:5000", "-w", "4"]

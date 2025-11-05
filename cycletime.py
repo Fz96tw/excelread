@@ -700,7 +700,7 @@ def build_llm_context(table_name, timestamp):
 
 # Default to localhost unless overridden in env variable (set when in Docker)
 SUMMARIZER_HOST = os.getenv("SUMMARIZER_HOST", "http://localhost:8000")
-LLMCONFIG_FILE = "../../../config/llmconfig.json"
+#LLMCONFIG_FILE = "../../../config/llmconfig.json"
 
 
 def get_llm_model(llm_config_file):
@@ -743,9 +743,17 @@ def get_summarized_comments(comments_list_asc, field_arg=None):
         if field_arg:
             payload["field"] = field_arg  # include field if provided
 
+        LLMCONFIG_FILE = f"../../../config/llmconfig_{userlogin}.json"
         llm_model = get_llm_model(LLMCONFIG_FILE)
-        # Determine endpoint
-        ENDPOINT = "/summarize_openai_ex" if llm_model == "OpenAI" else "/summarize_local_ex"
+         # Determine endpoint
+        if llm_model == "OpenAI":
+            ENDPOINT = "/summarize_openai_ex"
+        elif llm_model == "Local":
+            ENDPOINT = "/summarize_local_ex"
+        elif llm_model == "Claude":
+            ENDPOINT = "/summarize_claude_ex"
+        else:
+            ENDPOINT = "/summarize_local_ex"
 
         # Make the POST request
         resp = requests.post(f"{SUMMARIZER_HOST}{ENDPOINT}", json=payload)
@@ -912,9 +920,6 @@ fields = data.get('fields', [])
 #scan_ahead_nonblank_rows = data.get('scan_ahead_nonblank_rows', 0)
 
 scan_ahead_nonblank_rows = data.get('last_update_row_count',0) 
-if scan_ahead_nonblank_rows:
-    scan_ahead_nonblank_rows = scan_ahead_nonblank_rows  # +1 for the timestamp row  +1 for column heading row too
-
 print(f"scan_ahead_nonblank_rows initialized = {scan_ahead_nonblank_rows}")
 
 
@@ -1281,10 +1286,10 @@ for chain_str, data in sorted_chains:
 
 print(f"scan_ahead_nonblank_rows remaining = {scan_ahead_nonblank_rows}")
 while (scan_ahead_nonblank_rows):
-    print(f"filling in remaining rows with -----")
+    print("filling in remaining rows with DELETE")
     r +=1
     scan_ahead_nonblank_rows -= 1
-    changes_list.append(f"{get_column_letter(excel_col)}{r} =  ----- || ")
+    changes_list.append(f"{get_column_letter(excel_col)}{r} = DELETE || ")
 
 ###########################
 

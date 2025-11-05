@@ -17,7 +17,7 @@ from openpyxl.utils import get_column_letter
 
 
 import json
-LLMCONFIG_FILE = "../../../config/llmconfig.json"
+#LLMCONFIG_FILE = "../../../config/llmconfig.json"
 
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -117,6 +117,7 @@ delegated_auth = "--user_auth" in sys.argv
 
 
 
+LLMCONFIG_FILE = f"../../../config/llmconfig_{userlogin}.json"
 
 llm_model = get_llm_model(LLMCONFIG_FILE)
 if not llm_model:
@@ -227,8 +228,15 @@ def get_summarized_comments(context, sysprompt):
         if sysprompt:
             payload["field"] = sysprompt  # include field if provided
 
-        # Determine endpoint
-        ENDPOINT = "/summarize_openai_ex" if llm_model == "OpenAI" else "/summarize_local_ex"
+             # Determine endpoint
+        if llm_model == "OpenAI":
+            ENDPOINT = "/summarize_openai_ex"
+        elif llm_model == "Local":
+            ENDPOINT = "/summarize_local_ex"
+        elif llm_model == "Claude":
+            ENDPOINT = "/summarize_claude_ex"
+        else:
+            ENDPOINT = "/summarize_local_ex"
 
         # Make the POST request
         resp = requests.post(f"{SUMMARIZER_HOST}{ENDPOINT}", json=payload)

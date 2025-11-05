@@ -14,6 +14,7 @@ import tiktoken
 from datetime import datetime
 #from openai.error import OpenAIError
 
+from summarizer_claude import *
 
 app = FastAPI()
 MODEL_NAME = "llama3.2:1b"
@@ -636,3 +637,30 @@ def summarize_openai(comments: list[str]):
 def summarize_openai_str(comments: str):
     return {"summary": openai_summarizer.summarize_str(comments)}
 '''
+
+
+
+# Create one global summarizer instance
+claude_summarizer = ClaudeSummarizer(MODEL_NAME3)
+
+
+@app.post("/summarize_claude_ex")
+def summarize_claude_ex(payload: SummarizeRequest):
+    comments = payload.comments
+    field_arg = payload.field
+
+    print(f"/summarize_claude_ex recvd")
+    print(f"field_arg={field_arg}") if field_arg else None
+    print(f"comments={comments}")
+
+    # Use field_arg if provided, otherwise use standard summarize
+    summary = claude_summarizer.summarize_ex(comments, field=field_arg) if field_arg else claude_summarizer.summarize(comments)
+
+    print(f"llm response={summary}")
+
+    return {"summary": summary}
+
+
+@app.post("/summarize_claude")
+def summarize_claude(comments: list[str]):
+    return {"summary": claude_summarizer.summarize(comments)}

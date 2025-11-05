@@ -213,13 +213,13 @@ def insert_blank_rows_batch(sheet_id, rows_to_insert):
     
     # Sort rows in descending order to avoid index shifting issues
     sorted_rows = sorted(rows_to_insert.items(), reverse=True)
-    print(f"🔍 Processing inserts in descending order: {sorted_rows}")
+    print(f"📝 Processing inserts in descending order: {sorted_rows}")
     
     for row_num, count in sorted_rows:
         start_idx = row_num - 1  # Convert to 0-based
         end_idx = row_num - 1 + count
         
-        print(f"   📍 Insert {count} row(s) at position {row_num} (startIndex={start_idx}, endIndex={end_idx})")
+        print(f"   📝 Insert {count} row(s) at position {row_num} (startIndex={start_idx}, endIndex={end_idx})")
         
         requests.append({
             'insertDimension': {
@@ -234,6 +234,37 @@ def insert_blank_rows_batch(sheet_id, rows_to_insert):
         })
     
     print(f"✅ Created {len(requests)} insert requests")
+    return requests
+
+def delete_rows_batch(sheet_id, rows_to_delete):
+    """
+    Build delete dimension requests for multiple rows.
+    Returns list of requests to be added to a batch.
+    """
+    requests = []
+    
+    # Sort rows in descending order to avoid index shifting issues
+    sorted_rows = sorted(rows_to_delete, reverse=True)
+    print(f"🗑️ Processing deletes in descending order: {sorted_rows}")
+    
+    for row_num in sorted_rows:
+        start_idx = row_num - 1  # Convert to 0-based
+        end_idx = row_num
+        
+        print(f"   🗑️ Delete row at position {row_num} (startIndex={start_idx}, endIndex={end_idx})")
+        
+        requests.append({
+            'deleteDimension': {
+                'range': {
+                    'sheetId': sheet_id,
+                    'dimension': 'ROWS',
+                    'startIndex': start_idx,
+                    'endIndex': end_idx,
+                }
+            }
+        })
+    
+    print(f"✅ Created {len(requests)} delete requests")
     return requests
 
 def execute_all_updates(service, spreadsheet_id, value_data, format_requests):
@@ -303,6 +334,7 @@ print(f"📋 Sheet ID for '{worksheet_name}': {sheet_id}")
 # -------------------------------
 
 insert_row_values = defaultdict(dict)
+delete_row_values = set()  # Just track which rows to delete
 row_values = defaultdict(dict)
 
 with open(changes_file, "r") as f:
@@ -322,6 +354,13 @@ with open(changes_file, "r") as f:
         
         col_letter = ''.join(filter(str.isalpha, cell))
         row_num = int(''.join(filter(str.isdigit, cell)))
+        
+        # Handle DELETE (similar to INSERT)
+        if import_mode and "DELETE" in new_value.upper():
+            print(f"Import mode: found DELETE marker for row {row_num}")
+            delete_row_values.add(row_num)
+            # Don't add to any other collections - just mark for deletion
+            continue
         
         if import_mode and "INSERT" in new_value.upper():
             print(f"Import mode: removing INSERT prefix from value")
@@ -344,9 +383,19 @@ with open(changes_file, "r") as f:
 
 print(f"\n🚀 Starting optimized batch updates to Google Sheet...")
 print(f"📊 Debug: insert_row_values has {len(insert_row_values)} rows: {list(insert_row_values.keys())}")
+print(f"📊 Debug: delete_row_values has {len(delete_row_values)} rows: {sorted(list(delete_row_values))}")
 print(f"📊 Debug: row_values has {len(row_values)} rows: {list(row_values.keys())}")
 
 all_requests = []
+
+# Step 0: Build delete row requests FIRST (process before inserts)
+if delete_row_values:
+    print(f"🗑️ Processing {len(delete_row_values)} row deletions")
+    delete_requests = delete_rows_batch(sheet_id, delete_row_values)
+    all_requests.extend(delete_requests)
+    print(f"🗑️ Prepared {len(delete_requests)} delete requests")
+else:
+    print(f"ℹ️ No rows to delete")
 
 # Step 1: Build insert row requests (if any)
 if insert_row_values:
@@ -371,9 +420,9 @@ if insert_row_values:
     # Don't forget the last group
     insert_groups.append((current_group_start, current_group_count))
     
-    print(f"🔍 Optimized {len(sorted_insert_rows)} individual inserts into {len(insert_groups)} bulk operations:")
+    print(f"📝 Optimized {len(sorted_insert_rows)} individual inserts into {len(insert_groups)} bulk operations:")
     for start, count in insert_groups:
-        print(f"   📍 Insert {count} rows starting at position {start}")
+        print(f"   📝 Insert {count} rows starting at position {start}")
     
     # Build requests from groups (in descending order)
     rows_to_insert = {start: count for start, count in insert_groups}
@@ -390,31 +439,34 @@ if runrate_mode and row_values:
     all_requests.extend(runrate_requests)
     print(f"🧹 Prepared runrate blank row requests")
 
-# Step 3: Execute all insert operations in ONE batch call
+# Step 3: Execute all delete and insert operations in ONE batch call
 if all_requests:
     body = {'requests': all_requests}
     print(f"🚀 Sending batch request with {len(all_requests)} operations:")
     for i, req in enumerate(all_requests):
-        if 'insertDimension' in req:
+        if 'deleteDimension' in req:
+            r = req['deleteDimension']['range']
+            print(f"   Request {i+1}: Delete rows at startIndex={r['startIndex']}, endIndex={r['endIndex']}")
+        elif 'insertDimension' in req:
             r = req['insertDimension']['range']
             print(f"   Request {i+1}: Insert rows at startIndex={r['startIndex']}, endIndex={r['endIndex']}")
     
     try:
         response = service.spreadsheets().batchUpdate(
             spreadsheetId=spreadsheet_id, body=body).execute()
-        print(f"✅ Executed all {len(all_requests)} insert operations in single batch call")
+        print(f"✅ Executed all {len(all_requests)} operations in single batch call")
         print(f"📋 Response: {response}")
     except HttpError as e:
-        print(f"❌ Error inserting rows: {e}")
+        print(f"❌ Error executing batch operations: {e}")
         print(f"📄 Request body: {json.dumps(body, indent=2)}")
         raise
 else:
-    print(f"ℹ️ No insert operations to execute")
+    print(f"ℹ️ No delete or insert operations to execute")
 
 # Step 4: Merge insert and update rows (handling conflicts properly)
 all_rows = {}
 
-print(f"\n🔄 Merging dictionaries...")
+print(f"\n📦 Merging dictionaries...")
 print(f"   insert_row_values: {dict(insert_row_values)}")
 print(f"   row_values: {dict(row_values)}")
 
@@ -444,5 +496,5 @@ print(f"📦 Prepared {len(all_value_data)} value updates and {len(all_format_re
 total_updated = execute_all_updates(service, spreadsheet_id, all_value_data, all_format_requests)
 
 print(f"\n✅ All updates completed successfully!")
-print(f"📊 Summary: {total_updated} cells updated with {len(all_format_requests)} formatted")
+print(f"📊 Summary: {len(delete_row_values)} rows deleted, {total_updated} cells updated with {len(all_format_requests)} formatted")
 print(f"🎯 Total API calls: ~{3 + (1 if all_requests else 0) + 2} (down from potentially 100+)")

@@ -28,7 +28,7 @@ resync_log = os.path.join(logs_dir, "resync.log")
 # Use RotatingFileHandler instead of FileHandler
 file_handler = RotatingFileHandler(
     resync_log,
-    maxBytes=5 * 1024 * 1024,  # 5 MB per file
+    maxBytes=1 * 1024 * 1024,  # 1 MB per file
     backupCount=1,             # keep last 3 rotated logs
     encoding="utf-8"
 )
@@ -101,6 +101,8 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
     Full resync process with recursive handling of YAML files.
     """
 
+    logger.info(f"\n\nResync called on URL={url}, userlogin={userlogin} delegated_auth={delegated_auth} workdir={workdir} ts={ts}")
+                
     import uuid
     run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
     logger.info(f"run_id set to {run_id}")        
@@ -191,7 +193,6 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
     #with open(resync_log, "a", encoding="utf-8") as f:
     #    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
     #            f"Resync called on URL={url}, file={filename} timestamp={timestamp}\n")
-    logger.info(f"Resync called on URL={url}, file={filename} timestamp={timestamp}\n")
 
 
     download_script = os.path.join(base_dir, "download.py")
