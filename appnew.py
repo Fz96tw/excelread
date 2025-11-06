@@ -2238,6 +2238,176 @@ def get_latest_log(run):
     print(f"Serving log file {log_file} for {current_user.username}")
     return send_from_directory(run_path, log_file)
 
+# Load OAuth credentials from JSON file
+CONFIG_DIR = "./config"
+GOOGLE_CLIENT_SECRETS_FILE = os.path.join(CONFIG_DIR, "google_credentials.json")
+with open(GOOGLE_CLIENT_SECRETS_FILE) as f:
+    google_creds = json.load(f)["web"]
+
+CLIENT_ID_PICKER = google_creds["client_id"]
+CLIENT_SECRET_PICKER = google_creds["client_secret"]
+
+REDIRECT_URI_PICKER = "http://localhost:7000/oauth2callback"
+SCOPES_PICKER= ["https://www.googleapis.com/auth/drive.readonly"]
+
+
+# --- Step 1: Login and consent for server-side token storage ---
+@app.route("/authorize")
+def authorize():
+    print("/authorize called")
+    print(f"CLIENT_ID_PICKER={CLIENT_ID_PICKER}\nCLIENT_SECRET_PICKER={CLIENT_SECRET_PICKER} ")
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": CLIENT_ID_PICKER,
+                "client_secret": CLIENT_SECRET_PICKER,
+                "redirect_uris": [REDIRECT_URI_PICKER],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        },
+        scopes=SCOPES_PICKER,
+    )
+    flow.redirect_uri = REDIRECT_URI_PICKER
+    auth_url, _ = flow.authorization_url(
+        access_type="offline", include_granted_scopes="true", prompt="consent"
+    )
+    return redirect(auth_url)
+
+# --- Step 2: Callback stores refresh token in session ---
+@app.route("/oauth2callback")
+def oauth2callback():
+    print("/oauth2callback called")
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": CLIENT_ID_PICKER,
+                "client_secret": CLIENT_SECRET_PICKER,
+                "redirect_uris": [REDIRECT_URI_PICKER],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        },
+        scopes=SCOPES_PICKER,
+    )
+    flow.redirect_uri = REDIRECT_URI_PICKER
+    flow.fetch_token(authorization_response=request.url)
+    creds = flow.credentials
+    # Store refresh token securely (database instead of session in real apps)
+    session["credentials"] = creds.to_json()
+    userlogin = current_user.username
+    save_google_token(creds,userlogin)
+    return "Authorized! You can now pick files."
+
+# --- Step 3: When user picks file, frontend sends fileId ---
+@app.route("/register_drive_file", methods=["POST"])
+def register_drive_file():
+    data = request.get_json()
+    file_id = data["fileId"]
+    file_url = data["url"]
+    file_name = data["name"]
+    sheet_tab = data['sheetTab']
+    print(f"/register_drive_file called with fileid:{file_id} filename:{file_name} sheet:{sheet_tab} url:{file_url}")
+    session["file_id"] = file_id
+    # Call your processing function
+    # just do something to the file so that google sees that this client_id and scopes are associated with this file
+    touch_file(data)
+
+    # now save this in files collections
+    shared_files_google = load_shared_files(f"./config/shared_files_google_{current_user.username}.json")
+
+    if not len(sheet_tab):
+        sheet_tab = "Sheet1"
+
+    new_val = file_url + "#" + sheet_tab
+    if file_url:
+
+        # Load credentials
+        #creds = load_google_token(current_user.username)
+        #result = get_google_sheet_filename(creds, new_val)
+        #fname = result["filename"]
+        #sheet = result['sheet_name']
+
+        print(f"add_google with shared_files_google={new_val} filename={file_name} sheet={sheet_tab}")
+       # if new_val not in shared_files_google and new_val not in bar_values and new_val not in local_file_values:
+        if not is_location_in_shared_files(new_val, shared_files_google):
+            # Add to shared_files_google list
+            from datetime import date
+            shared_files_google.append({
+                "filename": file_name,
+                "sheet": sheet_tab,
+                "location": new_val,
+                "user": current_user.username,
+                "datetime": datetime.now().isoformat()            })            
+            print(f"Added to shared_files_google: {shared_files_google[-1]}")
+
+          # Save to JSON file
+            json_filename = f"./config/shared_files_google_{current_user.username}.json"
+            save_shared_files(json_filename, shared_files_google)
+            print(f"Saved shared_files_google to {json_filename}")
+            return jsonify({"success": True, "message": f"Google Sheet {file_name} {sheet_tab} added successfully"})
+
+        else:
+            print(f"{new_val} filename={file_name} sheet={sheet_tab} already present so no action needed")
+            return jsonify({"success": True, "message": f"File {file_name} {sheet_tab} already present, no action needed"})
+        
+   
+    return jsonify({"success": False, "message": "No file URL provided"})
+
+    
+
+#@app.route("/api/touch_file", methods=["POST"])
+def touch_file(data):
+    #data = request.get_json()
+    file_id = data.get("fileId")
+    userlogin = current_user.username
+    #user_id = data.get("userId")  # however you identify users
+    print(f"touch_file called data={data}")
+    if not file_id: #or not user_id:
+        print(f"touch_file error: missing fileid")
+        return jsonify({"error": "Missing fileId"}), 400
+
+    creds = load_google_token(userlogin)
+    service = build("drive", "v3", credentials=creds)
+
+    try:
+        # Perform a harmless request — get file metadata
+        metadata = service.files().get(fileId=file_id, fields="id, name, mimeType").execute()
+
+        # Optionally rename or modify permissions, etc.
+        # service.files().update(fileId=file_id, body={"name": metadata['name']}).execute()
+
+        return jsonify({
+            "message": "File linked successfully!",
+            "file": metadata
+        })
+
+    except Exception as e:
+        print("Drive API error:", e)
+        return jsonify({"error": str(e)}), 500
+    
+# --- Step 4: Later, backend reuses refresh token to fetch file ---
+'''@app.route("/download_file")
+def download_file():
+    if "credentials" not in session or "file_id" not in session:
+        return "Not authorized or no file registered", 401
+
+    creds = Credentials.from_authorized_user_info(eval(session["credentials"]))
+    if creds.expired and creds.refresh_token:
+        creds.refresh(google.auth.transport.requests.Request())
+
+    file_id = session["file_id"]
+    resp = requests.get(
+        f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media",
+        headers={"Authorization": f"Bearer {creds.token}"},
+    )
+    if resp.status_code != 200:
+        return f"Error fetching file: {resp.text}", 500
+
+    with open("downloaded.xlsx", "wb") as f:
+        f.write(resp.content)
+    return "File downloaded successfully!"
+'''
 
 if __name__ == "__main__" and env == "dev":
     print(f"Starting Flask app on port {PORT}")

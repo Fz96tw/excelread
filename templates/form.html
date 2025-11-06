@@ -1049,16 +1049,27 @@
                             <img src="/static/googlesheetsicon.png" alt="Google Sheets">
                             Share new Google Sheet with Agent
                         </h2>
-                        <form method="POST" class="left-form" action="/add_google">
+                        <!--form method="POST" class="left-form" action="/add_google">
                             <div class="form-row">
                                 <label>Google Sheet URL</label>
                                 <input type="text" name="google_value" id="google_value" placeholder="https://docs.google.com/spreadsheets/d/...">
                             </div>
                             <button type="submit" name="add_google">
-                                <!--img src="/static/shareicon.png" alt=""-->
+                                <img src="/static/shareicon.png" alt="">
                                 Share
                             </button>
-                        </form>
+                        </form-->
+
+                        <script src="https://apis.google.com/js/api.js"></script>
+                        <script src="https://accounts.google.com/gsi/client"></script>
+                        <button onclick="onPickFile()">Select file...</button>
+
+                    </div>
+
+                    <div id="sheetDialog" style="display:none; position:fixed; top:30%; left:30%; background:white; padding:20px; border:1px solid #ccc;">
+                    <label>Sheet Tab Name:</label>
+                    <input type="text" id="sheetNameInput" value="Sheet1">
+                    <button onclick="submitSheetTab()">Submit</button>
                     </div>
 
                     <div class="card">
@@ -1940,6 +1951,88 @@
         window.addEventListener("DOMContentLoaded", () => {
             if (document.getElementById("section3")) loadRunFolders();
         });
+
+    const CLIENT_ID = "349167135617-aagidlgil4i5tftvkga480jks6nksts4.apps.googleusercontent.com";
+      const API_KEY = "AIzaSyBUhS45hA4P5l4Yb-4lOKF6preSlzA-2B4";
+      const SCOPES = "https://www.googleapis.com/auth/drive.file";
+      let accessToken;
+
+      // Initialize OAuth2 token client
+      const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: (response) => {
+          accessToken = response.access_token;
+          createPicker();
+        },
+      });
+
+      function onPickFile() {
+        tokenClient.requestAccessToken();
+      }
+
+      function createPicker() {
+        gapi.load("picker", () => {
+          const view_old = new google.picker.DocsView()
+            .setMimeTypes("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel");
+          const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
+            .setIncludeFolders(true)
+            .setSelectFolderEnabled(false);
+
+          const picker = new google.picker.PickerBuilder()
+            .addView(view)
+            .setOAuthToken(accessToken)
+            .setDeveloperKey(API_KEY)
+            .setCallback(pickerCallback)
+            .build();
+
+          picker.setVisible(true);
+        });
+      }
+
+    let selectedFile;
+    function pickerCallback(data) {
+    if (data.action === google.picker.Action.PICKED) {
+        selectedFile = data.docs[0];
+        document.getElementById("sheetDialog").style.display = "block";
+    }
+    }
+
+    function submitSheetTab() {
+        const sheetTab = document.getElementById("sheetNameInput").value;
+        if (!sheetTab) {
+            showToast("⚠ Sheet tab name is required!", false);
+            return;
+        }
+
+        fetch("/register_drive_file", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                fileId: selectedFile.id,
+                name: selectedFile.name,
+                url: selectedFile.url,
+                sheetTab: sheetTab
+            }),
+        })
+        .then((r) => r.json())
+        .then((res) => {
+            console.log("Registered:", res);
+            if (res.success) {
+                showToast(`✅ ${res.message || 'File registered successfully'}`);
+                document.getElementById("sheetDialog").style.display = "none";
+                setTimeout(() => { window.location.hash = "section6"; window.location.reload(); }, 900);
+            } else {
+                showToast(`⚠ ${res.message || 'Failed to register file'}`, false);
+            }
+        })
+        .catch((err) => {
+            console.error("Error:", err);
+            showToast("⚠ Error connecting to server", false);
+        });
+    }
+
+
     </script>
 </body>
 </html>
