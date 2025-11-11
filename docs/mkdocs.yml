@@ -1,0 +1,17 @@
+site_name: My Product Documentation
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - search.suggest
+    - content.code.annotate
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - API Reference: api.md
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true

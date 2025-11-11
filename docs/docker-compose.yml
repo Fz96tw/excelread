@@ -1,0 +1,11 @@
+version: "3"
+services:
+  docs:
+    image: squidfunk/mkdocs-material
+    container_name: docs
+    restart: unless-stopped
+    ports:
+      - "8100:8000"
+    volumes:
+      - /home/nadeem/github/excelread/docs:/docs
+      - /home/nadeem/github/excelread/docs/mkdocs.yml:/mkdocs.yml
