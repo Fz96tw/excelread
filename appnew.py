@@ -1594,6 +1594,7 @@ def save_jira():
     jira_token = data.get("jira_token", "")
     jira_password = data.get("jira_password")
 
+    userlogin = current_user.username
     ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{userlogin}")
     print(f"Saving new .env values {jira_url}, {jira_user}, {jira_token}, {jira_password}")
     write_env("JIRA_URL", jira_url, ENV_PATH_USER)
