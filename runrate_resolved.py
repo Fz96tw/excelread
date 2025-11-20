@@ -379,15 +379,17 @@ def bucketize_issues_by_weeks_foo(issues, mode):
 
 def parse_runrate_params(runrate_params_list):
     params = {}
+    print(f"parse_runte_params() called, about to walk thru the param entry list")
+    params["mode"] = "weeks"  # default mode
     for entry in runrate_params_list:
         entry = str(entry).strip()
 
-        params["mode"] = "weeks"  # default mode
 
+        print (f"checking entry={entry}")
         if entry.lower().startswith("weeks"):
             # e.g. "weeks 6"
             params["mode"] = "weeks"
-
+            print("found 'weeks'")
             # dead code since i decided not to support number of weeks. Durations is completed determiend by jql filter time frame
             '''parts = entry.split(maxsplit=1)
             if len(parts) == 2 and parts[1].isdigit():
@@ -398,17 +400,24 @@ def parse_runrate_params(runrate_params_list):
         elif entry.lower().startswith("days"):
             # e.g. "days 30"
             params["mode"] = "days"
+            print("found 'days'")
         elif entry.lower().startswith("months"):
             # e.g. "months 3"
             params["mode"] = "months"
+            print("found 'months'")
         elif entry.lower().startswith("years"):
             # e.g. "years 1"
             params["mode"] = "years"
+            print("found 'years'")
         elif entry.lower().startswith("jql"):
             # e.g. "JQL project = tes and assignee = nadeem"
             jql_query = entry[3:].strip()  # remove "JQL"
             params["jql"] = jql_query
+            print(f"found jql_query={jql_query}")
 
+        print(f"set mode to {params['mode']}")
+
+    print(f"parse_runrate_params returning params={params}")     
     return params
 
 
@@ -431,6 +440,7 @@ if len(sys.argv) < 3:
 yaml_file = sys.argv[1]
 #filename = sys.argv[2]
 timestamp = sys.argv[2]
+userlogin = sys.argv[3]
 
 with open(yaml_file, 'r') as f:
     data = yaml.safe_load(f)
@@ -506,11 +516,12 @@ print("Field values,", field_values_str)
 
 # the following were addded by scope.py in runrate yaml file
 runrate_params_list = data.get('params',[])
+print(f"runrate_params_list={runrate_params_list}")
 runrate_table_row = data.get('row', None)
 runrate_table_col = data.get('col', None)
 
 runrate_params = parse_runrate_params(runrate_params_list)
-print("Runrate params:", runrate_params)
+print(f"runrate_params={runrate_params}")
 
 jql_query = runrate_params.get("jql", "")
 if not jql_query:
@@ -529,12 +540,14 @@ years = runrate_params.get("years", None)  # optional years param
 if runrate_params.get("mode", "") == "":
     print("ERROR: No valid time frame (weeks/days/months/years) specified in params. Defaulting to 6 weeks.")
     sys.exit(1)
+else:
+    print(f"mode={mode}")
 
 # Replace with your Jira Cloud credentials and URL
 
 # Load environment variables from a .env file if present
 #load_dotenv()
-ENV_PATH = "../../../config/.env"
+ENV_PATH = f"../../../config/env.{userlogin}"
 load_dotenv(dotenv_path=ENV_PATH)
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
 JIRA_URL = os.environ.get("JIRA_URL")
@@ -567,14 +580,14 @@ if issues:
     print(f"\n🔄 Bucketizing {len(issues)} issues by calendar weeks...")
     
     # Bucketize issues by weeks
-    weekly_buckets, week_info = bucketize_issues_by_interval(issues,"open", runrate_params.get("mode", "weeks"))
-    weekly_buckets_resolved, week_info_resolved = bucketize_issues_by_interval(issues,"resolved",runrate_params.get("mode", "weeks"))
+    #weekly_buckets, week_info = bucketize_issues_by_interval(issues,"open", runrate_params.get("mode", "months"))
+    weekly_buckets_resolved, week_info_resolved = bucketize_issues_by_interval(issues,"resolved",runrate_params.get("mode", "months"))
     #weekly_buckets_closed, week_info_closed = bucketize_issues_by_weeks(issues,"closed")
     
-    print("Here's the weekly breakdown:")
-    if weekly_buckets:
+    #print("Here's the weekly breakdown:")
+    #if weekly_buckets:
         # Print summary
-        print_weekly_summary(weekly_buckets, week_info)
+        #print_weekly_summary(weekly_buckets, week_info)
 
     print("Here's the resolved weekly breakdown:")
     if weekly_buckets_resolved:
@@ -592,7 +605,7 @@ from openpyxl.utils import get_column_letter
 # write out the timestamp in cell adjacent to <> so we can tell when the update occured
 coord = f"{get_column_letter(col + 2)}{row - 1}"
 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-entry = f"{coord} = {now_str} ||"
+entry = f"{coord} = Updated {now_str} by Trinket ||"
 print (entry)
 changes_list.append(entry)
 
@@ -601,11 +614,13 @@ coord = f"{get_column_letter(col + 1)}{row}"
 entry = f"{coord} = Jira Status ||"
 print (entry)
 changes_list.append(entry)
+
+#coord = f"{get_column_letter(col + 1)}{row + 1}"
+#entry = f"{coord} = OPEN ||"
+#print (entry)
+#changes_list.append(entry)
+
 coord = f"{get_column_letter(col + 1)}{row + 1}"
-entry = f"{coord} = OPEN ||"
-print (entry)
-changes_list.append(entry)
-coord = f"{get_column_letter(col + 1)}{row + 2}"
 entry = f"{coord} = RESOLVED ||"
 print (entry)
 changes_list.append(entry)
@@ -614,8 +629,8 @@ changes_list.append(entry)
 week_to_col = {}
 
 # first get all the week numbers so get the min and max across both open and resolved
-for year, week_num, start_date, end_date in week_info:
-    week_to_col[week_num] = None
+#for year, week_num, start_date, end_date in week_info:
+#    week_to_col[week_num] = None
 
 for year, week_num, start_date, end_date in week_info_resolved:
     week_to_col[week_num] = None
@@ -651,7 +666,7 @@ for i in sorted_week_to_col:
     changes_list.append(entry)
 
 # now loop through the weeks and write out the counts
-for i, (bucket, (year, week_num, start_date, end_date)) in enumerate(zip(weekly_buckets, week_info)):
+'''for i, (bucket, (year, week_num, start_date, end_date)) in enumerate(zip(weekly_buckets, week_info)):
     #week_str = f"Week {i+1} ({year}-W{week_num:02d})"
     week_str = f"{start_date.strftime('%Y-%m-%d')}"
     date_range = f"{start_date.strftime('%m/%d')} - {end_date.strftime('%m/%d/%Y')}"
@@ -676,10 +691,13 @@ for i, (bucket, (year, week_num, start_date, end_date)) in enumerate(zip(weekly_
     jql = jql.rstrip(",") + ")"
 
     #entry = f"{coord} = {len(bucket)} || "
-    hyperlink = _make_hyperlink_formula(f"https://fz96tw.atlassian.net/issues/?jql={jql}", f"{len(bucket)}") + " || "
+    #hyperlink = _make_hyperlink_formula(f"https://fz96tw.atlassian.net/issues/?jql={jql}", f"{len(bucket)}") + " || "
+    hyperlink = _make_hyperlink_formula(f"{JIRA_URL}/issues/?jql={jql}", f"{len(bucket)}") + " || "
+
     entry = f"{coord} = {hyperlink} || " 
     print (entry)
     changes_list.append(entry)
+    '''
 
 # now loop through the weeks and write out the counts
 for i, (bucket, (year, week_num, start_date, end_date)) in enumerate(zip(weekly_buckets_resolved, week_info_resolved)):
@@ -696,7 +714,7 @@ for i, (bucket, (year, week_num, start_date, end_date)) in enumerate(zip(weekly_
         continue
 
     print (f"Looking up week {week_num} in sorted_week_to_col, found column {week_to_col.get(week_num,'None')}")
-    coord = f"{get_column_letter(week_to_col.get(week_num))}{row + 2}"
+    coord = f"{get_column_letter(week_to_col.get(week_num))}{row + 1}"
     jql = "key in ("
     for issue in bucket:
         jql += issue.key + ","
@@ -704,7 +722,8 @@ for i, (bucket, (year, week_num, start_date, end_date)) in enumerate(zip(weekly_
 
     #entry = f"{coord} = {len(bucket)} || "
     
-    hyperlink = _make_hyperlink_formula(f"https://fz96tw.atlassian.net/issues/?jql={jql}", f"{len(bucket)}") + " || "
+    #hyperlink = _make_hyperlink_formula(f"https://fz96tw.atlassian.net/issues/?jql={jql}", f"{len(bucket)}") + " || "
+    hyperlink = _make_hyperlink_formula(f"{JIRA_URL}/issues/?jql={jql}", f"{len(bucket)}") + " || "
     entry = f"{coord} = {hyperlink} || "
     print (entry)
     changes_list.append(entry)

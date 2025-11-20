@@ -420,6 +420,8 @@ if __name__ == "__main__":
                     jira_import_found = False
                     jira_create_found = False
                     jira_create_rows = []
+                    exec_summary_found = False;
+
 
                 exec_summary_found = True;
                 exec_summary_cell = "";
@@ -479,6 +481,8 @@ if __name__ == "__main__":
                     jira_import_found = False
                     jira_create_found = False
                     jira_create_rows = []
+                    exec_summary_found = False;
+
 
                 runrate_found = False #does not depend on jira_table_found
 
@@ -549,6 +553,8 @@ if __name__ == "__main__":
                     jira_import_found = False
                     jira_create_found = False
                     jira_create_rows = []
+                    exec_summary_found = False;
+
 
                 runrate_found = False #does not depend on jira_table_found
 
@@ -572,8 +578,8 @@ if __name__ == "__main__":
 
                 continue # get to next row
 
-            elif "<rate resolved>" in cell_str or "<rate assignee>" in cell_str:
-                
+            elif "<rate" in cell_str:# or "<rate assignee>" in cell_str:
+                # should work for <rate created> <rate resolved> <rate assignee>
                 if jira_table_found:
                     close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
                     jira_table_found = False
@@ -584,9 +590,8 @@ if __name__ == "__main__":
                     jira_import_found = False
                     jira_create_found = False
                     jira_create_rows = []
+                    exec_summary_found = False;
 
-                print(f"<rate resolved> or <rate assignee> found in cell_str={cell_str}")
-                runrate_found  = True
 
                 # call function to process runrate resolved now...
                 # 1. it will get jira data based on jql provided
@@ -599,9 +604,21 @@ if __name__ == "__main__":
                 if "<rate resolved>" in cell_str:
                     cleaned_value = str(cell).rsplit("<rate resolved>", 1)[0].strip().replace(" ", "_")
                     scope_output_file = f"{file_info['basename']}.{sheet}.{cleaned_value}.{timestamp}.resolved.rate.scope.yaml"
-                else:
+                    print(f"<rate resolved> found in cell_str={cell_str}")
+                elif "<rate assignee>" in cell_str:
                     cleaned_value = str(cell).rsplit("<rate assignee>", 1)[0].strip().replace(" ", "_")
                     scope_output_file = f"{file_info['basename']}.{sheet}.{cleaned_value}.{timestamp}.assignee.rate.scope.yaml"
+                    print(f"<rate assignee> found in cell_str={cell_str}")
+
+                elif "<rate created>" in cell_str:
+                    cleaned_value = str(cell).rsplit("<rate created>", 1)[0].strip().replace(" ", "_")
+                    scope_output_file = f"{file_info['basename']}.{sheet}.{cleaned_value}.{timestamp}.created.rate.scope.yaml"
+                    print(f"<rate created> found in cell_str={cell_str}")
+                else:
+                    print(f"skipping row since unexpected <rate...> found in {cell_str}")
+                    break
+
+                runrate_found  = True
 
                 print(f"scope will be saved to: {scope_output_file}")
                 file_info["scope file"] = scope_output_file
@@ -634,7 +651,7 @@ if __name__ == "__main__":
                     yaml.dump({"scan_ahead_nonblank_rows":nonblank_count}, f, default_flow_style=False)
 
 
-                break # get to next row 
+                continue # get to next cell incase there's <llm> or other applicable tag 
 
             elif ("<jira>" in cell_str and len(str(cell_str)) > 6):  # greater than 6 because a table name is expected
   

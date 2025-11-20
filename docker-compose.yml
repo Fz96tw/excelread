@@ -53,6 +53,7 @@ services:
     volumes:
       - config:/appnew/config
       - /c:/mnt/c
+      - /home/nadeem/github/excelread/logs:/appnew/logs
     environment:
       - SUMMARIZER_HOST=http://summarizer:8000
 
@@ -70,9 +71,47 @@ services:
     environment:
       - OLLAMA_HOST=http://ollama:11434
 
+
+  #-------------------------------
+  # 🧠 GoAccess + Nginx Dashboard
+  # -------------------------------
+  goaccess:
+    image: allinurl/goaccess
+    container_name: goaccess_npm
+    restart: unless-stopped
+    volumes:
+      - ./data/logs:/srv/logs:ro                # NPM logs
+      - ./goaccess/report:/srv/report
+      - ./goaccess/goaccess.conf:/srv/goaccess.conf:ro
+      - ./goaccess/start.sh:/start.sh:ro
+    entrypoint: ["/bin/sh", "/start.sh"]
+    ports:
+      - "7890:7890"
+    expose:
+      - "7890"
+    networks:
+      - appnet
+
+  goaccess_nginx:
+    image: nginx:alpine
+    container_name: goaccess_nginx
+    restart: unless-stopped
+    volumes:
+      - ./goaccess/report:/usr/share/nginx/html:ro       # Serve GoAccess reports
+    ports:
+      - "8890:80"                               # Access http://localhost:8890
+    depends_on:
+      - goaccess
+    networks:
+      - appnet
+
 networks:
   appnet:
     driver: bridge
 
 volumes:
   config:
+
+  
+
+  

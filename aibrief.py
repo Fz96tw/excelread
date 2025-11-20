@@ -62,7 +62,74 @@ def html_to_text_with_structure(html: str) -> str:
     lines = [line.rstrip() for line in text.splitlines()]
     return "\n".join(line for line in lines if line.strip() != "")
 
+
+
+import smtplib
+import markdown
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+
 def send_markdown_email(subject: str, from_address: str, to_address: str, data: str):
+    print(
+        f"send_markdown_email called params= {subject}, {from_address}, {to_address}, "
+        f"{data[:20]}{'...' if len(data) > 20 else ''}"
+    )
+
+    # --- 1. Strip accidental fenced code block wrapper ---
+    stripped = data.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        # Drop first ``` line
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        # Drop last ``` line
+        if lines[-1].startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines)
+
+    markdown_text = stripped
+
+    # --- 2. Convert Markdown to HTML ---
+    html_body = markdown.markdown(
+        markdown_text,
+        extensions=["extra", "sane_lists"],
+    )
+
+    # --- 3. Add minimal inline CSS for email clients (critical for Outlook) ---
+    html_wrapped = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.5; font-size: 15px;">
+        <div style="max-width: 800px;">
+            {html_body}
+        </div>
+    </body>
+    </html>
+    """
+
+    # --- 4. Build Email Message ---
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = from_address
+    msg["To"] = to_address
+
+    msg.attach(MIMEText(html_wrapped, "html"))
+
+    # --- 5. Send via Gmail SMTP ---
+    smtp_server = "smtp.gmail.com"
+    smtp_port = 587
+    smtp_user = "fz96tw@gmail.com"
+    smtp_password = "tgpmcbauhlligxvi"  # Your 16-char Gmail app password
+
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.send_message(msg)
+
+    print(f"Email sent to {to_address}")
+
+
+def send_markdown_email_old(subject: str, from_address: str, to_address: str, data: str):
     print(f"send_markdown_email called params= {subject}, {from_address}, {to_address}, {data[:20]}{'...' if len(data) > 20 else ''}")
     
     # Gmail SMTP settings
@@ -72,8 +139,9 @@ def send_markdown_email(subject: str, from_address: str, to_address: str, data: 
     smtp_password = "tgpmcbauhlligxvi"        # your 16-char app password
 
     #html_content = markdown.markdown(data)
+    html_content = markdown.markdown(data, extensions=["extra", "sane_lists"])
     #html_content = markdown.markdown(data, extensions=[])  # no "sane_lists"
-    html_content = data
+    #html_content = data
     
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -271,7 +339,9 @@ def get_summarized_comments(context, sysprompt):
             full_response = f"[ERROR] Service call failed: {resp.text}"
 
         # Clean up response
-        full_response = full_response.rstrip("\n").replace("\n", "; ").replace("|", "/")
+        # removing \n because getting too many ; in the end causing too many newlines cell output
+        #full_response = full_response.rstrip("\n").replace("\n", "").replace("|", "/")
+        full_response = full_response.rstrip("\n").replace("|", "/")
         print(f"Full response: {full_response}")
         return full_response
     
@@ -662,7 +732,7 @@ print(f"<aibrief> Context saved to {filename}")
 if llm_prompt:
     sysprompt = f"The following text is delimited data separated by | character. Follow these instructions exactly. " + llm_prompt
 else:
-    sysprompt = f"The following text is a csv data separated by | character. Refer to this project as Project {tablename}.  Read all of it and briefly as possible in the form of project status report for executive summary. highlight all milestones,  risks or blocking issues. Also add a paragraph of titled 'Executive Summary' at the top of your response with very brief business executive summary. Provide your summary in HTML format. Convert an items that have corresponding Jira id into URL link for that jira id listed below"
+    sysprompt = f"The following text is a csv data separated by | character. Refer to this project as Project {tablename}.  Read all of it and briefly as possible in the form of project status report for executive summary. highlight all milestones,  risks or blocking issues. Also add a paragraph of titled 'Executive Summary' at the top of your response with very brief business executive summary. Provide your summary in markdown format. When listing Jira ID also include the URL link for that jira id provided in the source text."
 
 if isinstance(aibrief_context, list):
     aibrief_context = "\n".join(aibrief_context)
@@ -679,8 +749,10 @@ with open(filename, "w", encoding="utf-8") as f:
     print(f"LLM reponse saved to {filename}")
 
 # Replace all newlines with semicolons
-cleaned_response = html_to_text_with_structure(report)
-print(f"html_to_text_with_structure returned cleaned_response={cleaned_response}")
+#cleaned_response = html_to_text_with_structure(report)
+cleaned_response = report
+#print(f"html_to_text_with_structure returned cleaned_response={cleaned_response}")
+print(f"cleaned_response={cleaned_response}")
 cleaned_response = cleaned_response.rstrip("\n")
 cleaned_response = cleaned_response.replace("\n", "; ")
 cleaned_response = cleaned_response.replace("|", "^")

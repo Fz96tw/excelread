@@ -200,6 +200,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
     read_jira_script = os.path.join(base_dir, "read_jira.py")
     create_jira_script = os.path.join(base_dir, "create_jira.py")
     runrate_resolved_jira_script = os.path.join(base_dir, "runrate_resolved.py")
+    runrate_created_jira_script = os.path.join(base_dir, "runrate_created.py")
     runrate_assignee_jira_script = os.path.join(base_dir, "runrate_assignee.py")
     update_excel_script = os.path.join(base_dir, "update_excel.py")
     update_sharepoint_script = os.path.join(base_dir, "update_sharepoint.py")
@@ -350,16 +351,57 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                 logger.info(f"Re-running scope.py on {input_file}...")
                 run_and_log(["python", "-u", scope_script, input_file, sheet, timestamp, userlogin], log, f"scope.py {input_file} {sheet} {timestamp} {userlogin}")
 
-                if "create" in yaml_file:
+                if "create." in yaml_file:
                     logger.info(f"Found CREATE jira file {yaml_file}")
                     run_and_log(["python", "-u", create_jira_script, yaml_file, filename, timestamp, userlogin], log, f"create_jira.py {yaml_file} {filename} {timestamp} {userlogin}")
                 
                 elif "resolved.rate" in yaml_file:
-                    logger.info(f"Found RUNRATE  jira file {yaml_file}")
-                    run_and_log(["python", "-u", runrate_resolved_jira_script, yaml_file, timestamp, userlogin], log, f"runrate_resolved_jira.py {yaml_file} {timestamp} {userlogin}")
+                    logger.info(f"Found resolved RUNRATE  jira file {yaml_file}")
+                    run_and_log(["python", "-u", runrate_resolved_jira_script, yaml_file, timestamp, userlogin], log, f"runrate_resolved.py {yaml_file} {timestamp} {userlogin}")
+                elif "created.rate" in yaml_file:
+                    logger.info(f"Found Created RUNRATE  jira file {yaml_file}")
+                    run_and_log(["python", "-u", runrate_created_jira_script, yaml_file, timestamp, userlogin], log, f"runrate_created.py {yaml_file} {timestamp} {userlogin}")
                 elif "assignee.rate" in yaml_file:
-                    logger.info(f"Found RUNRATE  jira file {yaml_file}")
-                    run_and_log(["python", "-u", runrate_assignee_jira_script, yaml_file, timestamp, userlogin], log, f"runrate_assignee_jira.py {yaml_file} {timestamp} {userlogin}")
+                    logger.info(f"Found assignee RUNRATE  jira file {yaml_file}")
+                    run_and_log(["python", "-u", runrate_assignee_jira_script, yaml_file, timestamp, userlogin], log, f"runrate_assignee.py {yaml_file} {timestamp} {userlogin}")
+
+                    # modeule has output *.assignee.scope.yaml files that have to be processed                                
+                    chain_yaml_pattern = os.path.join(work_dir, f"{input_file_orig}.*.{timestamp}.assignee.scope.yaml")
+                    chain_yaml_files = glob.glob(chain_yaml_pattern)
+                    if not chain_yaml_files:
+                        msg = f"No assignee YAML files found matching pattern {chain_yaml_pattern} after running cycletime.py"
+                        logger.warning(msg)
+                        log.write(msg + "\n")
+                        return
+                    
+                    chain_yaml_files.sort(key=extract_substring)
+
+                    for chain_yaml_file in chain_yaml_files:
+                        if sheet.lower() not in chain_yaml_file.lower():
+                            logger.info(f"Skipping assignee YAML file {chain_yaml_file} as it does not match sheet {sheet}")
+                            continue
+                        
+                        logger.info(f"Processing assignee YAML file: {chain_yaml_file}")
+                        match = re.match(f"{re.escape(input_file_orig)}\.(.+?)\.assignee\.scope\.yaml", os.path.basename(chain_yaml_file))
+                        if match:
+                            substring_chain = match.group(1)
+                            jira_csv = f"{input_file_orig}.{substring_chain}.jira.csv"
+                            logger.info(f"Generating Jira CSV: {jira_csv}")
+                            run_and_log(["python", "-u", read_jira_script, chain_yaml_file, timestamp, userlogin], log, f"read_jira.py {chain_yaml_file} {timestamp} {userlogin}")
+
+                            # no need to call update_excel since jira csv data is not intended to be shown on spreadsheet.  
+                            # The second follow up call to cycletime needs to procees the jira.csv that it generated
+                            #logger.info(f"Updating Excel with {jira_csv}...")
+                            #run_and_log(["python", "-u", update_excel_script, jira_csv, input_file, sheet, userlogin], log, f"update_excel.py {jira_csv} {input_file} {sheet} {userlogin}")
+                        else:
+                            print(f"re.match failed for ({input_file_orig})\.(.+)\.assignee\.scope\.yaml, os.path.basename({chain_yaml_file})")
+
+                    # at this point all the chain.jira.csv files should be created (or not if read_jira failed for valid reasons)
+                    # so let's call cycletime again so it will discover and process these  jira.csv files now
+                    logger.info("calling second pass of RUNRATE_ASSIGNEE.PY to process all the chain.jira.csv files")
+                    run_and_log(["python", "-u", runrate_assignee_jira_script, yaml_file, timestamp, userlogin], log, f"runrate_assignee.py {yaml_file} {timestamp} {userlogin}")
+
+
                 elif "cycletime.scope.yaml" in yaml_file:
                     logger.info(f"Found CYCLETIME scope yaml file {yaml_file}")
                     run_and_log(["python", "-u", cycletime_script, yaml_file, timestamp, userlogin], log, f"cycletime.py {yaml_file} {timestamp} {userlogin}")
@@ -420,7 +462,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                     run_and_log(["python", "-u", update_excel_script, jira_csv, input_file, sheet, userlogin], log, f"update_excel.py {jira_csv} {input_file} {sheet} {userlogin}")
 
                 changes_file = f"{substring}.changes.txt"
-                k = ["cycletime", "statustime","resolved", "assignee"]
+                k = ["cycletime", "statustime","resolved", "assignee","created"]
 
                 if any(s in changes_file for s in k):
                     changes_file = changes_file.replace(".changes.txt", ".import.changes.txt")

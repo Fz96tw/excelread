@@ -1328,7 +1328,7 @@ def index():
             #return '<a href="/login">Login with Microsoft</a>'
             #logged_in = False
             session["is_logged_in"] = False
-
+        
 
     user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
     # Ensure file exists

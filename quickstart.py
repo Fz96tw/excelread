@@ -120,15 +120,15 @@ else:
 changes_epics = [
     f"Project Epics<jira> jql {jql_str} issuetype = epic and (updated >= -52w or created >= -52w)",
     "Jira ID <key>",
-    "Jink Link <url>",
+#    "Jink Link <url>",
     "Title <summary>",
     "Description <description>",
     "Status <status>",
-    "Updated by AI <timestamp>",
-    "Epic Children <children>",
+#    "Updated by AI <timestamp>",
+    "Reporter <reporter>",
     "Jira Linked <links>",
     "Assignee <assignee>",
-    "Reporter <reporter>",
+    "Epic Children <children>",
     "Comments Summary <comments>Summarize all the comments into a few sentences highligthing objectives, accomplishments and risks that are blocking progress of the work"
 ]
 
@@ -176,8 +176,8 @@ changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = {changes_assignee_
 changes_list.append(f"{get_column_letter(excel_col + 2)}{r} = {changes_assignee_velocity_llm[0]} || ")
 r += 10
 
-changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = {changes_cycletime[0]} || ")
-changes_list.append(f"{get_column_letter(excel_col + 2)}{r} = {changes_cycletime_llm[0]} || ")
+changes_list.append(f"{get_column_letter(excel_col + 0)}{r} = {changes_cycletime[0]} || ")
+changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = {changes_cycletime_llm[0]} || ")
 r += 10
 
 changes_list.append(f"{get_column_letter(excel_col + 1)}{r} = {changes_statustime[0]} || ")

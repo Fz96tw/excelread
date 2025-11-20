@@ -290,6 +290,13 @@ elif ".chain." in yaml_file.lower():
         substring = match.group(1)
         output_file = f"{basename}.{substring}.chain.jira.csv"
         print(f"output_file set to {output_file}")
+elif ".assignee.scope" in yaml_file.lower():
+    print(f"runrate_assignee YAML detected based on filename = {yaml_file}")
+    match = re.match(rf"{re.escape(basename)}\.(.+?)\.assignee\.scope\.yaml", os.path.basename(yaml_file))
+    if match:
+        substring = match.group(1)
+        output_file = f"{basename}.{substring}.assignee.jira.csv"
+        print(f"output_file set to {output_file}")
         
 else:
     import_mode = False
@@ -692,8 +699,13 @@ if jql_ids:
                         value_str = str(value).replace("\n","")
                         value_str = clean_jira_wiki(value_str)
                         print(f"Processing generic field: {field} with value: {value_str}")
-                        generic_fields_list.append("▫️ [" + issue.key + "] " + value_str)
-
+                        print("checking value len")
+                        if not len(value):
+                            print("value len is zero, stting value_str to 'Not defined'")
+                            #value_str = "Not defined"
+                        else:
+                            # only show cell values if defined
+                            generic_fields_list.append("▫️ [" + issue.key + "] " + value_str)
                     
 
                     #values.append(str(value))
@@ -763,7 +775,7 @@ if jql_ids:
                 else:
                     print(f"Field {field} and field2 {field2} is considered generic_field and will be processed as such.")
                     generic_fields_list.sort()
-                    value = ";".join(generic_fields_list) if generic_fields_list else "NA"
+                    value = ";".join(generic_fields_list) if generic_fields_list else "No values found"
                 
                 print(f"Final value for field {field}: {value}")
 

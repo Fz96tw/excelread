@@ -69,7 +69,7 @@ class OllamaSummarizer:
 #                host=OLLAMA_HOST
             )
             summary = response["message"]["content"]
-            return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            return f"({datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {self.model_name}) {summary}"
 
     
     def summarize(self, comments: list[str], completion_tokens: int = 500) -> str:
@@ -161,7 +161,7 @@ class OllamaSummarizer:
         else:
             final_summary = summaries[0]
 
-        return f"({self.model_name}) {final_summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        return f"({datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {self.model_name}) {final_summary}"
 
 
 
@@ -178,7 +178,7 @@ class OllamaSummarizer:
             messages=[{"role": "user", "content": prompt}],
         )
         summary = response["message"]["content"]
-        return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        return f"({datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {self.model_name}) {summary}"
 
 
     def summarize_ex(self, comments: List[str], field: Optional[str] = None, completion_tokens: int = 500) -> str:
@@ -279,7 +279,8 @@ class OllamaSummarizer:
         else:
             final_summary = summaries[0]
 
-        return f"({self.model_name}) {final_summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        return f"({datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {self.model_name}) {final_summary}"
+
 
 
     def summarize_ex_old(self, comments: List[str], field: Optional[str] = None) -> str:
@@ -469,7 +470,8 @@ class OpenAISummarizer:
         else:
             final_summary = summaries[0]
 
-        return f"({self.model_name}) {final_summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        return f"({datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {self.model_name}) {final_summary}"
+
 
 
 
@@ -496,57 +498,50 @@ class OpenAISummarizer:
         model_limit = self.MODEL_CONTEXT_LIMITS.get(self.model_name, 4096)
         max_tokens_per_chunk = model_limit - completion_tokens
 
-        # Helper to count tokens for a given model
+        # Count tokens for this model
         def count_tokens(text: str) -> int:
             enc = tiktoken.encoding_for_model(self.model_name)
             return len(enc.encode(text))
 
-        # Split comments into chunks
-        chunks = []
-        chunk_token_counts = []
-        current_chunk = []
-        current_tokens = 0
-        total_tokens = 0
+        # Split a single comment into token-constrained chunks
+        def split_comment_into_chunks(comment: str) -> List[str]:
+            enc = tiktoken.encoding_for_model(self.model_name)
+            tokens = enc.encode(comment)
 
+            chunks = []
+            for i in range(0, len(tokens), max_tokens_per_chunk):
+                token_slice = tokens[i:i + max_tokens_per_chunk]
+                chunks.append(enc.decode(token_slice))
+
+            return chunks
+
+        # Build final list of text chunks (token safe)
+        chunks = []
         for comment in comments:
             comment_tokens = count_tokens(comment)
-            total_tokens += comment_tokens
-            
+
             if comment_tokens > max_tokens_per_chunk:
-                comment = comment[:max_tokens_per_chunk]  # truncate large comment
-                comment_tokens = max_tokens_per_chunk
-
-            if current_tokens + comment_tokens > max_tokens_per_chunk:
-                chunk_text = "\n".join(current_chunk)
-                chunks.append(chunk_text)
-                chunk_token_counts.append(current_tokens)
-                current_chunk = [comment]
-                current_tokens = comment_tokens
+                # split big comments instead of truncating
+                parts = split_comment_into_chunks(comment)
+                chunks.extend(parts)
             else:
-                current_chunk.append(comment)
-                current_tokens += comment_tokens
+                chunks.append(comment)
 
-        if current_chunk:
-            chunk_text = "\n".join(current_chunk)
-            chunks.append(chunk_text)
-            chunk_token_counts.append(current_tokens)
-
-        # Print token statistics
-        print(f"[INFO] Total tokens across all comments: {total_tokens}")
+        # Token statistics
         print(f"[INFO] Number of chunks: {len(chunks)}")
-        for i, token_count in enumerate(chunk_token_counts, 1):
-            print(f"[INFO] Chunk {i} tokens: {token_count}")
+        for i, chunk in enumerate(chunks, start=1):
+            print(f"[INFO] Chunk {i} tokens: {count_tokens(chunk)}")
 
-        # Determine the prompt to use
+        # Prompt template (fixed original bug)
         if field:
-            prompt_template = f"{field}. Here's the text: {{chunk}}"
+            prompt_template = "{field}. Here's the text:\n{chunk}"
         else:
             prompt_template = "The following is the content you need to summarize:\n{chunk}"
 
         # Summarize each chunk
         summaries = []
         for chunk in chunks:
-            prompt = prompt_template.format(chunk=chunk)
+            prompt = prompt_template.format(field=field, chunk=chunk)
 
             try:
                 response = client.chat.completions.create(
@@ -558,15 +553,19 @@ class OpenAISummarizer:
                 print(f"[ERROR] OpenAI API error: {e}")
                 summaries.append("[Chunk summary failed]")
 
-        # Combine chunk summaries if multiple
-        if len(summaries) > 1:
+        # If only one chunk, return result
+        if len(summaries) == 1:
+            final_summary = summaries[0]
+        else:
+            # Combine all summaries
             joined = "\n".join(summaries)
-            # Use field prompt or default for final summary
+
+            # Construct final synthesis prompt
             if field:
-                combined_prompt = f"{field}. Here's the text: {joined}"
+                combined_prompt = f"{field}. Here's the text:\n{joined}"
             else:
                 combined_prompt = f"The following is the content you need to summarize:\n{joined}"
-            
+
             try:
                 response = client.chat.completions.create(
                     model=self.model_name,
@@ -576,10 +575,9 @@ class OpenAISummarizer:
             except Exception as e:
                 print(f"[ERROR] OpenAI API error in final summary: {e}")
                 final_summary = "[Final summary failed due to API error]"
-        else:
-            final_summary = summaries[0]
 
-        return f"({self.model_name}) {final_summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        return f"({datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {self.model_name})\n{final_summary}"
+
 
 
     #def summarize_ex(self, comments: list[str]) -> str:

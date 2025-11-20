@@ -9,22 +9,22 @@ from datetime import datetime
 from openpyxl.styles import Alignment
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
+import requests
+from requests.auth import HTTPBasicAuth
+from datetime import datetime, timedelta
+from collections import defaultdict
+import calendar
+from datetime import datetime, timedelta
+from collections import defaultdict
+import calendar
+import glob
+import hashlib
+from bs4 import BeautifulSoup
+
 
 # Cache dictionary to avoid repeated calls
 user_cache = {}
 
-import requests
-from requests.auth import HTTPBasicAuth
-
-from datetime import datetime, timedelta
-from collections import defaultdict
-import calendar
-
-
-
-from datetime import datetime, timedelta
-from collections import defaultdict
-import calendar
 
 def get_week_number(date):
     """Get the ISO week number for a given date"""
@@ -525,6 +525,232 @@ def get_resolved_by_user(issue):
 
 
 
+def to_filename(path: str, max_len=200):
+    # Make filesystem-safe
+    clean = re.sub(r'\s*→\s*', '_', path).replace(' ', '-')
+    
+    # Hash full path for uniqueness
+    hash_suffix = hashlib.md5(path.encode()).hexdigest()[:6]
+    
+    # Truncate safely before appending hash
+    trimmed = clean[:max_len]
+    
+    return f"{trimmed}_{hash_suffix}"
+
+
+def write_execsummary_yaml(jira_ids, file_info, chain_str, chain_row, timestamp):
+    # always create <exec summary> yaml files incase they're needed down the chain
+    # step 1 hunt for jira id in all rows and build a list
+    # step 2 hunt for jql in all the rows and get list of jira id and add to list from #1
+    # step 3 Create ayaml new exec summary scope yaml file with all the Jira found in #1 #2
+    # step 4 read_jira will process this yaml downstream
+
+    fname = f"{file_info['basename']}.{file_info['sheet']}.{file_info['table']}.{chain_str}"
+    fname_hash = to_filename(fname)
+    #execsummary_scope_output_file = f"{file_info['basename']}.{file_info['sheet']}.{file_info['table']}.{table_hash}.{timestamp}.aisummary.scope.yaml"
+    execsummary_scope_output_file = f"{fname_hash}.{timestamp}.assignee.scope.yaml"
+    print(f"write_execsummary_yaml(...) called to write to file={execsummary_scope_output_file}")
+
+    file_info["scope file"] = execsummary_scope_output_file
+    #file_info["table"] = cleaned_value
+
+    with open(execsummary_scope_output_file, 'w') as f:
+        yaml.dump({ "fileinfo": file_info }, f, default_flow_style=False)
+        yaml.dump({ "chain_row": chain_row }, f, default_flow_style=False)
+
+    jira_fields = []
+
+    jira_fields.append({"value": "key", "index": 0})
+    jira_fields.append({"value": "summary", "index": 0})
+    jira_fields.append({"value": "description", "index": 0})
+    jira_fields.append({"value": "status", "index": 0})
+    jira_fields.append({"value": "issuetype", "index": 0})
+    jira_fields.append({"value": "priority", "index": 0})
+    jira_fields.append({"value": "created", "index": 0})
+    jira_fields.append({"value": "assignee", "index": 0})
+    jira_fields.append({"value": "status", "index": 0})
+    jira_fields.append({"value": "comments", "index": 0})
+
+
+    with open(execsummary_scope_output_file, 'a') as f:
+        yaml.dump({ "fields": jira_fields }, f, default_flow_style=False)
+   
+    if jira_ids:
+        print(f"{len(jira_ids)} JIRA IDs found: {jira_ids}")
+
+        # instead just dump the jira_ids to the scope file. read_jira.py will take care of it, ie run jql and get the jira ids.         
+        with open(execsummary_scope_output_file, 'a') as f:
+            yaml.dump({"jira_ids": jira_ids}, f, default_flow_style=False)
+            # commented out since  defautl values feature not supported or needed in this case
+            # only interested in generated a yaml file with fields ids and jira ids that will be used
+            # by cycletime.py on 2nd pass to fill in aisummary for each chain 
+            #print(f"Fieldname args found for: {jira_fields_default_value}")
+            #yaml.dump({"field_args": jira_fields_default_value}, f, default_flow_style=False)
+
+    else:
+        print(f"ERROR: can't proceed, No JIRA IDs found to write to aisummary yaml file {execsummary_scope_output_file}")
+        sys.exit(1)
+
+    f.close()
+    print("ExecSummary scope yaml file created successfully:", execsummary_scope_output_file)
+
+
+# Build LLM context from table rows and corresponding jiracsv file
+# so yes, it combines excel table rows (all cells including non-jira ones)
+# and combines with the aisummary.jira.csv file contents
+def build_llm_context(table_name, timestamp):
+    
+    context = ""
+    
+    '''# first put in the sheet contents for this table
+    for r in table_rows:
+        # r is a list of cell values, join them into a string
+        context += " | ".join(str(cell) for cell in r) + "\n"
+    '''
+
+     # now append the jiracsv contents
+    jiracsv_pattern = f"{basename}.{sheet}.{table_name}.{timestamp}.aisummary.jira.csv"
+    dir_path = os.getcwd()  # or the folder where your CSVs live
+
+    # case-insensitive search
+    matched_file = None
+    for f in os.listdir(dir_path):
+        if f.lower() == jiracsv_pattern.lower():
+            matched_file = os.path.join(dir_path, f)
+            break
+
+    if matched_file:
+        with open(matched_file, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        for line in lines:
+            context += line
+    else:
+        print(f"Warning: file not found (case-insensitive match) for {jiracsv_pattern}")
+
+    return context
+
+# Default to localhost unless overridden in env variable (set when in Docker)
+SUMMARIZER_HOST = os.getenv("SUMMARIZER_HOST", "http://localhost:8000")
+#LLMCONFIG_FILE = "../../../config/llmconfig.json"
+
+
+def get_llm_model(llm_config_file):
+    print("Current working directory:", os.getcwd())  # <-- debug
+    if os.path.exists(llm_config_file):
+        with open(llm_config_file, "r") as f:
+            llm_model_set = json.load(f)
+            m = llm_model_set.get("model")
+            print(f"get_llm_model returning  {m}")
+            return m
+    else:
+        print(f"ERROR: load_llm_config file {llm_config_file} was not found")
+    
+    return None
+
+
+# variable names refer to comments but they don't have to be.  This function used for any field that were found to have an LLM prompt 
+def get_summarized_comments(comments_list_asc, field_arg=None):
+    """
+    Summarize comments for LLM processing.
+    This function takes a list of comments in ascending order and returns a summarized version.
+    Optionally, a specific field name can be passed via `field_arg`.
+    """
+    try:
+        if not comments_list_asc:
+            return "No comments available."
+
+        # Only join if it's a list or tuple
+        if isinstance(comments_list_asc, (list, tuple)):
+            comments_str = "; ".join(comments_list_asc)
+        else:
+            comments_str = comments_list_asc  # already a string
+
+        comments_str = comments_str.replace("\n", "").replace("\r", "")
+
+        # Prepare the payload for the service
+        payload = {
+            "comments": [comments_str]  # service expects a list[str]
+        }
+        if field_arg:
+            payload["field"] = field_arg  # include field if provided
+
+        LLMCONFIG_FILE = f"../../../config/llmconfig_{userlogin}.json"
+        llm_model = get_llm_model(LLMCONFIG_FILE)
+         # Determine endpoint
+        if llm_model == "OpenAI":
+            ENDPOINT = "/summarize_openai_ex"
+        elif llm_model == "Local":
+            ENDPOINT = "/summarize_local_ex"
+        elif llm_model == "Claude":
+            ENDPOINT = "/summarize_claude_ex"
+        else:
+            ENDPOINT = "/summarize_local_ex"
+
+        # Make the POST request
+        resp = requests.post(f"{SUMMARIZER_HOST}{ENDPOINT}", json=payload)
+
+        if resp.status_code == 200:
+            full_response = resp.json().get("summary", "")
+            print(f"LLM endpoint returned {resp.status_code} OK")
+        else:
+            print(f"error LLM endpoint returned {resp.status_code}")
+            full_response = f"[ERROR] Service call failed: {resp.text}"
+
+        # Clean up response
+        full_response = full_response.rstrip("\n").replace("\n", "; ").replace("|", "/")
+
+        print(f"Full response: {full_response}")
+
+        return full_response
+    
+    except Exception as e:
+        # Log the exception and return a safe default
+        print(f"[EXCEPTION ERROR] LLM could not be engaged, get_summarized_comments failed: {e}")
+        #return "[ERROR] LLM could not be engaged due to exceptions during LLM interaction."
+        return f"[EXCEPTION ERROR] LLM could not be engaged, get_summarized_comments failed: {e}"
+
+
+
+
+def html_to_text_with_structure(html: str) -> str:
+    soup = BeautifulSoup(html, "html.parser")
+
+    def walk(node, depth=0):
+        parts = []
+        for child in node.children:
+            if child.name is None:  # NavigableString
+                text = child.strip()
+                if text:
+                    # add indentation spaces based on depth
+                    parts.append(" " * (depth * 2) + text)
+            else:
+                # Handle block-level tags with newlines
+                if child.name in ("p", "div", "section", "article", "header", "footer",
+                                  "ul", "ol", "li", "br", "h1", "h2", "h3", "h4", "h5", "h6"):
+                    if child.name == "li":
+                        parts.append(" " * (depth * 2) + "- " + walk(child, depth + 1).strip())
+                    else:
+                        inner = walk(child, depth + 1)
+                        if inner:
+                            parts.append(inner)
+                    parts.append("\n")  # newline after block
+                else:
+                    # Inline tag (span, b, i, etc.)
+                    inner = walk(child, depth)
+                    if inner:
+                        parts.append(inner)
+        return "\n".join(p for p in parts if p.strip())
+
+    text = walk(soup).strip()
+
+    # Collapse excessive blank lines
+    lines = [line.rstrip() for line in text.splitlines()]
+    return "\n".join(line for line in lines if line.strip() != "")
+
+
+
+
+
 if len(sys.argv) < 4:
     print("Usage: python runrate_resolved.py <yaml_file> <timestamp> <userlogin>")
     sys.exit(1)
@@ -545,6 +771,8 @@ basename = fileinfo.get('basename')
 tablename = fileinfo.get('table').replace(" ", "_") if fileinfo.get('table') else ""
 source = fileinfo.get('source')
 scope_file = fileinfo.get('scope file')
+sheet = fileinfo.get('sheet')
+
 
 if not basename:
     print("No 'basename'found in fileinfo. Expecting 'basename' key.")
@@ -559,11 +787,13 @@ mode = ""
 
 import json
 
-with open("fileinfo.json", "r") as f:
+# remove below because fileinfo is already ready above from yaml file.  ALSO WORSE fileinfo.json doesn't have table which is needed later.
+# future - add table to fileinfo.json if needed.
+'''with open("fileinfo.json", "r") as f:
     fileinfo = json.load(f)
 
 print("read fileinfo.json file:", fileinfo)
-
+'''
 
 # I don't think this code is doing anything useful. It always sets create_mode to True?! since 
 # Determine if we will be INSERTING rows eventually vs just UPDATING existing rows in Excel/SharePoint
@@ -591,6 +821,8 @@ print("Table,", tablename)
 print("Field indexes,", field_indexes_str)
 print("Field values,", field_values_str)
 
+
+
 '''with open(output_file, "w") as outfile:
     outfile.write("Source file," + source + "\n")
     outfile.write("Basename," + basename + "\n")
@@ -616,7 +848,15 @@ print("Field values,", field_values_str)
 runrate_params_list = data.get('params',[])
 runrate_table_row = data.get('row', None)
 runrate_table_col = data.get('col', None)
-scan_ahead_nonblank_rows = data.get('scan_ahead_nonblank_rows', 0)
+#scan_ahead_nonblank_rows = data.get('scan_ahead_nonblank_rows', 0)
+scan_ahead_nonblank_rows = data.get('last_update_row_count',-2) 
+print(f"scan_ahead_nonblank_rows initialized = {scan_ahead_nonblank_rows}")
+
+llm_user_prompt = data.get('llm', "Read all of it and briefly as possible categorize types of issues and work that was done. Mention any reason you see that could have blocked work on these issues or could have been done more quickly or correctly." )
+sysprompt = "The following text is a delimited data separated by | character. These are rows of jira issues. " + llm_user_prompt
+
+print (f"llm prompt = {sysprompt}")
+
 
 
 runrate_params = parse_runrate_params(runrate_params_list)
@@ -655,6 +895,97 @@ if not JIRA_API_TOKEN:
     sys.exit(1)
 
 
+
+#########################
+
+
+# first check if the assignee.jira.csv already exists, which would mean this is 2nd call to runrate_assignee.py
+
+context = ""
+csv = os.path.join(os.getcwd(), f"{basename}.{sheet}.{tablename}.*.{timestamp}.assignee.jira.csv")
+csv_files = glob.glob(csv)
+
+if csv_files:
+    # yes, we have assignee.jira.csv files so this must be 2nd pass of cycletime from resync
+
+    for csv_file in csv_files:
+        context = ""
+        print(f"found assignee.jira.csv file {csv_file}")
+        with open(csv_file, "r", encoding="utf-8") as f:
+            for _ in range(5):  # skip first 5 lines
+                next(f, None)
+            for line in f:
+                context += line 
+
+
+        match = re.match(rf"{re.escape(basename)}\.{sheet}\.{tablename}\.(.+?)\.assignee\.jira\.csv", os.path.basename(csv_file))
+        if match:
+            substring = match.group(1)
+            output_file = f"{basename}.{sheet}.{tablename}.{substring}.assignee.llm.txt"
+            context_output_file =  f"{basename}.{sheet}.{tablename}.{substring}.assignee.context.txt"
+            chain_yaml_file =  f"{basename}.{sheet}.{tablename}.{substring}.assignee.scope.yaml"
+            print(f"context for {csv_file} will be saved in {output_file}")
+            print(f"assignee row for {csv_file} will be looked in {chain_yaml_file}")
+        else:
+            print(f"ERROR: could not find assignee.jira.csv pattern in {csv_file} to generate context for LLM. Will exit runrate_assignee.py")
+            sys.exit(0)
+
+
+        # read the chain_row that was saved in this chain's scope.yaml file earlier
+        with open(chain_yaml_file, 'r') as f:
+            data = yaml.safe_load(f)
+            rownum = data.get('chain_row', None)
+            if rownum:
+                print(f"chain row is {rownum}")
+            else:
+                print(f"No chain_row found in the YAML file {chain_yaml_file}")
+                sys.exit(1)
+            
+        print(f"Calling get_summarized_comments with context={context[:255]}... and sysprompt={sysprompt[:255]}...")
+        report = get_summarized_comments(context, sysprompt)
+
+        # Save context to file
+        with open(context_output_file, "w", encoding="utf-8") as f:
+            f.write(context)
+            print(f"LLM context saved to {context_output_file}")
+
+        # save llm's response to file for debugging
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(report)
+            print(f"LLM reponse saved to {output_file}")
+
+        # Replace all newlines with semicolons
+        cleaned_response = html_to_text_with_structure(report)
+        #print(f"html_to_text_with_structure returned cleaned_response={cleaned_response}")
+        cleaned_response = cleaned_response.rstrip("\n")
+        cleaned_response = cleaned_response.replace("\n", "; ")
+        cleaned_response = cleaned_response.replace("|", "^")
+        
+        # now update the changes.txt with llm response
+        # the chain's changes.txt file will be automaically consumed by update_googlesheet (or update_sharepoint) downstream
+        # +1 because cols start at 1 = A
+        # +8 because it needs to be displayed on right end of cycletime table on sheet 
+        entry = f"{get_column_letter(runrate_table_col + 1 + 6)}{rownum} = {cleaned_response} || "  
+    
+        changes_file = yaml_file.replace("scope.yaml","import.changes.txt")
+        print(f"Will write LLM response into {changes_file}")
+
+        with open(changes_file, "a") as f:
+            f.write(entry + "\n")
+            print(entry)
+       
+        print(f"Changes written to {changes_file} entry = {entry}")
+
+    
+    # no need to proceed since cycle time has completed 2 passess at this point
+    sys.exit(0)    
+else:
+    print (f"No chain.jira.csv files found matching pattern {csv} so assume it's first pass of cycletime.py")
+
+
+
+
+
 # Connect to Jira with basic auth
 try:
     jira = JIRA(server=JIRA_URL, basic_auth=(JIRA_EMAIL, JIRA_API_TOKEN))
@@ -678,30 +1009,10 @@ except Exception as e:
 # Now we need to write out the changes to a text file that can be picked up by update_sharepoint.py
 changes_list = []
 
-row = runrate_table_row + 2  # skip to next row after <> tag cell
+row = runrate_table_row + 1  # skip to next row after <> tag cell
 col = runrate_table_col # integer! and will need to be convered to letter for openpyxl
 
 from openpyxl.utils import get_column_letter
-
-# write out the headers first
-coord = f"{get_column_letter(col + 1)}{row}"
-
-if scan_ahead_nonblank_rows:
-    prefix = ""
-    scan_ahead_nonblank_rows -= 1
-else:
-    prefix = "INSERT"
-
-entry = f"{coord} = {prefix} Resolved By ||"
-print (entry)
-changes_list.append(entry)
-
-# write out the timestamp in cell adjacent to <> so we can tell when the update occured
-coord = f"{get_column_letter(col + 2)}{row - 1}"
-now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-entry = f"{coord} = {now_str} ||"
-print (entry)
-changes_list.append(entry)
 
 print(f"\n🔄 Bucketizing {len(issues)} issues by calendar weeks...")
 
@@ -722,12 +1033,46 @@ unique_assignee_list = sorted(set(assignee_list))  # unique values, sorted
 print(f"Found {len(unique_assignee_list)} unique assignees: {unique_assignee_list}")
 
 
+
+# FUTURE: delete rows to remove data from previous resync
+# if scan_ahead_nonblank_rows > 0:
+print(f"scan_ahead_nonblank_rows remaining = {scan_ahead_nonblank_rows}")
+temp_row = row
+while (scan_ahead_nonblank_rows + 1 >= 0):
+    print("filling in remaining rows with DELETE")
+    changes_list.append(f"{get_column_letter(runrate_table_col + 1)}{temp_row + scan_ahead_nonblank_rows + 1 } = DELETE || ")
+    scan_ahead_nonblank_rows -= 1
+    #temp_row +=1
+
+
+# write out the timestamp in cell adjacent to <> so we can tell when the update occured
+coord = f"{get_column_letter(col + 1)}{row}"
+now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+entry = f"{coord} = {len(unique_assignee_list)} rows updated on {now_str} by Trinket ||"
+print (entry)
+changes_list.append(entry)
+row += 1
+
+# write out the headers first
+coord = f"{get_column_letter(col + 1)}{row}"
+
+if scan_ahead_nonblank_rows:
+    prefix = ""
+    scan_ahead_nonblank_rows -= 1
+else:
+    prefix = "INSERT"
+
+entry = f"{coord} = {prefix} Resolved By ||"
+print (entry)
+changes_list.append(entry)
+
+
 # write out all the assignees in the header column
 for index, assignee in enumerate(unique_assignee_list):
     print(f"{index}: Processing assignee {assignee}")    
     coord = f"{get_column_letter(col + 1)}{row + 1 + index}"
 
-    if scan_ahead_nonblank_rows:
+    if scan_ahead_nonblank_rows >= 0:
         prefix = ""
         scan_ahead_nonblank_rows -= 1
     else:
@@ -758,65 +1103,6 @@ if issues:
 
 # need to keep track of which week maps to which column so that both OPEN and CLOSE rates are under same colums per week
 week_to_col = {}
-
-# first get all the week numbers so get the min and max across both open and resolved
-#for year, week_num, start_date, end_date in week_info:
-#    week_to_col[week_num] = None
-
-
-''' # week_info_resolved list contains different tuple-size given interval type. see this excerpt from bucketize function below
-    # Store period information with appropriate metadata
-        if interval == "weeks":
-            year_week = get_year_week(current_date)
-            period_info.append((year_week[0], year_week[1], period_start, period_end))
-        elif interval == "months":
-            year_month = get_year_month(current_date)
-            period_info.append((year_month[0], year_month[1], period_start, period_end))
-        elif interval == "years":
-            period_info.append((current_date.year, period_start, period_end))
-        elif interval == "days":
-            period_info.append((current_date.year, current_date.month, current_date.day, period_start, period_end))
-'''
-
-'''interval = runrate_params.get("mode", "weeks")  
-
-# see above comment why "years" is treated differently in for loop
-if interval == "years":
-    for year, start_date, end_date in week_info_resolved:
-        week_to_col[year] = f"{year}"
-elif interval == "months":
-    for year, week_num, start_date, end_date in week_info_resolved:
-        week_to_col[week_num] = f"{year}-{week_num}"
-elif interval == "weeks":
-    for year, week_num, start_date, end_date in week_info_resolved:
-        week_to_col[week_num] = f"week of {start_date}"
-# commentng out "days" for now since the week_to_col indexing is complicated. can't use week_num since it is not unique. 
-# see how the bucketize function is returning period_info for "days".  needs to be revised
-# elif interval == "days":
-#    for year, week_num, day_num, start_date, end_date in week_info_resolved:
-#        week_to_col[week_num] = f"{start_date}"
-else:
-    print(f"Error: unrecognized period interval found in runrate_params mode={interval}")
-    sys.exit(1)
-
-
-# Fill in any gaps in the week sequence
-if week_to_col:
-    min_week = min(week_to_col.keys())
-    max_week = max(week_to_col.keys())
-    
-    print(f"Week range: {min_week} to {max_week}")
-    
-    # Add missing weeks in the range
-    for week_num in range(min_week, max_week + 1):
-        if week_num not in week_to_col:
-            week_to_col[week_num] = week_num    # for now just set it to number of the interval that's missing. maybe best we can do? 
-            print(f"  Added missing week {week_num}")
-
-# Sort week numbers in ascending order
-sorted_week_to_col = sorted(week_to_col.keys())
-print(f"Sorted week numbers: {sorted_week_to_col}")
-'''
 
 from collections import OrderedDict
 
@@ -913,6 +1199,7 @@ for assignee in unique_assignee_list:
     assignee_total = 0
     print ("assignee_total reset to 0")
     # now loop through the weeks and write out the counts
+    jql_ids = []  # to collect jira ids for this assignee across all weeks
     for i, (bucket, (year, week_num, start_date, end_date)) in enumerate(zip(weekly_buckets_resolved, week_info_resolved)):
         #week_str = f"Week {i+1} ({year}-W{week_num:02d})"
         week_str = f"{start_date.strftime('%Y-%m-%d')}"
@@ -970,6 +1257,8 @@ for assignee in unique_assignee_list:
         jql = "key in ("
         for issue in bucket:
             jql += issue.key + ","
+            jql_ids.append(issue.key)   
+
         jql = jql.rstrip(",") + ") order by key asc"
 
         #entry = f"{coord} = {len(bucket)} || "
@@ -981,6 +1270,9 @@ for assignee in unique_assignee_list:
         assignee_total += len(bucket)
         print(f"assignee_total updated to {assignee_total} for assignee={assignee}")
 
+    # write out the  assignee.scope.yaml file for this assignee 
+    write_execsummary_yaml(jql_ids,fileinfo, assignee.replace(' ','_'), row + 1, timestamp)
+
     # now write out the assignee_total
     coord = f"{get_column_letter(week_to_col['total'])}{row + 1}"
     entry = f"{coord} = {assignee_total} || " 
@@ -990,10 +1282,6 @@ for assignee in unique_assignee_list:
     
     row = row + 1   # move to next row for next assignee    
 
-
-
-    # FUTURE: delete rows to remove data from previous resync
-    # if scan_ahead_nonblank_rows > 0:
 
 
 changes_file = yaml_file.replace("scope.yaml","import.changes.txt")

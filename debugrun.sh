@@ -1,0 +1,1 @@
+python3 appnew.py --port 7000 --auth user_auth --callback http://localhost:7000 --env dev
