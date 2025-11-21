@@ -658,6 +658,65 @@
             transform: translateX(2px);
         }
 
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+    .modal {
+        background: #fff;
+        padding: 25px 30px;
+        border-radius: 14px;
+        width: 320px;
+        max-width: 90%;
+        text-align: center;
+        box-shadow: 0px 6px 20px rgba(0,0,0,0.2);
+        animation: fadeInUp 0.25s ease-out;
+    }
+
+    .modal h3 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        color: var(--text-dark);
+        font-size: 20px;
+    }
+
+    .modal p {
+        margin: 0 0 20px 0;
+        color: var(--text-light);
+    }
+
+    .modal button {
+        padding: 8px 20px;
+        border: none;
+        border-radius: 8px;
+        background: var(--primary);
+        color: white;
+        font-size: 15px;
+        cursor: pointer;
+    }
+
+    .modal button:hover {
+        opacity: 0.9;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            transform: translateY(15px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
     </style>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -712,7 +771,7 @@
                         <span class="menu-arrow">›</span>
                     </button>
                     <div class="submenu" id="submenu-info">
-                        <a href="/about" class="submenu-item">About</a>
+                        <a href="https://www.cloudcurio.com" class="submenu-item">About</a>
                         <a href="/system-info" class="submenu-item">System Info</a>
                         <a href="#section3" class="submenu-item" onclick="showSection('section3'); return false;">Debug Logs</a>
 
@@ -1135,61 +1194,63 @@
                         <p style="color: var(--text-light);">Version and system details will appear here.</p>
                     </div>
                 </div>
+
+                <!-- Section 7: Info -->
+                <div id="section7" class="section-content">
+                    <div class="user-header">
+                        <img src="/static/usericon2.png" alt="User">
+                        <span>{{username}}</span>
+                    </div>
+                    <div class="card">
+                        <h2>System Information</h2>
+                        <p style="color: var(--text-light);">Version and system details will appear here.</p>
+                    </div>
+                    <div>
+                        <button id="btn-section3">
+                            <img src="/static/debuglogs.png" alt="">
+                            <span>Debug Logs</span>
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- Section 8: Feedback -->
+                <div id="section8" class="section-content">
+                    <div class="user-header">
+                        <img src="/static/usericon2.png" alt="User">
+                        <span>{{username}}</span>
+                    </div>
+                    <div class="card">
+                        <h2>
+                            <img src="/static/feedbackicon.png" alt="Feedback">
+                            Thank you for sharing your feedback.
+                        </h2>
+                        <p style="color: var(--text-light); margin-bottom: 20px;">The team will review your comments and follow up as needed. </p>
+ 
+                        <form id="contactForm" class="left-form" method="POST" action="/contact">
+                            <div class="form-row">
+                                <label>Your Name</label>
+                                <input type="text" name="contact" placeholder="Enter your name">
+                            </div>
+                            <div class="form-row">
+                                <label>Email Address</label>
+                                <input type="text" name="feedback_email" placeholder="your@email.com">
+                            </div>
+                            <div class="form-row" style="flex-direction: column; align-items: flex-start;">
+                                <label>Your Comments</label>
+                                <textarea name="feedback_message" rows="6" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical;" placeholder="Tell us what you think..."></textarea>
+                            </div>
+                            <button type="submit">
+                                Send Message
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
             </div>
         </main>
     </div>
 
-
-    <!-- Section 7: Info -->
-    <div id="section7" class="section-content">
-        <div class="user-header">
-            <img src="/static/usericon2.png" alt="User">
-            <span>{{username}}</span>
-        </div>
-        <div class="card">
-            <h2>System Information</h2>
-            <p style="color: var(--text-light);">Version and system details will appear here.</p>
-        </div>
-        <div>
-            <button id="btn-section3">
-                <img src="/static/debuglogs.png" alt="">
-                <span>Debug Logs</span>
-            </button>
-        </div>
-
-    </div>
-
-    <!-- Section 8: Feedback -->
-    <div id="section8" class="section-content">
-        <div class="user-header">
-            <img src="/static/usericon2.png" alt="User">
-            <span>{{username}}</span>
-        </div>
-        <div class="card">
-            <h2>
-                <img src="/static/feedbackicon.png" alt="Feedback">
-                Give us feedback!
-            </h2>
-            <p style="color: var(--text-light); margin-bottom: 20px;">We'd love to hear your thoughts and suggestions!</p>
-            <form class="left-form">
-                <div class="form-row">
-                    <label>Your Name</label>
-                    <input type="text" name="feedback_name" placeholder="Enter your name">
-                </div>
-                <div class="form-row">
-                    <label>Email</label>
-                    <input type="text" name="feedback_email" placeholder="your@email.com">
-                </div>
-                <div class="form-row" style="flex-direction: column; align-items: flex-start;">
-                    <label>Feedback</label>
-                    <textarea name="feedback_message" rows="6" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical;" placeholder="Tell us what you think..."></textarea>
-                </div>
-                <button type="submit">
-                    Submit Feedback
-                </button>
-            </form>
-        </div>
-    </div>
 
 
     <!-- Schedule Modal -->
@@ -1264,6 +1325,7 @@
 
     <!-- Toast -->
     <div id="toast"></div>
+
 
     <script>
         /* Section Management */
@@ -2037,6 +2099,62 @@
             showToast("⚠ Error connecting to server", false);
         });
     }
+
+
+
+
+    //* Contact Form (Section 8) */
+const contactForm = document.getElementById('contactForm');
+if (contactForm) {
+    contactForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        const name = contactForm.querySelector('input[name="contact"]').value.trim();
+        const email = contactForm.querySelector('input[name="feedback_email"]').value.trim();
+        const message = contactForm.querySelector('textarea[name="feedback_message"]').value.trim();
+
+        // Basic email regex
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        // Validation checks
+        if (!name) {
+            showToast("⚠ Please enter your name.", false);
+            return;
+        }
+
+        if (!email) {
+            showToast("⚠ Please enter your email.", false);
+            return;
+        }
+
+        if (!emailRegex.test(email)) {
+            showToast("⚠ Please enter a valid email address.", false);
+            return;
+        }
+
+        if (!message) {
+            showToast("⚠ Please enter a message.", false);
+            return;
+        }
+
+        // If valid → submit with AJAX
+        const formData = new FormData(contactForm);
+
+        fetch('/contact', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            showToast("✅ Message sent successfully!");
+            contactForm.reset();
+        })
+        .catch(() => {
+            showToast("⚠ Failed to send message", false);
+        });
+    });
+}
+
 
 
     </script>

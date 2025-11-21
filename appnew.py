@@ -2387,6 +2387,22 @@ def touch_file(data):
         print("Drive API error:", e)
         return jsonify({"error": str(e)}), 500
     
+@app.before_request
+def debug():
+    print(">>>", request.method, request.path)
+
+
+@app.route("/contact", methods=["POST"])
+def contact():
+    name = request.form.get("contact")
+    email = request.form.get("feedback_email")
+    message = request.form.get("feedback_message")
+
+    print(f"/contact endpoint called name={name} email={email} message={message}")
+
+    return {"status": "ok"}
+
+
 # --- Step 4: Later, backend reuses refresh token to fetch file ---
 '''@app.route("/download_file")
 def download_file():
