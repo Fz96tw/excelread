@@ -1,0 +1,14 @@
+version: "3"
+services:
+  goaccess:
+    #image: allinurl/goaccess
+    image: allinurl/goaccess:1.8
+    container_name: goaccess_npm
+    volumes:
+      - /home/nadeem/github/excelread/data/logs:/srv/logs:ro
+      - ./report:/srv/report
+      - ./goaccess.conf:/srv/goaccess.conf:ro
+      - ./start.sh:/start.sh:ro
+    entrypoint: ["/bin/sh", "/start.sh"]
+    ports:
+      - "7890:7890"
