@@ -669,7 +669,7 @@
             z-index: 9999;
         }
 
-    .modal {
+    /*.modal {
         background: #fff;
         padding: 25px 30px;
         border-radius: 14px;
@@ -679,7 +679,7 @@
         box-shadow: 0px 6px 20px rgba(0,0,0,0.2);
         animation: fadeInUp 0.25s ease-out;
     }
-
+*/
     .modal h3 {
         margin-top: 0;
         margin-bottom: 10px;
@@ -1227,10 +1227,10 @@
                         </h2>
                         <p style="color: var(--text-light); margin-bottom: 20px;">The team will review your comments and follow up as needed. </p>
  
-                        <form id="contactForm" class="left-form" method="POST" action="/contact">
+                        <form id="contactForm" class="left-form" method="POST" action="/contactus">
                             <div class="form-row">
                                 <label>Your Name</label>
-                                <input type="text" name="contact" placeholder="Enter your name">
+                                <input type="text" name="contactus" placeholder="Enter your name">
                             </div>
                             <div class="form-row">
                                 <label>Email Address</label>
@@ -1244,6 +1244,7 @@
                                 Send Message
                             </button>
                         </form>
+
                     </div>
                 </div>
 
@@ -2109,7 +2110,7 @@ if (contactForm) {
     contactForm.addEventListener('submit', function (event) {
         event.preventDefault();
 
-        const name = contactForm.querySelector('input[name="contact"]').value.trim();
+        const name = contactForm.querySelector('input[name="contactus"]').value.trim();
         const email = contactForm.querySelector('input[name="feedback_email"]').value.trim();
         const message = contactForm.querySelector('textarea[name="feedback_message"]').value.trim();
 
@@ -2140,7 +2141,7 @@ if (contactForm) {
         // If valid → submit with AJAX
         const formData = new FormData(contactForm);
 
-        fetch('/contact', {
+        fetch('/contactus', {
             method: 'POST',
             body: formData
         })

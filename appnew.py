@@ -22,7 +22,14 @@ from datetime import datetime
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Allow HTTP for local dev
 
+from flask_cors import CORS
+
 app = Flask(__name__)
+# Allow requests from your frontend domain
+CORS(app, origins=["https://www.cloudcurio.com"])
+
+
+
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key")  # Use a real secret in production
 
 from flask_login import LoginManager, current_user
@@ -142,7 +149,7 @@ BANNER_PATH = '/static/banner3.jpg'  # put banner.jpg in static folder
 # -------------------------------
 #load_dotenv()
 # load system level settings first from system.env from config folder
-ENV_PATH = os.path.join(os.path.dirname(__file__), "config", "system.env")
+ENV_PATH = os.path.join(os.path.dirname(__file__), "config", "env.system")
 #ENV_PATH = os.path.join(os.path.dirname(__file__), "system.env")
 #ENV_PATH = "config/system.env"
 
@@ -2391,9 +2398,22 @@ def touch_file(data):
 def debug():
     print(">>>", request.method, request.path)
 
-
-@app.route("/contact", methods=["POST"])
+@app.route('/contact', methods=['POST'])
 def contact():
+    print("/contact endpoint called")
+    data = request.get_json()
+    full_name = data.get('fullName')
+    email = data.get('email')
+    message = data.get('message')
+    print(f"/contact endpoint called name={full_name} email={email} message={message}")
+    
+    # Your processing logic here
+    
+    return jsonify({'success': True}), 200
+
+
+@app.route("/contactus", methods=["POST"])
+def contactus():
     name = request.form.get("contact")
     email = request.form.get("feedback_email")
     message = request.form.get("feedback_message")

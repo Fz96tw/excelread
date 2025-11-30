@@ -33,7 +33,7 @@ services:
       - appnet
 
   ollama:
-    image: llama3.2-1b
+    image: fz96tw/llama3.2-1b:v1
     container_name: llama
     ports:
       - "11434:11434"
@@ -76,7 +76,8 @@ services:
   # 🧠 GoAccess + Nginx Dashboard
   # -------------------------------
   goaccess:
-    image: allinurl/goaccess
+    #image: allinurl/goaccess
+    image: allinurl/goaccess:1.8
     container_name: goaccess_npm
     restart: unless-stopped
     volumes:

@@ -11,11 +11,11 @@ COPY . .
 #RUN rm ./config/users.json.lock
 
 RUN apt-get update && apt-get install -y dos2unix && \
-    dos2unix /appnew/config/system.env && \
+    dos2unix /appnew/config/env.system && \
     apt-get remove -y dos2unix && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 #RUN dos2unix /appnew/config/env.system
 
-RUN sed -i 's/\r$//' /appnew/config/system.env
+RUN sed -i 's/\r$//' /appnew/config/env.system
 
 # Install tzdata and set timezone
 RUN apt-get update && \
@@ -36,4 +36,6 @@ EXPOSE 5000
 ENV AUTH=user_auth
 
 #CMD ["python", "appnew.py", "--auth", "user_auth"]
-CMD ["gunicorn", "appnew:app", "--bind", "0.0.0.0:5000", "-w", "4"]
+#CMD ["gunicorn", "appnew:app", "--bind", "0.0.0.0:5000", "-w", "4"]
+CMD ["gunicorn", "appnew:app", "--bind", "0.0.0.0:5000", "-w", "4", "--log-level", "debug", "--access-logfile", "-", "--error-logfile", "-"]
+

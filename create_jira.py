@@ -198,8 +198,14 @@ jira_create_row = data.get('jira_create_rows',[])
 
 # Load environment variables from a .env file if present
 #load_dotenv()
-ENV_PATH = "../../../config/.env"
+#ENV_PATH = "../../../config/.env"
+#load_dotenv(dotenv_path=ENV_PATH)
+
+# load .env from config folder
+ENV_PATH = f"../../../config/env.{userlogin}"
 load_dotenv(dotenv_path=ENV_PATH)
+
+
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
 JIRA_URL = os.environ.get("JIRA_URL")
 JIRA_EMAIL = os.environ.get("JIRA_EMAIL")
