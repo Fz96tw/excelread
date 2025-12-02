@@ -42,8 +42,8 @@ services:
       - appnet
 
   ai-connector:
-    image: ai-connector
-    container_name: ai_connector
+    image: ai-connector:latest
+    container_name: ai-connector
     ports:
       - "5000:5000"
     depends_on:
@@ -54,6 +54,8 @@ services:
       - config:/appnew/config
       - /c:/mnt/c
       - /home/nadeem/github/excelread/logs:/appnew/logs
+      - /home/nadeem/github/excelread/config:/appnew/config_local  # just so i can write contactus.messages.txt
+
     environment:
       - SUMMARIZER_HOST=http://summarizer:8000
 

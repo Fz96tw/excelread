@@ -1,6 +1,40 @@
 import re
 
 
+
+import smtplib
+
+
+def send_text_email(subject: str, from_address: str, to_address: str, data: str):
+    print(
+        f"send_text_email called params= {subject}, {from_address}, {to_address}, "
+        f"{data[:20]}{'...' if len(data) > 20 else ''}"
+    )
+
+    # Build a raw RFC822 email manually
+    message = (
+        f"Subject: {subject}\n"
+        f"From: {from_address}\n"
+        f"To: {to_address}\n"
+        f"Content-Type: text/plain; charset=utf-8\n"
+        f"\n"
+        f"{data}"
+    )
+
+    smtp_server = "smtp.gmail.com"
+    smtp_port = 587
+    smtp_user = "fz96tw@gmail.com"
+    smtp_password = "tgpmcbauhlligxvi"  # Your 16-char Gmail app password
+
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.sendmail(from_address, [to_address], message.encode("utf-8"))
+
+    print(f"Plain-text email sent to {to_address}")
+
+
+
 def is_googlesheet(filename: str) -> bool:
      # Detect if source is Google Sheet (simple heuristic: URL or just ID)
     is_google_sheet = isinstance(filename, str) and ("docs.google.com/spreadsheets" in filename or re.match(r"^[a-zA-Z0-9-_]{20,}$", filename))

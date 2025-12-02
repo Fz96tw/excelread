@@ -2398,6 +2398,8 @@ def touch_file(data):
 def debug():
     print(">>>", request.method, request.path)
 
+from datetime import datetime
+
 @app.route('/contact', methods=['POST'])
 def contact():
     print("/contact endpoint called")
@@ -2405,11 +2407,34 @@ def contact():
     full_name = data.get('fullName')
     email = data.get('email')
     message = data.get('message')
-    print(f"/contact endpoint called name={full_name} email={email} message={message}")
-    
+    print(f"/contact endpoint params name={full_name} email={email} message={message}")
+
+    # ---- Write payload parameters to file with timestamp ----
+    try:
+        timestamp = datetime.utcnow().isoformat() + "Z"  # e.g. 2025-12-02T10:24:51.123Z
+        with open("./config_local/contactus.messages.txt", "a", encoding="utf-8") as f:
+            f.write("----- Contact Us Submission -----\n")
+            f.write(f"Received: {timestamp}\n")
+            f.write(f"Name: {full_name}\n")
+            f.write(f"Email: {email}\n")
+            f.write(f"Message: {message}\n")
+            f.write("\n")
+        print("Payload written to contactus.messages.txt")
+    except Exception as e:
+        print(f"Error writing payload to file: {e}")
+
     # Your processing logic here
-    
+    print("sending Contact us email...")
+    send_text_email(
+        "cloudcurio visitor " + email,
+        "fz96tw@gmail.com",
+        "info@cloudcurio.com",
+        full_name + "\n\n" + email + "\n\n" + message
+    )
+    print("Contact us email sent")
+
     return jsonify({'success': True}), 200
+
 
 
 @app.route("/contactus", methods=["POST"])
@@ -2418,7 +2443,7 @@ def contactus():
     email = request.form.get("feedback_email")
     message = request.form.get("feedback_message")
 
-    print(f"/contact endpoint called name={name} email={email} message={message}")
+    print(f"/contactus endpoint called name={name} email={email} message={message}")
 
     return {"status": "ok"}
 
