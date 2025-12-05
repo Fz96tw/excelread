@@ -17,6 +17,8 @@ services:
       - DOMAIN=cloudcurio.com
       - PASSWORD=2c3fead7c88a4613b1b0b3ca4e9639e8
       - INTERVAL=600
+    networks:
+      - appnet
 
   nginxproxymanager:
     image: jc21/nginx-proxy-manager:latest
@@ -108,8 +110,13 @@ services:
     networks:
       - appnet
 
+#networks:
+#  appnet:
+#    driver: bridge
+
 networks:
   appnet:
+    name: appnet      # <-- must match exactly
     driver: bridge
 
 volumes:

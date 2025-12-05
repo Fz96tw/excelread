@@ -411,8 +411,8 @@
 
         /* Log Viewer */
         .log-viewer {
-            background: #1e1e1e;
-            color: #d4d4d4;
+            background: #ffffff;
+            color: #000000;
             font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: 13px;
             padding: 20px;
@@ -421,13 +421,15 @@
             overflow-y: auto;
             white-space: pre-wrap;
             line-height: 1.6;
+            border: 2px solid #d3d3d4;  /* Add this line - change color as needed */
+
         }
 
         .log-error { color: #f87171; }
         .log-warning { color: #fbbf24; }
         .log-info { color: #60a5fa; }
         .traceback-block {
-            background: #2d1b1b;
+            background: #ffc5c5;
             border-left: 3px solid #ef4444;
             padding-left: 12px;
             margin: 8px 0;
@@ -770,17 +772,18 @@
                         <span>Info</span>
                         <span class="menu-arrow">›</span>
                     </button>
+
                     <div class="submenu" id="submenu-info">
                         <a href="https://www.cloudcurio.com" class="submenu-item">About</a>
                         <a href="/system-info" class="submenu-item">System Info</a>
+                        <a href="#section9" class="submenu-item" onclick="showSection('section9'); return false;">Run History</a>
                         <a href="#section3" class="submenu-item" onclick="showSection('section3'); return false;">Debug Logs</a>
-
-                    </div>
-                </div>
+                    </div>               
+                 </div>
 
                 <button id="btn-section8">
                     <img src="/static/feedbackicon.png" style="filter: none; width: 22px; height: 22px;" alt="">
-                    <span>Give Feedback</span>
+                    <span> Send Feedback</span>
                 </button>
             </div>
 
@@ -941,17 +944,25 @@
                     </div>
                 </div>
 
+                
                 <!-- Section 3: Debug Logs -->
+
                 <div id="section3" class="section-content">
+                    <div class="user-header">
+                        <img src="/static/usericon2.png" alt="User">
+                        <span>{{username}}</span>
+                    </div>
                     <div class="card">
                         <h2>Debug Logs</h2>
                         <div style="margin-bottom: 16px;">
-                            <label style="font-weight: 500; margin-bottom: 8px; display: block;">Select Run Folder</label>
+                            <label style="font-weight: 500; margin-bottom: 8px; display: block;">Select Log</label>
                             <select id="logRunSelect" style="width: 300px; padding: 8px; border-radius: 8px; border: 1px solid var(--border);"></select>
                         </div>
                         <pre id="logViewer" class="log-viewer"></pre>
                     </div>
                 </div>
+
+
 
                 <!-- Section 4: LLM Model -->
                 <div id="section4" class="section-content">
@@ -1195,7 +1206,7 @@
                     </div>
                 </div>
 
-                <!-- Section 7: Info -->
+                <!-- Section 7: Info >
                 <div id="section7" class="section-content">
                     <div class="user-header">
                         <img src="/static/usericon2.png" alt="User">
@@ -1212,7 +1223,23 @@
                         </button>
                     </div>
 
+                </div-->
+
+
+                <!-- Section 9: Run Logs -->
+                <div id="section9" class="section-content">
+                                <div class="user-header">
+                        <img src="/static/usericon2.png" alt="User">
+                        <span>{{username}}</span>
+                    </div>
+        
+                    <div class="card">
+                        <h2>Run History</h2>
+                        <pre id="runLogViewer" class="log-viewer"></pre>
+                    </div>
                 </div>
+
+
 
                 <!-- Section 8: Feedback -->
                 <div id="section8" class="section-content">
@@ -1338,8 +1365,11 @@
             section5: document.getElementById('section5'),
             section6: document.getElementById('section6'),
             section7: document.getElementById('section7'),
-            section8: document.getElementById('section8')
+            section8: document.getElementById('section8'),
+            section9: document.getElementById('section9')  // ADDED THIS LINE
         };
+
+
 
         const buttons = {
             section1: document.getElementById('btn-section1'),
@@ -2157,6 +2187,62 @@ if (contactForm) {
 }
 
 
+
+        /* Run Logs Viewer */
+        async function loadRunLog() {
+            try {
+                const username = "{{username}}"; // Get from template
+                const res = await fetch(`/runlog/${username}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const text = await res.text();
+                const viewer = document.getElementById("runLogViewer");
+                
+                if (!text.trim()) {
+                    viewer.textContent = "(empty)";
+                } else {
+                    let formatted = text;
+
+                    // Format timestamps to be different color
+                    // Format two consecutive timestamps - first blue, second green
+                    formatted = formatted.replace(
+                        /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/g,
+                        '<span style="color: #4dabf7;">$1</span> <span style="color: #51cf66;">$2</span>'
+                    );
+                    viewer.innerHTML = formatted;
+                }
+                
+                // Auto-scroll to bottom
+                viewer.scrollTop = viewer.scrollHeight;
+            } catch (err) {
+                document.getElementById("runLogViewer").textContent = "⚠ Failed to load run log file.";
+                console.error(err);
+            }
+        }
+
+
+        function showSection(sectionId) {
+            Object.keys(sections).forEach(key => {
+                sections[key].classList.remove('active');
+                if (buttons[key]) buttons[key].classList.remove('active');
+            });
+            if (sections[sectionId]) {
+                sections[sectionId].classList.add('active');
+                if (buttons[sectionId]) buttons[sectionId].classList.add('active');
+                history.replaceState(null, '', '#' + sectionId);
+                
+                // Load run log when section9 is shown
+                if (sectionId === 'section9') {
+                    loadRunLog();
+                }
+            }
+        }
+
+
+
+        window.addEventListener("DOMContentLoaded", () => {
+            if (document.getElementById("section3")) loadRunFolders();
+            if (document.getElementById("section9")) loadRunLog();  // ADDED THIS LINE
+        });
 
     </script>
 </body>

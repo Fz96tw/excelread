@@ -97,9 +97,10 @@ def delete_old_folders_by_hours(path: str, hours: int):
 
 
 def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
-    """
-    Full resync process with recursive handling of YAML files.
-    """
+
+    # Record start time
+    start_time = datetime.now()
+    start_time_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
 
     logger.info(f"\n\nResync called on URL={url}, userlogin={userlogin} delegated_auth={delegated_auth} workdir={workdir} ts={ts}")
                 
@@ -107,6 +108,14 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
     run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
     logger.info(f"run_id set to {run_id}")        
 
+
+    # Setup user-specific resync log file
+    base_dir = os.path.dirname(__file__)
+    task_logs_dir = os.path.join(base_dir, "logs/" + userlogin)
+    os.makedirs(task_logs_dir, exist_ok=True)
+    
+    resync_calls_log = os.path.join(task_logs_dir, f"resync.{userlogin}")
+ 
 
     # do this right here instead of later to limit the number of changes
     # needed to make to add support for sheet name
@@ -128,7 +137,6 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                 print(f"changed directory to ../../../ and now cwd={os.getcwd()}")
         
             logger.info("Detected Google Sheets URL")
-    #        filename = url
             doc_id = extract_google_doc_id(url)
             basename = get_google_drive_filename(userlogin, doc_id) or doc_id
             filename = basename
@@ -169,7 +177,6 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
         work_dir = workdir
 
 
-#    logs_dir = os.path.join(base_dir, "logs")
     logs_dir = work_dir  # os.path.join(base_dir, f"logs/{userlogin}")  # keep log in the user folder same place as yaml and other temp fiels
     os.makedirs(logs_dir, exist_ok=True) 
 
@@ -240,56 +247,9 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
 
         return output_lines
 
-    '''def run_post_import_resync_chain(csv_files, file_url, input_file):
-        def extract_substring_from_csv(path):
-            m = re.match(rf"{re.escape(input_file)}\.(.+)\.jira\.csv", os.path.basename(path))
-            return m.group(1) if m else ""
-
-        csv_files.sort(key=extract_substring_from_csv)
-
-        for jira_csv in csv_files:
-            match = re.match(rf"{re.escape(input_file)}\.(.+)\.jira\.csv", os.path.basename(jira_csv))
-            if not match:
-                continue
-            substring = match.group(1)
-
-            while True:
-                run_and_log(
-                    ["python", "-u", update_excel_script, jira_csv, input_file, timestamp],
-                    log,
-                    f"update_excel.py {jira_csv} {input_file} {timestamp}"
-                )
-
-                output_lines = run_and_log(
-                    ["python", "-u", update_sharepoint_script, url, f"{input_file}.{substring}.changes.txt", timestamp],
-                    log,
-                    f"update_sharepoint.py {url} {input_file}.{substring}.changes.txt {timestamp}"
-                )
-
-                if any("Aborting update" in line for line in output_lines):
-                    wait_msg = f"Aborting update detected for {jira_csv}, waiting 30 seconds before retry..."
-                    logger.warning(wait_msg)
-                    log.write(wait_msg + "\n")
-                    time.sleep(30)
-                    continue
-                else:
-                    break
-    '''
-
-
-
-
     def process_yaml(file_url, input_file, sheet, timestamp, delegated_auth, userlogin):
         
-        '''if is_googlesheet(file_url):
-            logger.info("process_yaml: Detected Google Sheets URL")
-            logger.info(f"Running scope.py on {file_url} {sheet} timestamp={timestamp}...")
-            run_and_log(["python", "-u", scope_script, file_url, sheet, timestamp, userlogin], log, f"scope.py {file_url} {timestamp} {userlogin}")
-        else:
-            logger.info("process_yaml: Not a Google Sheets URL")
-            logger.info(f"Running scope.py on {input_file} {sheet} timestamp={timestamp}...")
-            run_and_log(["python", "-u", scope_script, input_file, sheet, timestamp, userlogin], log, f"scope.py {input_file} {timestamp} {userlogin}")
-        '''
+
         input_file_orig = input_file
 
         if is_googlesheet(file_url):
@@ -382,7 +342,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                             continue
                         
                         logger.info(f"Processing assignee YAML file: {chain_yaml_file}")
-                        match = re.match(f"{re.escape(input_file_orig)}\.(.+?)\.assignee\.scope\.yaml", os.path.basename(chain_yaml_file))
+                        match = re.match(rf"{re.escape(input_file_orig)}\.(.+?)\.assignee\.scope\.yaml", os.path.basename(chain_yaml_file))
                         if match:
                             substring_chain = match.group(1)
                             jira_csv = f"{input_file_orig}.{substring_chain}.jira.csv"
@@ -394,7 +354,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                             #logger.info(f"Updating Excel with {jira_csv}...")
                             #run_and_log(["python", "-u", update_excel_script, jira_csv, input_file, sheet, userlogin], log, f"update_excel.py {jira_csv} {input_file} {sheet} {userlogin}")
                         else:
-                            print(f"re.match failed for ({input_file_orig})\.(.+)\.assignee\.scope\.yaml, os.path.basename({chain_yaml_file})")
+                            print(rf"re.match failed for ({input_file_orig})\.(.+)\.assignee\.scope\.yaml, os.path.basename({chain_yaml_file})")
 
                     # at this point all the chain.jira.csv files should be created (or not if read_jira failed for valid reasons)
                     # so let's call cycletime again so it will discover and process these  jira.csv files now
@@ -423,7 +383,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                             continue
                         
                         logger.info(f"Processing Chain YAML file: {chain_yaml_file}")
-                        match = re.match(f"{re.escape(input_file_orig)}\.(.+?)\.chain\.scope\.yaml", os.path.basename(chain_yaml_file))
+                        match = re.match(rf"{re.escape(input_file_orig)}\.(.+?)\.chain\.scope\.yaml", os.path.basename(chain_yaml_file))
                         if match:
                             substring_chain = match.group(1)
                             jira_csv = f"{input_file_orig}.{substring_chain}.jira.csv"
@@ -435,7 +395,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                             #logger.info(f"Updating Excel with {jira_csv}...")
                             #run_and_log(["python", "-u", update_excel_script, jira_csv, input_file, sheet, userlogin], log, f"update_excel.py {jira_csv} {input_file} {sheet} {userlogin}")
                         else:
-                            print(f"re.match failed for ({input_file_orig})\.(.+)\.chain\.scope\.yaml, os.path.basename({chain_yaml_file})")
+                            print(rf"re.match failed for ({input_file_orig})\.(.+)\.chain\.scope\.yaml, os.path.basename({chain_yaml_file})")
 
                     # at this point all the chain.jira.csv files should be created (or not if read_jira failed for valid reasons)
                     # so let's call cycletime again so it will discover and process these  jira.csv files now
@@ -631,43 +591,67 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
            
 
 
-    with open(log_file, "w", encoding="utf-8") as log:
+    try:
+        with open(log_file, "w", encoding="utf-8") as log:
+            try:
+                if not is_googlesheet(url):
+                    logger.info(f"Downloading {url}...")
+                    if delegated_auth:
+                        logger.info("delegated_auth detected")
+                        run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
+                    else:
+                        run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+                
+
+                logger.info("about to call process_yaml")
+                process_yaml(url, filename, sheet, timestamp, delegated_auth, userlogin)
+                
+                logger.info("about to call process_aibrief_yaml")
+                process_aibrief_yaml(url, filename, timestamp, userlogin, delegated_auth)
+
+                # need to download xlsx file again since process_yaml earlier updated
+                # sharepoint and this means the meta data will not match any longer 
+                if not is_googlesheet(url):
+                    logger.info(f"Re-downloading {url}...")
+        #            run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+                    if delegated_auth:
+                        logger.info("delegated_auth detected")
+                        run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
+                    else:
+                        run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
+
+                logger.info("about to call process_aibrief_changes_txt")
+                process_aibrief_changes_txt(url, sheet, filename, timestamp)
+
+            except Exception as e:
+                err_msg = f"Error while running resync: {e}"
+                logger.exception(err_msg)
+                log.write(err_msg + "\n")
+    finally:
+          # Record end time and log the call
+        end_time = datetime.now()
+        end_time_str = end_time.strftime("%Y-%m-%d %H:%M:%S")
+        duration = (end_time - start_time).total_seconds()
+        
+        # Escape commas in parameters to avoid CSV parsing issues
+        url_escaped = url.replace(',', '\\,')
+        workdir_escaped = str(workdir).replace(',', '\\,') if workdir else ''
+        ts_escaped = str(ts).replace(',', '\\,') if ts else ''
+        
+        # Write to user-specific resync calls log
+        #log_line = f"{start_time_str} {end_time_str} {duration}\n{filename} {sheet}\n{url_escaped} {userlogin},{delegated_auth},{workdir_escaped},{ts_escaped}\n"
+        log_line = f"{start_time_str} {end_time_str} {duration:.0f} {filename} {sheet}\n"
+        #log_line = f"{start_time_str},{end_time_str},{duration},{url},{userlogin},{delegated_auth},{workdir},{ts}\n"
+        
         try:
-            if not is_googlesheet(url):
-                logger.info(f"Downloading {url}...")
-                if delegated_auth:
-                    logger.info("delegated_auth detected")
-                    run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
-                else:
-                    run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
-            
-
-            logger.info("about to call process_yaml")
-            process_yaml(url, filename, sheet, timestamp, delegated_auth, userlogin)
-            
-            logger.info("about to call process_aibrief_yaml")
-            process_aibrief_yaml(url, filename, timestamp, userlogin, delegated_auth)
-
-            # need to download xlsx file again since process_yaml earlier updated
-            # sharepoint and this means the meta data will not match any longer 
-            if not is_googlesheet(url):
-                logger.info(f"Re-downloading {url}...")
-    #            run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
-                if delegated_auth:
-                    logger.info("delegated_auth detected")
-                    run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
-                else:
-                    run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
-
-            logger.info("about to call process_aibrief_changes_txt")
-            process_aibrief_changes_txt(url, sheet, filename, timestamp)
-
+            with open(resync_calls_log, "a", encoding="utf-8") as f:
+                f.write(log_line)
+            logger.info(f"Logged resync call to {resync_calls_log}")
         except Exception as e:
-            err_msg = f"Error while running resync: {e}"
-            logger.exception(err_msg)
-            log.write(err_msg + "\n")
+            logger.error(f"Failed to write to resync calls log: {e}")
 
 
     userfolder = f"{work_dir}/../"
     delete_old_folders_by_hours(userfolder,24)   # remove user-level temporary file that are older than 24 hour
+
 

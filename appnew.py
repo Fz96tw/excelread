@@ -2246,6 +2246,32 @@ def get_latest_log(run):
     print(f"Serving log file {log_file} for {current_user.username}")
     return send_from_directory(run_path, log_file)
 
+# Python Flask Route
+@app.route("/runlog/<userlogin>")
+def get_run_log(userlogin):
+    """
+    Return the run log file for the specified user.
+    Reads from ./logs/resync.{userlogin}
+    """
+    print (f"/get_run_log called for userlogin={userlogin}")
+    try:
+        # Construct log file path with username prefix
+        log_file_path = f"./logs/{userlogin}/resync.{userlogin}"
+        
+        with open(log_file_path, 'r') as f:
+            log_content = f.read()
+        
+        print(f"Returning log content for userlogin={userlogin}")
+        print("log_content = " + log_content)
+        return log_content, 200, {'Content-Type': 'text/plain'}
+    except FileNotFoundError:
+        print(f"Log file not found: {log_file_path}")
+        return f"Log file not found: {log_file_path}", 404
+    except Exception as e:
+        print(f"Error reading log file: {str(e)}")
+        return f"Error reading log file: {str(e)}", 500
+
+
 # Load OAuth credentials from JSON file
 CONFIG_DIR = "./config"
 GOOGLE_CLIENT_SECRETS_FILE = os.path.join(CONFIG_DIR, "google_credentials.json")
@@ -2439,11 +2465,35 @@ def contact():
 
 @app.route("/contactus", methods=["POST"])
 def contactus():
-    name = request.form.get("contact")
+    full_name = request.form.get("contact")
     email = request.form.get("feedback_email")
     message = request.form.get("feedback_message")
 
-    print(f"/contactus endpoint called name={name} email={email} message={message}")
+    print(f"/contactus endpoint called name={full_name} email={email} message={message}")
+
+     # ---- Write payload parameters to file with timestamp ----
+    try:
+        timestamp = datetime.utcnow().isoformat() + "Z"  # e.g. 2025-12-02T10:24:51.123Z
+        with open("./config_local/contactus.messages.txt", "a", encoding="utf-8") as f:
+            f.write("----- Contact Us Submission -----\n")
+            f.write(f"Received: {timestamp}\n")
+            f.write(f"Name: {full_name}\n")
+            f.write(f"Email: {email}\n")
+            f.write(f"Message: {message}\n")
+            f.write("\n")
+        print("Payload written to contactus.messages.txt")
+    except Exception as e:
+        print(f"Error writing payload to file: {e}")
+
+    # Your processing logic here
+    print("sending Contact us email...")
+    send_text_email(
+        "cloudcurio visitor " + email,
+        "fz96tw@gmail.com",
+        "info@cloudcurio.com",
+        full_name + "\n\n" + email + "\n\n" + message
+    )
+    print("Contact us email sent")
 
     return {"status": "ok"}
 
