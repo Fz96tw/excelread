@@ -8,12 +8,12 @@ import uuid
 from pathlib import Path
 from dotenv import load_dotenv, set_key 
 from flask import flash
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR 
+#from apscheduler.schedulers.background import BackgroundScheduler
+#from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR 
 
 # my modules
 from refresh import *
-from my_scheduler import *
+#from my_scheduler import *
 from my_utils import *
 
 import logging
@@ -382,6 +382,7 @@ from datetime import datetime
 
 USERS_FILE = "./config/users.json"
 LOCK_FILE = USERS_FILE + ".lock"
+SCHEDULE_LOCK = "./config/schedules.json.lock"
 
 def load_users():
     lock = FileLock(LOCK_FILE)
@@ -432,43 +433,50 @@ def load_llm_config(llm_config_file):
     return None
 
 def load_schedules(sched_file, userlogin=None):
-    if os.path.exists(sched_file):
-        with open(sched_file, "r") as f:
-            print(f"loading schedule file = {sched_file}")
-            schedules = json.load(f)
-            # Only return schedules belonging to this user
-            '''
-            if (userlogin is not None):
-                return [s for s in schedules if s.get("userlogin") == userlogin]
-            else:
+    print("load_schedules called")
+    lock = FileLock(SCHEDULE_LOCK)
+    print("acquired lock for load_schedules")
+    with lock:
+        if os.path.exists(sched_file):
+            with open(sched_file, "r") as f:
+                print(f"loading schedule file = {sched_file}")
+                schedules = json.load(f)
+                # Only return schedules belonging to this user
+                '''
+                if (userlogin is not None):
+                    return [s for s in schedules if s.get("userlogin") == userlogin]
+                else:
+                    return schedules
+                '''
                 return schedules
-            '''
-            return schedules
             
-    return []
+        return []
 
 
 def clear_schedule_file(sched_file, filename, userlogin):
     if not filename:
         return jsonify({"success": False, "message": "Filename missing"}), 400
-    # Load existing schedules
-    schedules = load_schedules(sched_file)
-    # Remove the schedule for this filename if it exists
-    new_schedules = [s for s in schedules if s["filename"] != filename or s["userlogin"] != userlogin]
-    
-    '''
-    new_schedules = {}
-    for s in schedules:
-        if s["filename"] != filename or s["userlogin"] != userlogin:
-            new_schedules.append(s)
-    '''
 
-    # Save back to file
-    with open(sched_file, "w") as f:
-        json.dump(new_schedules, f, indent=4)
-        print(f"cleared schedule file = {sched_file}, removed {filename} replaced by {new_schedules}")
+    lock = FileLock(SCHEDULE_LOCK)
+    with lock:
+        # Load existing schedules
+        schedules = load_schedules(sched_file)
+        # Remove the schedule for this filename if it exists
+        new_schedules = [s for s in schedules if s["filename"] != filename or s["userlogin"] != userlogin]
+        
+        '''
+        new_schedules = {}
+        for s in schedules:
+            if s["filename"] != filename or s["userlogin"] != userlogin:
+                new_schedules.append(s)
+        '''
 
-    #return jsonify({"success": True, "message": f"Schedule for '{filename}' cleared."})
+        # Save back to file
+        with open(sched_file, "w") as f:
+            json.dump(new_schedules, f, indent=4)
+            print(f"cleared schedule file = {sched_file}, removed {filename} replaced by {new_schedules}")
+
+        #return jsonify({"success": True, "message": f"Schedule for '{filename}' cleared."})
 
 
 def load_shared_files(filename):
@@ -953,7 +961,7 @@ else:
 # Global scheduler
 # -----------------------------------------------------------------------------
 # solves the multiple instances of scheduler in flask debug
-import os
+'''import os
 
 
 
@@ -974,16 +982,6 @@ def job_listener(event):
 scheduler = BackgroundScheduler()
 if not scheduler.running:
     scheduler.start()
-    '''scheduler.add_job(
-        dump_job_status, 
-        "interval", 
-        minutes=5, 
-        args=[scheduler], 
-        id="__status_dumper__", 
-        replace_existing = True,
-        misfire_grace_time=300,  # 5 minutes to prevent skipping of jobs when delays occur)
-        max_instances=1 )  # don't start new one if previous still running
-    '''
     scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
     
     # Add after your existing scheduler.start()
@@ -998,7 +996,7 @@ if not scheduler.running:
 
     # Setup all the schedules since app is starting up
     schedule_jobs(scheduler,SCHEDULE_FILE, delegated_auth)
-
+'''
 
 
 def map_windows_path_to_container(path: str) -> str:
@@ -1472,7 +1470,7 @@ def index():
 
                 # if file was scheduled for resync then remove from schedule.json 
                 clear_schedule_file(user_sched_file, to_remove, userlogin) 
-                schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+                #schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
                 return jsonify({"success": True, "message": "File removed successfully"})
             else:
                 print(f"{to_remove} not found in bar_values, no action taken")
@@ -1700,7 +1698,7 @@ def remove_sharepoint():
 
             # if file was scheduled for resync then remove from schedule.json 
             clear_schedule_file(user_sched_file, to_remove, userlogin) 
-            schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+            #schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
             return jsonify({"success": True, "message": "Sharepoint file removed successfully"})
         else:
                 # this shoudl never happen because only way to trigger remove is from a listed file on gui
@@ -1770,7 +1768,7 @@ def remove_local():
 
             # if file was scheduled for resync then remove from schedule.json 
             clear_schedule_file(user_sched_file, to_remove, userlogin) 
-            schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+            #schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
             return jsonify({"success": True, "message": "Local file removed successfully"})
         else:
             print(f"{to_remove} not found in file collection, no action taken")
@@ -1840,14 +1838,17 @@ def schedule_file():
         print(f"Appending new schedule_entry = {schedule_entry}")
         schedules.append(schedule_entry)
 
-    # Save back to file
-    with open(user_sched_file, "w") as f:
-        print(f"saving to schedule file = {user_sched_file}")
-        json.dump(schedules, f, indent=4)
+        # Save back to file
 
-    # update the scheduled jobs
-    global delegated_auth
-    schedule_jobs(scheduler, user_sched_file, delegated_auth, filename, userlogin)
+    lock = FileLock(SCHEDULE_LOCK)
+    with lock:
+        with open(user_sched_file, "w") as f:
+            print(f"saving to schedule file = {user_sched_file}")
+            json.dump(schedules, f, indent=4)
+
+        # update the scheduled jobs
+        global delegated_auth
+        #schedule_jobs(scheduler, user_sched_file, delegated_auth, filename, userlogin)
 
     return jsonify({"success": True, "message": "Schedule saved successfully"})
 
@@ -1864,24 +1865,18 @@ def clear_schedule():
     # Load existing schedules
     user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
     schedules = []
+
     schedules = load_schedules(user_sched_file)  # must load for all userlogins
-    '''
-    if os.path.exists(user_sched_file):
-        with open(user_sched_file, "r") as f:
-            print(f"loading schedule file = {user_sched_file}")
-            schedules = json.load(f)
-    '''
     # Remove the schedule for this file
     #schedules = [s for s in schedules if s["filename"] != filename or s["userlogin"] != userlogin]
     schedules = [s for s in schedules if s["filename"] != filename]
 
     # Save back
-    with open(user_sched_file, "w") as f:
-        print(f"saving schedule file = {user_sched_file}")
-        json.dump(schedules, f, indent=4)
-
-    #update scheduled jobs
-    schedule_job_clear(scheduler, user_sched_file,filename,userlogin)
+    lock = FileLock(SCHEDULE_LOCK)
+    with lock:
+        with open(user_sched_file, "w") as f:
+            print(f"saving schedule file = {user_sched_file}")
+            json.dump(schedules, f, indent=4)
 
     return jsonify({"success": True})
 
@@ -1978,6 +1973,50 @@ def resync_sharepoint():
         "message": f"Resync started for {val}",
         "task_id": task_id
     })
+
+
+@app.route("/resync_sharepoint_userlogin", methods=["POST"])
+def resync_sharepoint_userlogin():
+    """
+    Queue a resync with explicit userlogin (for scheduler use).
+    Does NOT rely on current_user.
+    """
+    filename = request.form.get("filename")
+    user = request.form.get("userlogin")
+
+    print(f"/resync_sharepoint_userlogin endpoint called with filename={filename} and user={user}")
+    if not filename:
+        return jsonify({"success": False, "message": "No filename provided"}), 400
+    if not user:
+        return jsonify({"success": False, "message": "No userlogin provided"}), 400
+
+    cleaned = clean_sharepoint_url(filename)
+
+    #print(f"/resync_sharepoint_userlogin called for user={user}, file={cleaned}")
+
+    global delegated_auth
+    try:
+        '''# Call your existing worker function directly
+        resync(
+            url=cleaned,
+            userlogin=userlogin,
+            delegated_auth=delegated_auth
+        )'''
+        # Enqueue the task
+        task_id = task_queue.enqueue(
+            resync_task_worker,
+            file_url=filename,
+            userlogin=user,
+            delegated_auth=delegated_auth,
+            #google_user_email=google_user_email,
+            user=user
+        )
+
+        print(f"Resync task queued with task_id={task_id} for file={filename} and user={user}  delegated_auth={delegated_auth} ")
+        
+        return jsonify({"success": True, "message": "Resync triggered"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 def is_location_in_shared_files(location_string, shared_files_google):
@@ -2159,7 +2198,7 @@ def remove_google():
 
             # if file was scheduled for resync then remove from schedule.json 
             clear_schedule_file(user_sched_file, to_remove, userlogin) 
-            schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+            #schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
             return jsonify({"success": True, "message": "Google Sheet removed successfully"})
         else:
             print(f"{to_remove} not found in google_values, no action taken")
@@ -2465,7 +2504,7 @@ def contact():
 
 @app.route("/contactus", methods=["POST"])
 def contactus():
-    full_name = request.form.get("contact")
+    full_name = request.form.get("contactus")
     email = request.form.get("feedback_email")
     message = request.form.get("feedback_message")
 

@@ -1,0 +1,31 @@
+
+FROM python:3.11-slim
+
+WORKDIR /scheduler
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application files
+COPY scheduler.py .
+COPY refresh.py .
+COPY my_utils.py .
+COPY google_oauth_appnew.py .
+COPY google_oauth.py .
+
+# Create necessary directories
+RUN mkdir -p /scheduler/config /scheduler/logs
+
+# Install tzdata and set timezone
+RUN apt-get update && \
+    apt-get install -y tzdata && \
+    ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Optional: set environment variable
+ENV TZ=America/New_York
+
+# Run the scheduler service
+CMD ["python", "-u", "scheduler.py"]

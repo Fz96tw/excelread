@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+WORKDIR /summarizer
+
+# Copy requirements first for caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy your app code
+COPY . .
+
+# Install tzdata and set timezone (same as Flask app)
+RUN apt-get update && \
+    apt-get install -y tzdata && \
+    ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=America/New_York
+
+EXPOSE 8000
+CMD ["uvicorn", "summarizer:app", "--host", "0.0.0.0", "--port", "8000"]

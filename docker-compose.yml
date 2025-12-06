@@ -61,6 +61,27 @@ services:
     environment:
       - SUMMARIZER_HOST=http://summarizer:8000
 
+  # Independent scheduler service
+  scheduler:
+    image: scheduler:latest
+    container_name: scheduler
+    build:
+      context: .
+      dockerfile: Dockerfile.scheduler
+    volumes:
+      - config:/scheduler/config  # Shared config directory
+      - /home/nadeem/github/excelread/logs:/scheduler/logs    
+    environment:
+      #- AUTH=user_auth
+      #- PYTHONUNBUFFERED=1
+      - APPNEW_HOST=http://ai-connector:5000
+    restart: unless-stopped
+    depends_on:
+      - ai-connector
+    networks:
+      - appnet
+
+
   summarizer:
     image: summarizer
     container_name: summarizer
