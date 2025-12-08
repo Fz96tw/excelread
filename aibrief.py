@@ -27,6 +27,7 @@ import markdown
 
 from bs4 import BeautifulSoup
 
+
 def html_to_text_with_structure(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
 
@@ -246,6 +247,9 @@ for ref_table in refer_tables:
 
 email_list = data.get('email',[])
 print(f"{yaml_file} contain email: {email_list}")
+wiki_link_list= data.get('wiki',[])
+print(f"{yaml_file} contain wiki link: {wiki_link_list}")
+
 
 llm_prompt = data.get('llm')
 if llm_prompt:
@@ -576,6 +580,10 @@ def extract_table_rows(source, basename, worksheet_name=None, tablename=None):
 
                             print(f"Cell below is at {below_cell.coordinate} with value: {below_cell.value}")
 
+                            # 12/6/2025 not sure why i'm keeping this in list when we will 
+                            # only have one aibrief tag per yaml_file processed. 
+                            # because this code is inside 'if' block after checking for tablename match
+                            # so we will only have one match per yaml_file processed.
                             aibrief_cells.append({
                                 "coordinate": cell.coordinate,
                                 "row": cell.row,
@@ -595,9 +603,11 @@ def extract_table_rows(source, basename, worksheet_name=None, tablename=None):
                 print(f"Finished collecting rows for table '{curr_table}'")
 
             # check if this is a <jira> start
+            # NOTE we are collecting rows for ALL jira tables found, not just those in refer_tables
+            # not sure why i'm collecting all jira tables instead of just those in refer_tables
+            # but leaving it as-is for now.
             jira_cells = [v for v in tag_cells if "<jira>" in v]
             if jira_cells:
-                #curr_table = jira_cells[0].rsplit("<jira>", 1)[0].rstrip().replace(" ", "_").lower()
                 curr_table = jira_cells[0].rsplit("<jira>", 1)[0].rstrip().replace(" ", " ")  # keep case as-is
                 print(f"curr_table set to {curr_table}")                
                 print(f"checking worksheet_name={worksheet_name} against sheet={sheet}")
@@ -624,7 +634,96 @@ def extract_table_rows(source, basename, worksheet_name=None, tablename=None):
 
     return table_rows, aibrief_cells
 
+import sys
+import requests
+from urllib.parse import urlparse
 
+
+def post_to_confluence_wiki(JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN, wiki_link, report):
+    """
+    Updates a Confluence wiki page with new content.
+    If the page exists, it overwrites the body and increments the version.
+    Title is preserved and never changed.
+    """
+
+    def parse_confluence_url(link):
+        print(f"[INFO] Parsing wiki link: {link}")
+        parsed = urlparse(link)
+        parts = parsed.path.strip("/").split("/")
+
+        try:
+            space_key = parts[parts.index("spaces") + 1]
+            page_id = parts[parts.index("pages") + 1]
+        except (ValueError, IndexError):
+            raise ValueError("[ERROR] Invalid Confluence URL format. Could not extract spaceKey or pageId.")
+
+        print(f"[INFO] Extracted spaceKey={space_key}, pageId={page_id}")
+        return space_key, page_id
+
+    def get_page_metadata(page_id):
+        url = f"{JIRA_URL}/wiki/api/v2/pages/{page_id}"
+        print(f"[INFO] Fetching page metadata: {url}")
+
+        response = requests.get(url, auth=(JIRA_EMAIL, JIRA_API_TOKEN))
+
+        if response.status_code != 200:
+            print(f"[ERROR] Failed to fetch page metadata. Status={response.status_code}")
+            print(response.text)
+            raise RuntimeError("Failed to fetch Confluence page metadata")
+
+        print("[INFO] Page metadata retrieved successfully.")
+        return response.json()
+
+    def update_page(page_id, title, report, current_version):
+        new_version = current_version + 1
+
+        print(f"[INFO] Updating page:")
+        print(f"       - Page ID: {page_id}")
+        print(f"       - Title: {title}")
+        print(f"       - Version: {current_version} → {new_version}")
+
+        url = f"{JIRA_URL}/wiki/api/v2/pages/{page_id}"
+
+        payload = {
+            "id": page_id,
+            "title": title,  # MUST match existing title
+            "body": {
+                "representation": "storage",
+                "value": report
+            },
+            "version": {
+                "number": new_version
+            },
+            "status": "current"  # REQUIRED by Confluence API v2 update
+        }
+
+        response = requests.put(url, json=payload, auth=(JIRA_EMAIL, JIRA_API_TOKEN))
+
+        if response.status_code == 200:
+            print("[SUCCESS] Confluence page updated successfully.")
+        else:
+            print(f"[ERROR] Update failed. Status={response.status_code}")
+            print(response.text)
+            raise RuntimeError("Failed to update Confluence page")
+
+    # ------------------------------
+    # Main function execution flow
+    # ------------------------------    
+
+    # Extract page ID from URL
+    space_key, page_id = parse_confluence_url(wiki_link)
+
+    # Fetch existing page metadata
+    meta = get_page_metadata(page_id)
+
+    title = meta["title"]
+    version = meta["version"]["number"]
+
+    print(f"[INFO] Page title (from Confluence): {title}")
+    print(f"[INFO] Current version: {version}")
+
+    # Update the page while preserving title
+    update_page(page_id, title, report, version)
 
 
 # we pass tablename in this case to identify which <aibrief> tag to process
@@ -687,6 +786,8 @@ if sheets_to_resync:
         print(f"Extracting table rows from sheet '{wsheet}' after resync")
         # in this case we do not care about the aibrief_cells returned because we already have them from the original sheet
         # _ variable is used to ignore the second return value
+        # we are caling extract_table_rows again since even tho we have table_rows previously because we did a resync
+        # and the tables were tabled in the sheet
         new_table_rows, _ = extract_table_rows(source, basename, wsheet)
         if (new_table_rows):
             print(f"Extracted tables from sheet '{wsheet}': {list(new_table_rows.keys())}")
@@ -774,6 +875,42 @@ if aibrief_cells:
     for email_id in email_list:
         print(f"Sending email to {email_id}")
         send_markdown_email(f"AI Connector update {basename}.{sheet}.{tablename}","fz96tw@gmail.com", email_id, report )
+
+
+    #if (wiki_link):
+    for wiki_link in wiki_link_list:
+        print(f"wiki link provided: {wiki_link} and will attempt to post the report there")
+
+        # Load environment variables from a .env file if present
+        ENV_PATH_USER = f"../../../config/env.{userlogin}"
+        load_dotenv(dotenv_path=ENV_PATH_USER)
+
+        JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
+        JIRA_URL = os.environ.get("JIRA_URL")
+        JIRA_EMAIL = os.environ.get("JIRA_EMAIL")
+        JIRA_PASSWORD = os.environ.get("JIRA_PASSWORD")
+        print(f"load_dotenv({ENV_PATH_USER}) has read JIRA_URL={JIRA_URL} JIRA_EMAIL={JIRA_EMAIL} JIRA_API_TOKEN={JIRA_API_TOKEN}")
+
+        if ("fz96tw" in wiki_link):
+            print("Using hardcoded JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN for fz96tw wiki link")
+            JIRA_URL='https://fz96tw.atlassian.net'
+            JIRA_EMAIL='fz96tw@gmail.com'
+            JIRA_API_TOKEN='ATATT3xFfGF0UHKRUPbGJ6ox4z5QLDTE78cjuX4CZ9Y5xJfbsrlUXxwIp4HxxAkQPOV3hNO4XPAD0b9z-1j5LfanirZrvHmREqGc3R1UKDGVkTGqUxD52neFsMUbn_0391O6AffhGWSsqVZ3HRk8NA9xiSb7U-odqoDDDGeOEieJnzONC37dE1E=5986EBF2'
+            print(f"override to JIRA_URL={JIRA_URL} JIRA_EMAIL={JIRA_EMAIL} JIRA_API_TOKEN={JIRA_API_TOKEN}")
+
+        if not JIRA_API_TOKEN:
+            print("Warning: unable to post to wiki link since JIRA_API_TOKEN environment variable not set.")
+        else:
+            print(f"Posting to wiki page {wiki_link}")
+            # Convert markdown string to HTML
+            htmlreport = markdown.markdown(report)
+
+            # Wrap HTML in a <div> or send directly
+            confluence_body = f"<div>{htmlreport}</div>"
+
+            post_to_confluence_wiki(JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN, wiki_link, confluence_body)
+
+
 
 else:
     print(f"aibrief_cells is empty so no changes.txt to write")

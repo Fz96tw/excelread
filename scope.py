@@ -141,6 +141,21 @@ def extract_email_list(text: str) -> list[str]:
 #    return [s.strip().replace(" ", "_") for s in substrings.split(",") if s.strip()]
     return [s.strip().replace(" ", "_") for s in substrings.split(",") if s.strip()]
 
+def extract_wiki_link(text: str) -> list[str]:
+    """
+    Extracts all comma-separated substrings after <ai summary> in the given text.
+    Spaces in substrings are replaced with underscores.
+    """
+    match = re.search(r"<wiki>(.*)", text, re.IGNORECASE)
+    if not match:
+        return []
+    
+    # Get everything after <ai summary>
+    substrings = match.group(1).strip()
+    
+    # Split by commas and normalize
+#    return [s.strip().replace(" ", "_") for s in substrings.split(",") if s.strip()]
+    return [s.strip().replace(" ", "_") for s in substrings.split(",") if s.strip()]
 
 
 def extract_second_block(s: str):
@@ -456,6 +471,13 @@ if __name__ == "__main__":
                 email_list = extract_email_list(cell_str)
                 with open(scope_output_file, 'a') as f:
                     yaml.dump({"email":email_list}, f, default_flow_style=False)
+                continue        # we may have <jira> in same row so continue processing
+
+            elif "<wiki>" in cell_str and exec_summary_found:
+                print(f"<wiki> found in cell_str={cell_str}")
+                wiki_link = extract_wiki_link(cell_str)
+                with open(scope_output_file, 'a') as f:
+                    yaml.dump({"wiki":wiki_link}, f, default_flow_style=False)
                 continue        # we may have <jira> in same row so continue processing
 
             elif "rows updated on" in cell_str:  # can be on same row as <jira> tag or differnt row for <cycletime> <statustime> tables
