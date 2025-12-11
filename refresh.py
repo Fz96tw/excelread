@@ -654,4 +654,27 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
     userfolder = f"{work_dir}/../"
     delete_old_folders_by_hours(userfolder,24)   # remove user-level temporary file that are older than 24 hour
 
+    # send to vectorizer for indexing in future
+    # for now we will copy all the .csv and aibrief.llm.txt files into workdir/vectorstore folder
+    vectorstore_dir = os.path.join(userfolder, "vectorstore")
+    os.makedirs(vectorstore_dir, exist_ok=True)
+    patterns = ["*.jira.csv", "*.aibrief.llm.txt"]
+    for pattern in patterns:
+        print(f"Copying files matching pattern {pattern} to vectorstore folder {vectorstore_dir}...")
+        files_to_copy = glob.glob(os.path.join(work_dir, pattern))
+        for file_path in files_to_copy:
+            try:
+                # Get the original filename
+                original_filename = os.path.basename(file_path)
+                
+                # Strip out the timestamp from the destination filename
+                # Pattern: filename.XXX.timestamp.YYY.extension -> filename.XXX.YYY.extension
+                dest_filename = original_filename.replace(f".{timestamp}.", ".")
+                dest_path = os.path.join(vectorstore_dir, dest_filename)
+                print(f"Copying {file_path} to {dest_path}...")
+                shutil.copy(file_path, dest_path)
+                logger.info(f"Copied {file_path} to {dest_path} (timestamp stripped) for vectorization.")
+            except Exception as e:
+                logger.error(f"Failed to copy {file_path} to {vectorstore_dir}: {e}")
 
+    logger.info(f"Resync process completed in {duration:.0f} seconds.")

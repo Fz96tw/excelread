@@ -51,16 +51,16 @@
         }
 
         .sidebar-logo {
-            width: 100%;
+            width: 100px;
             display: block;
             background: rgba(255, 255, 255, 0.1);
-            padding: 20px;
+            padding: 10px;
         }
 
         .menu-bar {
             display: flex;
             flex-direction: column;
-            padding: 20px 12px;
+            padding: 2px 12px;
             gap: 4px;
             flex: 1;
         }
@@ -73,7 +73,7 @@
             border: none;
             background: transparent;
             color: #4a4a4a;
-            font-size: 18px;
+            font-size: 15px;
             cursor: pointer;
             border-radius: 8px;
             transition: all 0.2s;
@@ -737,7 +737,8 @@
     <div class="app-container">
         <!-- Sidebar -->
         <aside class="left-frame">
-            <img src="/static/trinketlogo5.png" alt="Logo" class="sidebar-logo" style="width: 200px; margin-right: 20px;" alt="Logo">
+            <img src="/static/trinketlogo5.png" alt="Logo" class="sidebar-logo" style="width: 150px; margin-left: 10px; margin-right: 0px;" alt="Logo">
+            <!--img src="/static/sprintsenselogo.png" alt="Logo" class="sidebar-logo" style="width: 250px; margin-right: 0px;" alt="Logo"-->
             
             <div class="menu-bar">
                 <button id="btn-section1">
@@ -788,7 +789,7 @@
             </div>
 
             <div class="left-footer">
-                <button id="btn-exit" onclick="window.location.href='/logout'" style="width: 100%; justify-content: flex-start; background: transparent; color: #4a4a4a; transform: none; font-size: 18px; padding: 12px 16px; gap: 12px;">
+                <button id="btn-exit" onclick="window.location.href='/logout'" style="width: 100%; justify-content: flex-start; background: transparent; color: #4a4a4a; transform: none; font-size: 16px; padding: 12px 16px; gap: 12px;">
                     <img src="/static/exiticon.png" alt="" style="filter: none; width: 28px; height: 28px;">
                     <span>Logout</span>
                 </button>
@@ -1139,7 +1140,7 @@
                     </div>
 
                     <div class="card">
-                        <h2>Google Sheets shared with Trinket AI</h2>
+                        <h2>Google Sheets shared with AI</h2>
                         <table>
                             <thead>
                                 <tr>
@@ -1159,7 +1160,7 @@
                                     <td>
                                         <a href="{{ val.location }}" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 500;">{{ val.filename }}#{{ val.sheet }}</a>
                                         <br><small style="color: var(--text-light);"> Added {{ val.datetime}}</small>
-                                        <br><small style="color: var(--text-light);">{{val.location}}</small>
+                                        <!--br><small style="color: var(--text-light);">{{val.location}}</small-->
                                     </td>
                                     <td style="text-align: center;">
                                         <button type="button" onclick="handleResync('{{ val.location }}', '{{ val.filename }}', '{{ val.sheet }}', event)" title="Resync">

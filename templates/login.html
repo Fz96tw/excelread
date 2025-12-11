@@ -58,9 +58,11 @@
   <div style="display: flex; flex-direction: column; align-items: center; background: #fff; padding: 20px 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
     
     <!-- Logo on the left -->
-    <img src="{{ url_for('static', filename='trinketlogo5.png') }}" style="width: 200px; margin-right: 20px;" alt="Logo">
+    <img src="{{ url_for('static', filename='trinketlogo5.png') }}" style="width: 200px; margin-left: 20px; margin-right: 20px;" alt="Logo">
+    <!--img src="{{ url_for('static', filename='sprintsenselogo.png') }}" style="width: 200px; margin-right: 20px;" alt="Logo"-->
     
     <!-- Login form -->
+     
     <form method="POST" action="{{ url_for('home') }}" style="display: flex; flex-direction: column;">
       <input type="text" name="username" placeholder="Username" required style="padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ccc;">
       <input type="password" name="password" placeholder="Password" required style="padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ccc;">
