@@ -870,7 +870,7 @@ if aibrief_cells:
     # Save context to file
     with open(filename, "w", encoding="utf-8") as f:
         f.write(changes)
-    print(f"changes written to {filename}")
+    print(f"changes written to {filename}") 
 
     for email_id in email_list:
         print(f"Sending email to {email_id}")
@@ -895,8 +895,7 @@ if aibrief_cells:
             print("Using hardcoded JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN for fz96tw wiki link")
             JIRA_URL='https://fz96tw.atlassian.net'
             JIRA_EMAIL='fz96tw@gmail.com'
-            JIRA_API_TOKEN='ATATT3xFfGF0UHKRUPbGJ6ox4z5QLDTE78cjuX4CZ9Y5xJfbsrlUXxwIp4HxxAkQPOV3hNO4XPAD0b9z-1j5LfanirZrvHmREqGc3R1UKDGVkTGqUxD52neFsMUbn_0391O6AffhGWSsqVZ3HRk8NA9xiSb7U-odqoDDDGeOEieJnzONC37dE1E=5986EBF2'
-            print(f"override to JIRA_URL={JIRA_URL} JIRA_EMAIL={JIRA_EMAIL} JIRA_API_TOKEN={JIRA_API_TOKEN}")
+            #print(f"override to JIRA_URL={JIRA_URL} JIRA_EMAIL={JIRA_EMAIL} JIRA_API_TOKEN={JIRA_API_TOKEN}")
 
         if not JIRA_API_TOKEN:
             print("Warning: unable to post to wiki link since JIRA_API_TOKEN environment variable not set.")
