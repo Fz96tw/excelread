@@ -66,8 +66,8 @@ def get_username_from_api_key(api_key: str) -> str:
     global USER_MAPPINGS_CACHE
     
     # Load mappings if not cached
-    if USER_MAPPINGS_CACHE is None:
-        load_user_mappings()
+    #if USER_MAPPINGS_CACHE is None:
+    load_user_mappings()  # always relod cache from file to reflect any changes
     
     print(f"[get_username_from_api_key] Looking up API key: {api_key}")
     

@@ -1169,7 +1169,6 @@ user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
 shared_files_google = []
 shared_files_sharepoint = []
 shared_files_local = []
-mcp_api_key = ""
 
 #logged_in = False
 
@@ -1289,8 +1288,7 @@ def index():
     global shared_files_google
     global shared_files_sharepoint
     global shared_files_local
-    global mcp_api_key
-
+    
     #global BAR_FILE
     #global GOOGLE_FILE
     #global LOCAL_FILES
@@ -1562,8 +1560,8 @@ def index():
                            username=userlogin,
                            auth_username=auth_user_email,
                            google_username=google_user_email,
-                           llm_default=llm_model,
-                           mcp_api_key=mcp_api_key)
+                           llm_default=llm_model
+                           )
 
 
 
