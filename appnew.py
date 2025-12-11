@@ -1169,6 +1169,7 @@ user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
 shared_files_google = []
 shared_files_sharepoint = []
 shared_files_local = []
+mcp_api_key = ""
 
 #logged_in = False
 
@@ -1288,11 +1289,12 @@ def index():
     global shared_files_google
     global shared_files_sharepoint
     global shared_files_local
+    global mcp_api_key
 
     #global BAR_FILE
     #global GOOGLE_FILE
     #global LOCAL_FILES
-
+    
     if (delegated_auth):
         print ("/ route is using delegated_auth flow")
         # Try silent token first
@@ -1398,7 +1400,9 @@ def index():
     shared_files_google = load_shared_files(f"./config/shared_files_google_{userlogin}.json")
     shared_files_local = load_shared_files(f"./config/shared_files_local_{userlogin}.json")
                                             
-                                                
+
+    foo_values["mcp_api_key"] = read_mcp_key(current_user.username)  #using foo_values to avoid passing yet another var to form.html
+                               
 
     #print(f"/ route loaded bar_values = {bar_values}")
 
@@ -1558,7 +1562,8 @@ def index():
                            username=userlogin,
                            auth_username=auth_user_email,
                            google_username=google_user_email,
-                           llm_default=llm_model)
+                           llm_default=llm_model,
+                           mcp_api_key=mcp_api_key)
 
 
 
@@ -2301,7 +2306,7 @@ def get_run_log(userlogin):
             log_content = f.read()
         
         print(f"Returning log content for userlogin={userlogin}")
-        print("log_content = " + log_content)
+        #print("log_content = " + log_content)
         return log_content, 200, {'Content-Type': 'text/plain'}
     except FileNotFoundError:
         print(f"Log file not found: {log_file_path}")
@@ -2502,6 +2507,8 @@ def contact():
 
 
 
+
+
 @app.route("/contactus", methods=["POST"])
 def contactus():
     full_name = request.form.get("contactus")
@@ -2534,6 +2541,118 @@ def contactus():
     )
     print("Contact us email sent")
 
+    return {"status": "ok"}
+
+
+
+
+import json
+import os
+import fcntl  # POSIX file locking
+
+def read_mcp_key(username):
+    """
+    Returns the MCP API key for the given username.
+    If the username is not found, returns a message.
+    """
+    mapping_path = "./config/mcp.user.mapping.json"
+    print(f"read_mcp_key called for username={username}")
+    if not os.path.exists(mapping_path):
+        print("MCP cache file does not exist.")
+        return "Warning: MCP cache file does not exist."
+
+    with open(mapping_path, "r") as f:
+        # Acquire shared lock for reading
+        fcntl.flock(f, fcntl.LOCK_SH)
+
+        try:
+            data = json.load(f)
+            print(f"MCP cache data loaded: {data}")
+        except json.JSONDecodeError:
+            print("MCP cache file is empty or corrupted.")
+            return "user not found in mcp key cache"
+
+        fcntl.flock(f, fcntl.LOCK_UN)  # release lock
+
+    mappings = data.get("mappings", [])
+    entry = next((item for item in mappings if item.get("username") == username), None)
+
+    if entry:
+        key = entry.get("api_key")
+        print(f"Found MCP API key {key} for username={username}")
+        return key
+    else:
+        print(f"Username {username} not found in MCP cache.")
+        return f"'{username}' not found in MCP key cache"
+
+import json
+import uuid
+import os
+import fcntl   # For POSIX file locking
+
+def create_mcp_key(username):
+    """
+    Generates a new UUID API key for the given username, updates or creates
+    the mapping entry in ./config/mcp.user.mapping.json, and ensures thread-
+    safe and process-safe writes using file locking.
+    """
+
+    mapping_path = "./config/mcp.user.mapping.json"
+    os.makedirs(os.path.dirname(mapping_path), exist_ok=True)
+
+    # Generate new API key
+    new_key = str(uuid.uuid4())
+
+    # Ensure the file exists before locking
+    if not os.path.exists(mapping_path):
+        with open(mapping_path, "w") as f:
+            json.dump({"mappings": []}, f, indent=2)
+
+    # Open file for read/write & locking
+    with open(mapping_path, "r+") as f:
+        # Acquire exclusive lock so only one process/thread updates the file
+        fcntl.flock(f, fcntl.LOCK_EX)
+
+        # Read existing JSON safely
+        try:
+            data = json.load(f)
+            if not isinstance(data, dict) or "mappings" not in data:
+                data = {"mappings": []}
+        except json.JSONDecodeError:
+            # File was empty or corrupted → reset
+            data = {"mappings": []}
+
+        # Find existing entry
+        entry = next((item for item in data["mappings"]
+                      if item.get("username") == username), None)
+
+        if entry:
+            entry["api_key"] = new_key
+        else:
+            data["mappings"].append({
+                "api_key": new_key,
+                "username": username
+            })
+
+        # Rewrite file safely
+        f.seek(0)
+        f.truncate()
+        json.dump(data, f, indent=2)
+        f.flush()
+
+        # Lock automatically released when file is closed
+
+    return new_key
+
+@app.route("/get_new_mcp_key", methods=["POST"])
+def get_new_mcp_key():
+    username = request.form.get("username")
+    curr_key = request.form.get("mcp_api_key")
+
+    print(f"/get_new_mcp_key endpoint called username={username} curr_key={curr_key}")
+
+    new_key = create_mcp_key(username)
+    print(f"Generated new MCP API key for {username}: {new_key}")
     return {"status": "ok"}
 
 

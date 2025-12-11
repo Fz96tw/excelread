@@ -737,17 +737,25 @@
     <div class="app-container">
         <!-- Sidebar -->
         <aside class="left-frame">
-            <img src="/static/trinketlogo5.png" alt="Logo" class="sidebar-logo" style="width: 150px; margin-left: 10px; margin-right: 0px;" alt="Logo">
+            <img src="/static/trinketlogo5.png" alt="Logo" class="sidebar-logo" style="width: 150px; margin-top: 20px; margin-left: 10px; margin-right: 0px;" alt="Logo">
             <!--img src="/static/sprintsenselogo.png" alt="Logo" class="sidebar-logo" style="width: 250px; margin-right: 0px;" alt="Logo"-->
             
             <div class="menu-bar">
                 <button id="btn-section1">
-                    <img src="/static/jiraicon.png" style="width: 32px; height: 32px;" alt="">
+                    <img src="/static/jiraicon.png" style="width: 32px; height: 30px;" alt="">
                     <span>Jira</span>
                 </button>
                 <button id="btn-section4">
                     <img src="/static/llmicon.png" style="width: 24px; height: 24px;" alt="">
                     <span>LLM Model</span>
+                </button>
+                <button id="btn-section10">
+                    <img src="/static/mcpicon.png" style="width: 24px; height: 24px;" alt="">
+                    <span>MCP</span>
+                </button>
+                <button id="btn-section11">
+                    <img src="/static/docsicon.png" style="width: 24px; height: 24px;" alt="">
+                    <span>Supporting Docs</span>
                 </button>
                 
                 <div class="menu-divider"></div>
@@ -1000,6 +1008,53 @@
                         </form>
                     </div>
                 </div>
+
+            <!-- Section 10: MCP section -->
+            <div id="section10" class="section-content">
+                <div class="user-header">
+                    <img src="/static/usericon2.png" alt="User">
+                    <span>{{username}}</span>
+                </div>
+
+                <div class="card">
+                    <h2>
+                        <img src="/static/mcpicon.png" alt="LLM">
+                        Setup API key to secure MCP server connection
+                    </h2>
+                    <br>
+ 
+                    <form id="mcpForm" class="left-form" method="POST" action="/get_new_mcp_key">
+
+                        <div class="form-row">
+                            <label>Current User:</label>
+                            <div style="padding: 8px 0; font-weight: bold;">
+                                {{ username }}
+                            </div>
+
+                            <!-- Hidden field to POST userlogin -->
+                            <input type="hidden" name="username" value="{{ username }}">
+                        </div>
+
+                        <div class="form-row" style="margin-top: 15px;">
+                            <label>Current API Key:</label>
+                            <div style="padding: 8px 0; font-weight: bold;">
+                                {{ foo_values.get('mcp_api_key', '') }}
+                            </div>
+
+                            <input type="hidden" name="mcp_api_key"
+                                value="{{ foo_values.get('mcp_api_key', '') }}">
+                        </div>
+
+                        <button type="submit" name="save_foo">
+                            Create Key 
+                        </button>
+
+                    </form>
+                </div>
+            </div>
+
+
+
 
                 <!-- Section 5: Local Files -->
                 <div id="section5" class="section-content">
@@ -1367,7 +1422,8 @@
             section6: document.getElementById('section6'),
             section7: document.getElementById('section7'),
             section8: document.getElementById('section8'),
-            section9: document.getElementById('section9')  // ADDED THIS LINE
+            section9: document.getElementById('section9'),  // ADDED THIS LINE
+            section10: document.getElementById('section10')  // ADDED THIS LINE
         };
 
 
@@ -1380,7 +1436,8 @@
             section5: document.getElementById('btn-section5'),
             section6: document.getElementById('btn-section6'),
             section7: document.getElementById('btn-section7'),
-            section8: document.getElementById('btn-section8')
+            section8: document.getElementById('btn-section8'),
+            section10: document.getElementById('btn-section10')
         };
 
         /* Info Menu Expandable */
