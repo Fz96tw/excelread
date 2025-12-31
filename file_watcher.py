@@ -110,7 +110,7 @@ class DocsFileHandler(FileSystemEventHandler):
             
             url = url.strip()  # Remove whitespace
             
-            existing = get_url_state(username, url)
+            '''existing = get_url_state(username, url)
             if not existing:
                 print(f"[Watcher] New URL for user {username}: {url}")
                 update_url_state(username, url, status="queued")
@@ -118,7 +118,10 @@ class DocsFileHandler(FileSystemEventHandler):
             else:
                 print(f"[Watcher] URL already tracked (user={username}): {url}")
                 # You *could* add logic: If YAML changed, reprocess, etc.
-
+            '''
+            print(f"[Watcher] Processing URL for user {username}: {url}")
+            update_url_state(username, url, status="queued")
+            process_url.delay(username, url)
 
 def start_watcher():
     """Start watching all user folders in the config directory."""

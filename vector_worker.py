@@ -420,6 +420,81 @@ def build_vector_store(user_id, url, text):
     return len(chunks)
 
 
+
+import re
+import unicodedata
+from bs4 import BeautifulSoup
+
+def normalize_for_checksum(content):
+    """
+    Normalize HTML content for stable checksums.
+
+    Steps:
+      1. Parse HTML with BeautifulSoup
+      2. Remove script/style/noscript tags
+      3. Extract text
+      4. Unicode NFC normalization
+      5. Collapse whitespace
+    """
+
+    # 1. Parse HTML
+    soup = BeautifulSoup(content, "html.parser")
+
+    # 2. Remove dynamic content tags
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+
+    # 3. Extract visible text
+    text = soup.get_text(separator=" ")
+
+    # 4. Unicode normalization
+    text = unicodedata.normalize("NFC", text)
+
+    # 5. Collapse whitespace
+    text = re.sub(r"\s+", " ", text).strip()
+
+    return text
+
+
+
+import hashlib
+import json
+import unicodedata
+import re
+
+def normalize_for_checksum_old(content):
+    """
+    Normalize content (string or list of strings) so that SHA-256 checksums
+    are stable and deterministic.
+    """
+    # If it's a list, join into one string
+    if isinstance(content, list):
+        content = "\n".join(content)
+
+    # Normalize unicode (NFC form)
+    content = unicodedata.normalize("NFC", content)
+
+    # Replace all fancy quotes/dashes with simple ASCII equivalents
+    replacements = {
+        "\u2018": "'", "\u2019": "'",        # single quotes
+        "\u201C": "\"", "\u201D": "\"",      # double quotes
+        "\u2013": "-", "\u2014": "-",        # dashes
+        "\u00A0": " ",                       # non-breaking space
+    }
+    for k, v in replacements.items():
+        content = content.replace(k, v)
+
+    # Collapse all whitespace sequences to a single space
+    content = re.sub(r"\s+", " ", content).strip()
+
+    return content
+
+
+def checksum_sha256(content):
+    normalized = normalize_for_checksum(content)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
 @app.task
 def process_url(user_id, url):
     """Process a URL for a specific user: fetch, check changes, and vectorize."""
@@ -444,12 +519,15 @@ def process_url(user_id, url):
         clean_text = extract_text_from_html(content)
         logger.info(f"[{user_id}] Extracted {len(clean_text)} characters of text")
 
-        checksum = hashlib.sha256(content.encode()).hexdigest()
-
+        #checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        checksum = checksum_sha256(content)
         prev = get_url_state(user_id, url)
+
+        logger.info(f"LATEST [{user_id}] ETag: {etag}, Last-Modified: {last_modified}, Checksum: {checksum}")
 
         # Check if unchanged
         if prev:
+            logger.info(f"PREV [{user_id}] ETag: {prev.get('last_etag')}, Last-Modified: {prev.get('last_modified')}, Checksum: {prev.get('last_checksum')}")
             if (
                 prev.get("last_etag") == etag
                 and prev.get("last_modified") == last_modified
@@ -458,7 +536,9 @@ def process_url(user_id, url):
                 logger.info(f"[{user_id}] Content unchanged, skipping vectorization: {url}")
                 update_url_state(user_id, url, status="UNCHANGED")
                 return
-
+        else:
+            logger.info(f"[{user_id}] No previous state found, proceeding with vectorization")
+        
         # Vectorize because content changed
         logger.info(f"[{user_id}] Vectorizing content: {url}")
         update_url_state(user_id, url, status="VECTORIZING")
