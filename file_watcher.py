@@ -1,5 +1,5 @@
 import os
-import yaml
+import json
 import redis
 import time
 from watchdog.observers import Observer
@@ -16,10 +16,10 @@ CONFIG_ROOT = "./config"  # directory containing user folders
 
 class DocsFileHandler(FileSystemEventHandler):
     """
-    Handles changes to ANY docs.yaml inside ANY user's folder.
+    Handles changes to ANY docs.json inside ANY user's folder.
     Also detects new user folders being created.
     Directory structure:
-        config/<username>/docs.yaml
+        config/<username>/docs.json
     """
     def __init__(self, observer):
         self.observer = observer
@@ -38,9 +38,9 @@ class DocsFileHandler(FileSystemEventHandler):
                 print(f"[Watcher] New user folder detected: {username}")
                 self.add_user_folder(event.src_path)
         
-        # Check if a new docs.yaml was created
-        elif event.src_path.endswith("docs.yaml"):
-            print(f"[Watcher] New docs.yaml detected: {event.src_path}")
+        # Check if a new docs.json was created
+        elif event.src_path.endswith("docs.json"):
+            print(f"[Watcher] New docs.json detected: {event.src_path}")
             parts = event.src_path.split(os.sep)
             try:
                 config_index = parts.index("config") + 1
@@ -53,7 +53,7 @@ class DocsFileHandler(FileSystemEventHandler):
         if event.is_directory:
             return
 
-        if not event.src_path.endswith("docs.yaml"):
+        if not event.src_path.endswith("docs.json"):
             return
 
         # Debounce: check if we processed this file recently
@@ -68,7 +68,7 @@ class DocsFileHandler(FileSystemEventHandler):
 
         print(f"[Watcher] Detected change in: {event.src_path}")
 
-        # Extract username (e.g. config/username/docs.yaml)
+        # Extract username (e.g. config/username/docs.json)
         parts = event.src_path.split(os.sep)
         try:
             config_index = parts.index("config") + 1
@@ -87,22 +87,36 @@ class DocsFileHandler(FileSystemEventHandler):
             self.watched_folders.add(folder_path)
 
     def process_user_docs(self, username, filepath):
-        print(f"[Watcher] Loading docs.yaml for user {username}")
+        print(f"[Watcher] Loading docs.json for user {username}")
         try:
             with open(filepath, "r") as f:
-                data = yaml.safe_load(f) or {}
+                data = json.load(f)
         except Exception as e:
-            print(f"[Watcher] Failed to read YAML for {username}: {e}")
+            print(f"[Watcher] Failed to read JSON for {username}: {e}")
             return
 
-        urls = data.get("documents", [])
-        if not isinstance(urls, list):
-            print(f"[Watcher] Invalid YAML structure for {username}")
+        docs = data.get("docs", [])
+        if not isinstance(docs, list):
+            print(f"[Watcher] Invalid JSON structure for {username}")
             return
 
-        print(f"[Watcher] User {username} has {len(urls)} URLs")
+        print(f"[Watcher] User {username} has {len(docs)} documents")
 
-        for url in urls:
+        for doc_entry in docs:
+            # Validate doc entry structure
+            if not isinstance(doc_entry, dict):
+                print(f"[Watcher] Skipping invalid doc entry for user {username}: not a dict")
+                continue
+            
+            url = doc_entry.get("url")
+            embded_at = doc_entry.get("embedding_updated_at")
+        
+            # skip if previously embedded at same time
+            existing = get_url_state(username, url)
+            if existing: # and existing.get("embedding_updated_at") == embded_at:
+                print(f"[Watcher] URL embedding up-to-date for user {username}: {url}")
+                continue
+            
             # Skip invalid URLs
             if not url or not isinstance(url, str) or not url.strip():
                 print(f"[Watcher] Skipping invalid URL entry for user {username}")
@@ -120,6 +134,10 @@ class DocsFileHandler(FileSystemEventHandler):
                 # You *could* add logic: If YAML changed, reprocess, etc.
             '''
             print(f"[Watcher] Processing URL for user {username}: {url}")
+            print(f"[Watcher]   - Added at: {doc_entry.get('added_at')}")
+            print(f"[Watcher]   - Referrer: {doc_entry.get('referrer')}")
+            print(f"[Watcher]   - Last embedding: {doc_entry.get('embedding_updated_at')}")
+            
             update_url_state(username, url, status="queued")
             process_url.delay(username, url)
 

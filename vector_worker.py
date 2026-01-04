@@ -48,6 +48,52 @@ def get_vectors_dir(user_id):
     return vectors_dir
 
 
+def get_docs_json_path(user_id):
+    """Get the path to the user's docs.json file."""
+    return os.path.join(get_user_dir(user_id), "docs.json")
+
+
+def update_embedding_timestamp(user_id, url):
+    """Update the embedding_updated_at timestamp for a specific URL in docs.json."""
+    docs_json_path = get_docs_json_path(user_id)
+    
+    cwd= os.getcwd()
+    logger.info(f"[{user_id}] Current working directory: {cwd}")
+    
+    if not os.path.exists(docs_json_path):
+        logger.warning(f"[{user_id}] docs.json not found at {docs_json_path}")
+        return
+    
+    try:
+        # Read current docs.json
+        with open(docs_json_path, 'r') as f:
+            data = json.load(f)
+        
+        docs = data.get("docs", [])
+        
+        # Find and update the matching URL
+        updated = False
+        for doc_entry in docs:
+            if doc_entry.get("url") == url:
+                doc_entry["embedding_updated_at"] = datetime.now().isoformat()
+                updated = True
+                logger.info(f"[{user_id}] Updated embedding_updated_at for {url}")
+                break
+        
+        if not updated:
+            logger.warning(f"[{user_id}] URL not found in docs.json: {url}")
+            return
+        
+        # Write back to docs.json
+        with open(docs_json_path, 'w') as f:
+            json.dump(data, f, indent=2)
+        
+        logger.info(f"[{user_id}] Successfully saved embedding timestamp to docs.json")
+        
+    except Exception as e:
+        logger.error(f"[{user_id}] Error updating docs.json: {e}")
+
+
 def get_metadata_path(user_id, url):
     """Get metadata file path for a user's URL (stored alongside vectors)."""
     safe = url.replace("/", "_").replace(":", "_")
@@ -508,7 +554,7 @@ def process_url(user_id, url):
         # Fetch the URL (Confluence API or regular web page)
         logger.info(f"[{user_id}] Downloading: {url}")
         
-        if is_confluence_url(url):
+        if is_confluence_url(url) and user_env.get('CONFLUENCE_URL') in url: 
             logger.info(f"[{user_id}] Detected Confluence URL, using API")
             content, etag, last_modified = fetch_confluence_page(url, user_env)
         else:
@@ -554,9 +600,12 @@ def process_url(user_id, url):
             "last_processed": datetime.now().isoformat(),
             "embedder": embedder.get_name(),
             "embedding_dimension": embedder.get_dimension(),
-            "source_type": "confluence" if is_confluence_url(url) else "web"
+            "source_type": "confluence" if is_confluence_url(url) and user_env.get('CONFLUENCE_URL') in url else "web"
         }
         save_metadata(user_id, url, metadata)
+
+        # Update the embedding_updated_at timestamp in docs.json
+        update_embedding_timestamp(user_id, url)
 
         logger.info(f"[{user_id}] Successfully processed {num_chunks} chunks: {url}")
         update_url_state(
