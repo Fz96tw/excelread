@@ -534,6 +534,17 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
 
             if field in field_args:
                 print(f"found field_args[{field}] = {field_args.get(field)}")
+                
+                from vector_rag_retriever import *
+                rag_result = search_and_prepare_for_llm(field_args[field], userlogin)
+                if rag_result and rag_result.get('has_context'):
+                    context = rag_result.get('context', '')
+                    print(f"RAG context for field {field}: {context[:500]}{'...' if len(context) > 500 else ''}")
+                    value_str = f"Context: {context}\n\n{value_str}"
+                else:
+                    print(f"No RAG context found for field {field}. Proceeding without context.")
+
+
                 print(f"about to call get_summarized_comments(value_str={value_str}, field_args={field_args[field]}")
                 value_from_llm = get_summarized_comments(value_str, field_args[field])
                 if (value_from_llm):
@@ -783,6 +794,16 @@ if jql_ids:
                 value_str = clean_jira_wiki(value_str)  
                 if field in field_args:
                     print(f"found field_args[{field}] = {field_args.get(field)}")
+
+                    from vector_rag_retriever import *
+                    rag_result = search_and_prepare_for_llm(field_args[field], userlogin)
+                    if rag_result and rag_result.get('has_context'):
+                        context = rag_result.get('context', '')
+                        print(f"RAG context for field {field}: {context[:500]}{'...' if len(context) > 500 else ''}")
+                        value_str = f"Context: {context}\n\n{value_str}"
+                    else:
+                        print(f"No RAG context found for field {field}. Proceeding without context.")
+
                     print(f"about to call get_summarized_comments(value_str={value_str}, field_args={field_args[field]}")
                     value_from_llm = get_summarized_comments(value_str, field_args[field])
                     if (value_from_llm):

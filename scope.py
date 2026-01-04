@@ -249,13 +249,13 @@ def write_execsummary_yaml(jira_ids, filename, file_info, timestamp):
 
     else:
         print(f"ERROR: can't proceed, No JIRA IDs found to write to aisummary yaml file {execsummary_scope_output_file}")
-        sys.exit(1)
+        #sys.exit(1)
 
     f.close()
     print("ExecSummary scope yaml file created successfully:", execsummary_scope_output_file)
 
 
-def close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp): 
+def close_current_jira_table(docs_list, jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp): 
     print("close_current_jira_table called")
 
     if jira_fields and jira_create_rows:
@@ -265,6 +265,11 @@ def close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, j
         with open(scope_output_file, 'a') as f:
             yaml.dump({ "fields": jira_fields }, f, default_flow_style=False)
 
+    with open(scope_output_file, 'a') as f:
+        if docs_list:
+            print(f"saving <docs> to output yaml: {docs_list}")
+            yaml.dump({"docs": docs_list}, f, default_flow_style=False)
+
     if jira_ids:
         print("closing out previous scope file")
         print(f"JIRA IDs found: {jira_ids}")
@@ -273,7 +278,7 @@ def close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, j
             if jira_fields_default_value:
                 print(f"Fieldname args found for: {jira_fields_default_value}")
                 yaml.dump({"field_args": jira_fields_default_value}, f, default_flow_style=False)
-
+        
 
         print("JIRA rows have been written to output file:", scope_output_file)
         print("Total rows processed:", row_count)
@@ -305,6 +310,8 @@ def close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, j
 
 
     #jira_table_found = False
+    docs_found = False
+    #docs_list = []
     jira_ids = []
     jira_fields = []
     jira_fields_default_value = {}      # <jira><create> allows default values for jira fields 
@@ -386,6 +393,8 @@ if __name__ == "__main__":
     runrate_found = False
     scope_output_file = ""
     exec_summary_found = False  
+    docs_found = False  # track if we're inside a <docs> block
+    docs_list = []
     jira_id_exec_summary = []
     jira_fields_exec_summary = []
     exec_summary_cell = ""  # location of cell where the summary contents need to be placed
@@ -425,9 +434,11 @@ if __name__ == "__main__":
                                                
                 print(f"<ai brief> found in cell_str={cell_str}")
 
+                docs_found = False
                 if jira_table_found:
-                    close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
+                    close_current_jira_table(docs_list, jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
                     jira_table_found = False
+                    #docs_list = []
                     jira_ids = []
                     jira_fields = []
                     jira_fields_default_value = {}
@@ -479,7 +490,7 @@ if __name__ == "__main__":
                 with open(scope_output_file, 'a') as f:
                     yaml.dump({"wiki":wiki_link}, f, default_flow_style=False)
                 continue        # we may have <jira> in same row so continue processing
-
+            
             elif "rows updated on" in cell_str:  # can be on same row as <jira> tag or differnt row for <cycletime> <statustime> tables
                 r = extract_rows_count(cell_str)
                 print(f"'rows updated on' found  = {r}")
@@ -493,9 +504,12 @@ if __name__ == "__main__":
                 #jira_proj_list = [s.strip().replace(" ", "_") for s in cell_after_tag.split(",") if s.strip()]
                 #print(f"Jira projects found for cycletime: {jira_proj_list}")
 
+                docs_found = False
                 if jira_table_found:
-                    close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
+                    close_current_jira_table(docs_list, jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
                     jira_table_found = False
+                    docs_found = False
+                    #docs_list = []
                     jira_ids = []
                     jira_fields = []
                     jira_fields_default_value = {}
@@ -504,6 +518,7 @@ if __name__ == "__main__":
                     jira_create_found = False
                     jira_create_rows = []
                     exec_summary_found = False;
+                    docs_found = False;
 
 
                 runrate_found = False #does not depend on jira_table_found
@@ -565,9 +580,11 @@ if __name__ == "__main__":
                 jira_proj_list = [s.strip().replace(" ", "_") for s in cell_after_tag.split(",") if s.strip()]
                 print(f"Jira projects found for quickstart: {jira_proj_list}")
 
+                docs_found = False
                 if jira_table_found:
-                    close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
+                    close_current_jira_table(docs_list, jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
                     jira_table_found = False
+                    #docs_list = []
                     jira_ids = []
                     jira_fields = []
                     jira_fields_default_value = {}
@@ -602,9 +619,11 @@ if __name__ == "__main__":
 
             elif "<rate" in cell_str:# or "<rate assignee>" in cell_str:
                 # should work for <rate created> <rate resolved> <rate assignee>
+                docs_found = False
                 if jira_table_found:
-                    close_current_jira_table(jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
+                    close_current_jira_table(docs_list,jira_fields, jira_fields_default_value, jira_ids, jira_create_rows, scope_output_file, filename, file_info, timestamp)
                     jira_table_found = False
+                    #docs_list = []
                     jira_ids = []
                     jira_fields = []
                     jira_fields_default_value = {}
@@ -686,6 +705,10 @@ if __name__ == "__main__":
                     if jira_fields:
                         with open(scope_output_file, 'a') as f:
                             yaml.dump({ "fields": jira_fields }, f, default_flow_style=False)
+                    
+                    if docs_list:
+                        print(f"saving <docs> to output yaml: {docs_list}")
+                        yaml.dump({"docs": docs_list}, f, default_flow_style=False)
 
                     if jira_ids:
                         print("closing out previous scope file")
@@ -725,6 +748,8 @@ if __name__ == "__main__":
 
                     #jira_table_found = False
                     jira_ids = []
+                    docs_found = False
+                    #docs_list = []
                     jira_fields = []
                     jira_fields_default_value = {}
                     fields_found = False
@@ -771,7 +796,16 @@ if __name__ == "__main__":
 
                             
                 break   # break out of for loop and continue with next row.  Cannot have anything else in same row after <jira> table tag is found
-
+            
+            elif "<docs>" in cell_str or docs_found:
+                if (docs_found) and "http" in cell_str:
+                    # we are inside a <docs> block
+                    docs_list.append(orig_case_cell_str)
+                    print(f"adding to <docs> block: {orig_case_cell_str}")
+                else:
+                    # starting a <docs> block
+                    print(f"<docs> found in cell_str={cell_str}")
+                    docs_found = True
             
             if not jira_table_found:
                 #print(f"No 'Jira Table' found in this cell index {idx} Skipping to next cell.")
@@ -873,6 +907,7 @@ if __name__ == "__main__":
     print("Finished reading all rows")
 
 
+ 
     if jira_fields and jira_create_rows:
          jira_fields.append({"value": "row", "index": -1})
 
@@ -895,6 +930,10 @@ if __name__ == "__main__":
     else:
         print(f"No JIRA IDs or JIRA Create Rows found in table {file_info['table']} in file {filename}")
 
+    with open(scope_output_file, 'a') as f:
+        if docs_list:
+            print(f"saving <docs> to output yaml: {docs_list}")
+            yaml.dump({"docs": docs_list}, f, default_flow_style=False)
 
     print("JIRA rows have been written to output file:", scope_output_file)
     print("Total rows processed:", len(rows))
@@ -912,3 +951,61 @@ if __name__ == "__main__":
             write_execsummary_yaml(jira_ids, filename, file_info, timestamp)        
 
 
+    import json
+    from datetime import datetime
+
+    # add any items in docs_list that do not already exist in docs.json
+    CONFIG_DIR = "../../../config"
+    docs_json_file = f"{CONFIG_DIR}/{userlogin}/docs.json"
+    has_new_urls = False  # Track if we added any new URLs
+
+    if os.path.exists(docs_json_file):
+        with open(docs_json_file, 'r') as f:
+            existing_docs_data = json.load(f)
+            existing_docs_list = existing_docs_data.get("docs", []) if existing_docs_data else []
+            print(f"Existing docs.json content: {existing_docs_list}")
+        
+        # Extract just the URLs from existing entries for comparison
+        existing_urls = {entry["url"] for entry in existing_docs_list}
+        
+        for doc_url in docs_list:
+            if doc_url not in existing_urls:
+                # Create new entry with key-value pairs
+                new_entry = {
+                    "url": doc_url,
+                    "added_at": datetime.now().isoformat(),
+                    "referrer_url": f"{file_info['source']}",
+                    "referrer_file": f"{file_info['basename']}.{sheet}",
+                    "embedding_updated_at": None        # will set by vector_worker
+                }
+                existing_docs_list.append(new_entry)
+                has_new_urls = True  # Mark that we added a new URL
+                print(f"Adding new doc to docs.json: {doc_url}")
+            else:
+                print(f"Doc already exists in docs.json, skipping: {doc_url}")
+        
+        docs_list = existing_docs_list  # update docs_list to include existing + new
+    else:
+        # If file doesn't exist, create initial structure with key-value pairs
+        has_new_urls = True  # New file means we have new URLs
+        docs_list = [
+            {
+                "url": url,
+                "added_at": datetime.now().isoformat(),
+                "referrer_url": f"{file_info['source']}",
+                "referrer_file": f"{file_info['basename']}.{sheet}",
+                "embedding_updated_at": None        # will set by vector_worker
+            }
+            for url in docs_list
+        ]
+
+    # write out docs_list only if we have new URLs
+    if has_new_urls and docs_list:
+        with open(docs_json_file, 'w') as f:
+            json.dump({"docs": docs_list}, f, indent=2)
+        print(f"Wrote docs_list to file: {docs_json_file}")
+        print(f"docs_list content: {docs_list}")
+    elif not has_new_urls:
+        print("No new URLs to add, skipping write to docs.json")
+    else:
+        print("No docs_list to write to file.")

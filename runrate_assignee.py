@@ -773,6 +773,8 @@ source = fileinfo.get('source')
 scope_file = fileinfo.get('scope file')
 sheet = fileinfo.get('sheet')
 
+docs_list = data.get('docs', [])
+print(f"docs_list read from yaml file: {docs_list}")
 
 if not basename:
     print("No 'basename'found in fileinfo. Expecting 'basename' key.")
@@ -940,7 +942,17 @@ if csv_files:
             else:
                 print(f"No chain_row found in the YAML file {chain_yaml_file}")
                 sys.exit(1)
-            
+        
+        print(f"Preparing to call LLM with llm_user_prompt={llm_user_prompt} for userlogin={userlogin} at timestamp={timestamp}")
+        from vector_rag_retriever import *
+        rag_result = search_and_prepare_for_llm(userlogin, llm_user_prompt, docs_list)
+        if rag_result and rag_result.get('has_context'):
+            rag_context = rag_result.get('context', '')
+            print(f"RAG context for llm_user_prompt {llm_user_prompt}: {rag_context[:500]}{'...' if len(rag_context) > 500 else ''}")
+            context = f"Context: {rag_context}\n\n{context}"
+        else:
+            print(f"No RAG context for llm_user_prompt {llm_user_prompt}. Proceeding without context.")
+        
         print(f"Calling get_summarized_comments with context={context[:255]}... and sysprompt={sysprompt[:255]}...")
         report = get_summarized_comments(context, sysprompt)
 
