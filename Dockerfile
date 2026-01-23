@@ -10,12 +10,12 @@ COPY . .
 #RUN rm ./config/users.json
 #RUN rm ./config/users.json.lock
 
-RUN apt-get update && apt-get install -y dos2unix && \
-    dos2unix /appnew/config/env.system && \
-    apt-get remove -y dos2unix && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+#RUN apt-get update && apt-get install -y dos2unix && \
+#    dos2unix /appnew/config/env.system && \
+#    apt-get remove -y dos2unix && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 #RUN dos2unix /appnew/config/env.system
 
-RUN sed -i 's/\r$//' /appnew/config/env.system
+#RUN sed -i 's/\r$//' /appnew/config/env.system
 
 # Install tzdata and set timezone
 RUN apt-get update && \
