@@ -1,0 +1,63 @@
+trigger:
+  branches:
+    include:
+      - main
+
+variables:
+  azureSubscription: 'azure-conn'
+  resourceGroup: 'rg-aca-dev'
+  containerAppName: 'ai-connector'
+
+  acrName: 'acrdev57119a'
+  acrLoginServer: 'acrdev57119a.azurecr.io'
+  imageName: 'ai-connector'
+  imageTag: '$(Build.BuildId)'
+
+stages:
+- stage: BuildAndDeploy
+  displayName: Build and deploy to ACA
+  jobs:
+  - job: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+    - checkout: self
+
+    - task: AzureCLI@2
+      displayName: Azure login
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          az account show
+
+    - task: AzureCLI@2
+      displayName: Build and push Docker image
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          az acr login --name $(acrName)
+
+          docker build \
+            -t $(acrLoginServer)/$(imageName):$(imageTag) \
+            -t $(acrLoginServer)/$(imageName):latest \
+            .
+
+          docker push $(acrLoginServer)/$(imageName):$(imageTag)
+          docker push $(acrLoginServer)/$(imageName):latest
+
+    - task: AzureCLI@2
+      displayName: Deploy to Azure Container App
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          az containerapp update \
+            --name $(containerAppName) \
+            --resource-group $(resourceGroup) \
+            --image $(acrLoginServer)/$(imageName):$(imageTag)
