@@ -19,8 +19,8 @@ stages:
   jobs:
   - job: Build
     pool:
-      vmImage: 'ubuntu-latest'
-
+      #vmImage: 'ubuntu-latest'
+      name: 'self-hosted'
     steps:
     - checkout: self
 
