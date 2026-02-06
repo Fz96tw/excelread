@@ -59,7 +59,7 @@ def update_embedding_timestamp(user_id, url):
     
     cwd= os.getcwd()
     logger.info(f"[{user_id}] Current working directory: {cwd}")
-    
+
     if not os.path.exists(docs_json_path):
         logger.warning(f"[{user_id}] docs.json not found at {docs_json_path}")
         return
@@ -539,6 +539,29 @@ def normalize_for_checksum_old(content):
 def checksum_sha256(content):
     normalized = normalize_for_checksum(content)
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+
+#from celery import shared_task
+from refresh import resync
+
+@app.task(bind=True)
+def resync_task_worker(self, file_url, userlogin, delegated_auth):
+    print(f"[Task Worker] Starting resync for {file_url}, user: {userlogin}")
+
+    try:
+        result = resync(file_url, userlogin, delegated_auth)
+
+        print(f"[Task Worker] Resync completed successfully for {file_url}")
+        return {
+            "status": "success",
+            "file": file_url,
+            "result": result
+        }
+
+    except Exception as e:
+        print(f"[Task Worker] Resync failed for {file_url}: {str(e)}")
+        raise
 
 
 @app.task

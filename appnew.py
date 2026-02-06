@@ -24,6 +24,8 @@ os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Allow HTTP for local dev
 
 from flask_cors import CORS
 
+from vector_worker import resync_task_worker
+
 app = Flask(__name__)
 # Allow requests from your frontend domain
 CORS(app, origins=["https://www.cloudcurio.com"])
@@ -1333,7 +1335,7 @@ def index():
             #return '<a href="/login">Login with Microsoft</a>'
             #logged_in = False
             session["is_logged_in"] = False
-        
+  
 
     user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
     # Ensure file exists
@@ -1895,7 +1897,7 @@ from task_queue import task_queue
 # TASK QUEUE ROUTES - Add these new routes
 # ============================================================================
 
-@app.route("/tasks/status", methods=["GET"])
+'''@app.route("/tasks/status", methods=["GET"])
 def get_task_status():
     #print("/tasks/status endpoint called")
     """Get status of all tasks or a specific task"""
@@ -1921,9 +1923,66 @@ def get_task_status():
             "tasks": tasks,
             "queue_status": status
         })
+'''
+
+from celery.result import AsyncResult
+from vector_worker import app as celery_app
+from vector_worker import resync_task_worker
 
 
-@app.route("/tasks/cancel/<task_id>", methods=["POST"])
+@app.route("/tasks/status", methods=["GET"])
+def get_task_status():
+    print("/tasks/status endpoint called")
+    task_ids = redis_client.smembers("celery:tasks")
+    print(f"Retrieved task IDs from Redis: {task_ids}")
+
+    tasks = []
+
+    status = {
+        "total": 0,
+        "pending": 0,
+        "running": 0,
+        "success": 0,
+        "failure": 0
+    }
+
+    for task_id in task_ids:
+        result = AsyncResult(task_id, app=celery_app)
+        state = result.state
+
+        task_info = {
+            "task_id": task_id,
+            "status": state
+        }
+
+        if state == "SUCCESS":
+            task_info["result"] = result.result
+            status["success"] += 1
+
+        elif state == "FAILURE":
+            task_info["error"] = str(result.info)
+            status["failure"] += 1
+
+        elif state in ("PENDING", "RECEIVED"):
+            status["pending"] += 1
+
+        elif state == "STARTED":
+            status["running"] += 1
+
+        tasks.append(task_info)
+        print(f"Task {task_id} is in state {state}")
+        status["total"] += 1
+
+    print(f"tasks status compiled: {tasks}")
+    
+    return jsonify({
+        "success": True,
+        "tasks": tasks,
+        "queue_status": status
+    })
+
+
+'''@app.route("/tasks/cancel/<task_id>", methods=["POST"])
 def cancel_task_route(task_id):
     """Cancel a pending task"""
     success = task_queue.cancel_task(task_id)
@@ -1934,6 +1993,11 @@ def cancel_task_route(task_id):
             "success": False, 
             "message": "Task not found or already running"
         }), 400
+'''
+@app.route("/tasks/cancel/<task_id>", methods=["POST"])
+def cancel_task_route(task_id):
+    app.control.revoke(task_id, terminate=True)
+    return jsonify({"success": True, "message": "Task revoked"})
 
 
 @app.route("/tasks/clear", methods=["POST"])
@@ -1945,7 +2009,7 @@ def clear_old_tasks():
 
 
 # ADD THIS NEW ROUTE INSTEAD:
-@app.route("/resync_sharepoint", methods=["POST"])
+'''@app.route("/resync_sharepoint", methods=["POST"])
 def resync_sharepoint():
     """Queue a resync task (async)"""
     val = request.form.get('resync_bar')
@@ -1976,10 +2040,91 @@ def resync_sharepoint():
         "message": f"Resync started for {val}",
         "task_id": task_id
     })
+'''
+
+import redis
+import os
+
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+
+redis_client = redis.Redis(
+    host=REDIS_HOST,
+    port=6379,
+    db=2,              # pick a DB just for task tracking (not Celery broker/backend)
+    decode_responses=True
+)
+
+@app.route("/resync_sharepoint", methods=["POST"])
+def resync_sharepoint():
+    """Queue a resync task (async via Celery)"""
+
+    val = request.form.get("resync_bar")
+    user = current_user.username if current_user.is_authenticated else None
+
+    print(f"/resync_sharepoint called with val={val}, user={user}")
+
+    if not val:
+        return jsonify({"success": False, "message": "No file specified"}), 400
+
+    val = clean_sharepoint_url(val)
+
+    task = resync_task_worker.delay(
+        file_url=val,
+        userlogin=user,
+        delegated_auth=delegated_auth
+    )
+
+    task_id = task.id
+
+    print(f"/resync_sharepoint returned taskid {task_id} to process val={val}, user={user}")
+
+    # Store task ID in Redis set for tracking, used by the /status endpoint
+    redis_client.sadd("celery:tasks", task.id)
+    print(f"Stored task ID {task.id} in Redis for tracking")
+
+
+
+    return jsonify({
+        "success": True,
+        "message": f"Resync started for {val}",
+        "task_id": task.id
+    })
 
 
 @app.route("/resync_sharepoint_userlogin", methods=["POST"])
 def resync_sharepoint_userlogin():
+    """
+    Queue a resync with explicit userlogin.
+    Does NOT rely on current_user.
+    """
+
+    filename = request.form.get("filename")
+    user = request.form.get("userlogin")
+
+    print(f"/resync_sharepoint_userlogin called with filename={filename}, user={user}")
+
+    if not filename:
+        return jsonify({"success": False, "message": "No filename provided"}), 400
+    if not user:
+        return jsonify({"success": False, "message": "No userlogin provided"}), 400
+
+    cleaned = clean_sharepoint_url(filename)
+
+    task = resync_task_worker.delay(
+        file_url=cleaned,
+        userlogin=user,
+        delegated_auth=delegated_auth
+    )
+
+    return jsonify({
+        "success": True,
+        "message": "Resync triggered",
+        "task_id": task.id
+    })
+
+
+@app.route("/resync_sharepoint_userlogin_old", methods=["POST"])
+def resync_sharepoint_userlogin_old():
     """
     Queue a resync with explicit userlogin (for scheduler use).
     Does NOT rely on current_user.
@@ -2213,7 +2358,7 @@ def remove_google():
 # BACKGROUND WORKER FUNCTION - Add this new function
 # ============================================================================
 
-def resync_task_worker(file_url, userlogin, delegated_auth):
+'''def resync_task_worker(file_url, userlogin, delegated_auth):
     """
     Background task that performs the actual resync.
     This runs in a separate thread via the task queue.
@@ -2234,6 +2379,7 @@ def resync_task_worker(file_url, userlogin, delegated_auth):
     except Exception as e:
         print(f"[Task Worker] Resync failed for {file_url}: {str(e)}")
         raise  # Re-raise so task queue marks it as failed
+'''
 
 
 LOG_BASE_DIR = "./logs"
