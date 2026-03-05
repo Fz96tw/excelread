@@ -2,6 +2,43 @@ version: "3.9"
 
 services:
 
+  redis:
+      image: redis:7
+      container_name: redis
+      ports:
+        - "6379:6379"
+      networks:
+        - appnet
+  file_watcher:
+    build: .
+    container_name: file_watcher
+    command: python file_watcher.py
+    environment:
+      - REDIS_HOST=redis  # <-- Add this
+    volumes:
+      #- .:/app              # needs docs.yaml + code
+      - config:/appnew/config
+      - /c:/mnt/c
+      - /home/nadeem/github/excelread/logs:/appnew/logs
+      - /home/nadeem/github/excelread/config:/appnew/config_local  # just so i can write contactus.messages.txt
+    depends_on:
+      - redis
+    
+  vector_worker:
+    build: .
+    container_name: vector_worker
+    command: celery -A vector_worker worker --loglevel=INFO
+    environment:
+      - REDIS_HOST=redis  # <-- Add this
+    volumes:
+      #- .:/app              # needs tasks.py + vectorizer + redis_state
+      - config:/appnew/config
+      - /c:/mnt/c
+      - /home/nadeem/github/excelread/logs:/appnew/logs
+      - /home/nadeem/github/excelread/config:/appnew/config_local  # just so i can write contactus.messages.txt
+    depends_on:
+      - redis
+
   namecheap_ddns:
     image: curlimages/curl:latest
     container_name: namecheap_ddns

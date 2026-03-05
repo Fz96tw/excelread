@@ -2,7 +2,7 @@
 set -e  # exit if any command fails
 
 #pip freeze > requirements.txt
-pip freeze | grep -v "nvidia-" | grep -v "cu12" > requirements.txt
+#pip freeze | grep -v "nvidia-" | grep -v "cu12" > requirements.txt
 
 echo "Building ai-connector..."
 docker build -t ai-connector .
