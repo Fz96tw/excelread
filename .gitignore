@@ -40,3 +40,10 @@ pip-delete-this-directory.txt
 # MacOS and system files
 .DS_Store
 Thumbs.db
+
+# nginx proxy manager data files
+data/
+
+*.Identifier
+
+letsencrypt/
