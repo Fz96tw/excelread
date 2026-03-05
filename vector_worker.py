@@ -576,14 +576,29 @@ def process_url(user_id, url):
         
         # Fetch the URL (Confluence API or regular web page)
         logger.info(f"[{user_id}] Downloading: {url}")
-        
-        if is_confluence_url(url) and user_env.get('CONFLUENCE_URL') in url: 
+
+        confluence_base = user_env.get("CONFLUENCE_URL")
+        is_confluence = (
+            is_confluence_url(url)
+            and isinstance(confluence_base, str)
+            and confluence_base in url
+        )
+
+        if is_confluence:
             logger.info(f"[{user_id}] Detected Confluence URL, using API")
             content, etag, last_modified = fetch_confluence_page(url, user_env)
         else:
             logger.info(f"[{user_id}] Regular web page")
             content, etag, last_modified = fetch_regular_page(url)
         
+        '''
+        if is_confluence_url(url) and user_env.get('CONFLUENCE_URL') in url: 
+            logger.info(f"[{user_id}] Detected Confluence URL, using API")
+            content, etag, last_modified = fetch_confluence_page(url, user_env)
+        else:
+            logger.info(f"[{user_id}] Regular web page")
+            content, etag, last_modified = fetch_regular_page(url)
+        '''
         # Extract clean text from HTML
         clean_text = extract_text_from_html(content)
         logger.info(f"[{user_id}] Extracted {len(clean_text)} characters of text")
@@ -623,7 +638,7 @@ def process_url(user_id, url):
             "last_processed": datetime.now().isoformat(),
             "embedder": embedder.get_name(),
             "embedding_dimension": embedder.get_dimension(),
-            "source_type": "confluence" if is_confluence_url(url) and user_env.get('CONFLUENCE_URL') in url else "web"
+            "source_type": "confluence" if is_confluence else "web"
         }
         save_metadata(user_id, url, metadata)
 

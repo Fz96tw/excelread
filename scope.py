@@ -956,6 +956,10 @@ if __name__ == "__main__":
 
     # add any items in docs_list that do not already exist in docs.json
     CONFIG_DIR = "../../../config"
+    user_config_dir = os.path.join(CONFIG_DIR, userlogin)
+    #Ensure the user's subfolder exists
+    os.makedirs(user_config_dir, exist_ok=True)
+
     docs_json_file = f"{CONFIG_DIR}/{userlogin}/docs.json"
     has_new_urls = False  # Track if we added any new URLs
 
