@@ -1969,8 +1969,9 @@ def get_task_status():
         elif state == "STARTED":
             status["running"] += 1
 
+        print(f"Task {task_id} is in state {state} with info: {result.info}")
         tasks.append(task_info)
-        print(f"Task {task_id} is in state {state}")
+        print(f"Appended task info: {task_info} to tasks collection")
         status["total"] += 1
 
     print(f"tasks status compiled: {tasks}")
@@ -2046,6 +2047,8 @@ import redis
 import os
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+
+print(f"Connecting to Redis at {REDIS_HOST} for task tracking")
 
 redis_client = redis.Redis(
     host=REDIS_HOST,

@@ -21,17 +21,21 @@ MODEL_NAME = "llama3.2:1b"
 
 # used with running in Docker
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-
+ollama_client = ollama.Client(host=OLLAMA_HOST)
 
 class OllamaSummarizer:
     def __init__(self, model_name=MODEL_NAME):
         self.model_name = model_name
         self._ensure_ready()
-
+    
     def _ensure_ready(self):
         """Check if the model is already running, otherwise warm it up."""
         try:
-            running_models = ollama.ps()
+            running_models = ollama_client.ps() #ollama.ps()
+
+            '''already_loaded = any(
+            getattr(m, "model", None) == self.model_name
+            for m in running_models.models)'''
 
             # Handle both dict and tuple return formats from ollama.ps()
             already_loaded = any(
@@ -43,10 +47,9 @@ class OllamaSummarizer:
                 print(f"[INFO] {self.model_name} already loaded.")
             else:
                 print(f"[INFO] Warming up {self.model_name}...")
-                ollama.chat(
+                ollama_client.chat(
                     model=self.model_name,
-                    messages=[{"role": "user", "content": "Hello"}]
-#                    host=OLLAMA_HOST
+                    messages=[{"role": "user", "content": "Hello"}],
                 )
                 print(f"[INFO] {self.model_name} warmed up and ready.")
         except Exception as e:
@@ -63,10 +66,9 @@ class OllamaSummarizer:
                 f"The following is the content you need to summarize:\n{comments}"
             )
 
-            response = ollama.chat(
+            response = ollama_client.chat(
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}]
-#                host=OLLAMA_HOST
             )
             summary = response["message"]["content"]
             return f"({datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {self.model_name}) {summary}"
@@ -135,9 +137,9 @@ class OllamaSummarizer:
             prompt = f"The following is the content you need to summarize:\n{chunk}"
 
             try:
-                response = ollama.chat(
+                response = ollama_client.chat(
                     model=self.model_name,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[{"role": "user", "content": prompt}]
                 )
                 summaries.append(response["message"]["content"])
             except Exception as e:
@@ -150,9 +152,9 @@ class OllamaSummarizer:
             combined_prompt = f"The following is the content you need to summarize:\n{joined}"
             #combined_prompt = f"The following is the content you need to summarize:\n{'\n'.join(summaries)}"
             try:
-                response = ollama.chat(
+                response = ollama_client.chat(
                     model=self.model_name,
-                    messages=[{"role": "user", "content": combined_prompt}],
+                    messages=[{"role": "user", "content": combined_prompt}]
                 )
                 final_summary = response["message"]["content"]
             except Exception as e:
@@ -163,22 +165,6 @@ class OllamaSummarizer:
 
         return f"({datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {self.model_name}) {final_summary}"
 
-
-
-    def summarize_old(self, comments: list[str]) -> str:
-        if not comments:
-            return "No comments available."
-
-        prompt = (
-            f"The following is the content you need to summarize:\n{comments}"
-        )
-
-        response = ollama.chat(
-            model=self.model_name,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        summary = response["message"]["content"]
-        return f"({datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {self.model_name}) {summary}"
 
 
     def summarize_ex(self, comments: List[str], field: Optional[str] = None, completion_tokens: int = 500) -> str:
@@ -249,9 +235,9 @@ class OllamaSummarizer:
             prompt = prompt_template.format(chunk=chunk)
 
             try:
-                response = ollama.chat(
+                response = ollama_client.chat(
                     model=self.model_name,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[{"role": "user", "content": prompt}]
                 )
                 summaries.append(response["message"]["content"])
             except Exception as e:
@@ -268,9 +254,9 @@ class OllamaSummarizer:
                 combined_prompt = f"The following is the content you need to summarize:\n{joined}"
             
             try:
-                response = ollama.chat(
+                response = ollama_client.chat(
                     model=self.model_name,
-                    messages=[{"role": "user", "content": combined_prompt}],
+                    messages=[{"role": "user", "content": combined_prompt}]
                 )
                 final_summary = response["message"]["content"]
             except Exception as e:
@@ -282,26 +268,6 @@ class OllamaSummarizer:
         return f"({datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {self.model_name}) {final_summary}"
 
 
-
-    def summarize_ex_old(self, comments: List[str], field: Optional[str] = None) -> str:
-        if not comments:
-            return "No comments available."
-
-        # Use the field as the prompt if provided
-        if field:
-            prompt = f"{field}. Here's the text: {comments}"
-        else:
-            prompt = f"The following is the content you need to summarize:\n{comments}"
-
-        # Call the LLM
-        response = ollama.chat(
-            model=self.model_name,
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        summary = response["message"]["content"]
-
-        return f"({self.model_name}) {summary} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
 
 # Create one global summarizer instance (warm-up runs here)

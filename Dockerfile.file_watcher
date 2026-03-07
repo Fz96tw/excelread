@@ -25,5 +25,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the watcher code
 COPY . /app/
 
+
+# Install tzdata and set timezone (same as Flask app)
+RUN apt-get update && \
+    apt-get install -y tzdata && \
+    ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=America/New_York
+
 # Default command (docker-compose can override this)
 CMD ["python", "file_watcher.py"]

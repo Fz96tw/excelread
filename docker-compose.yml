@@ -4,13 +4,14 @@ services:
 
   redis:
       image: redis:7
-      container_name: redis
+      #container_name: redis
       ports:
         - "6379:6379"
       networks:
         - appnet
+
   file_watcher:
-    build: .
+    image: file_watcher:latest
     container_name: file_watcher
     command: python file_watcher.py
     environment:
@@ -21,21 +22,27 @@ services:
       - /c:/mnt/c
       - /home/nadeem/github/excelread/logs:/appnew/logs
       - /home/nadeem/github/excelread/config:/appnew/config_local  # just so i can write contactus.messages.txt
+    networks:
+      - appnet
     depends_on:
       - redis
     
   vector_worker:
-    build: .
+    image: vector_worker:latest
     container_name: vector_worker
     command: celery -A vector_worker worker --loglevel=INFO
     environment:
       - REDIS_HOST=redis  # <-- Add this
+      - SUMMARIZER_HOST=http://summarizer:8000
+
     volumes:
       #- .:/app              # needs tasks.py + vectorizer + redis_state
-      - config:/appnew/config
+      - config:/app/config
       - /c:/mnt/c
-      - /home/nadeem/github/excelread/logs:/appnew/logs
-      - /home/nadeem/github/excelread/config:/appnew/config_local  # just so i can write contactus.messages.txt
+      - /home/nadeem/github/excelread/logs:/app/logs
+      - /home/nadeem/github/excelread/config:/app/config_local  # just so i can write contactus.messages.txt
+    networks:
+      - appnet
     depends_on:
       - redis
 
@@ -94,9 +101,10 @@ services:
       - /c:/mnt/c
       - /home/nadeem/github/excelread/logs:/appnew/logs
       - /home/nadeem/github/excelread/config:/appnew/config_local  # just so i can write contactus.messages.txt
-
     environment:
       - SUMMARIZER_HOST=http://summarizer:8000
+      - REDIS_HOST=redis  # <-- Add this so ai-connector can publish tasks to Redis for vector_worker
+
 
   # Independent scheduler service
   scheduler:

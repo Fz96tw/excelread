@@ -756,6 +756,7 @@ def get_summarized_comments(comments_list_asc, field_arg=None):
             ENDPOINT = "/summarize_local_ex"
 
         # Make the POST request
+        print(f"Calling LLM endpoint {SUMMARIZER_HOST}{ENDPOINT} with payload: {payload}")
         resp = requests.post(f"{SUMMARIZER_HOST}{ENDPOINT}", json=payload)
 
         if resp.status_code == 200:
