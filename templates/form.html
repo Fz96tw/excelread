@@ -379,6 +379,11 @@
             background: #f0fdf4;
         }
 
+        .task-item.success {
+            border-left-color: var(--success);
+            background: #f0fdf4;
+        }
+
         .task-item.failed {
             border-left-color: var(--danger);
             background: #fef2f2;
@@ -407,6 +412,7 @@
         .status-pending { background: var(--warning); color: white; }
         .status-running { background: var(--primary); color: white; }
         .status-completed { background: var(--success); color: white; }
+        .status-success { background: var(--success); color: white; }
         .status-failed { background: var(--danger); color: white; }
 
         /* Log Viewer */
@@ -1915,7 +1921,8 @@
 
         function removeCompletedTask(taskId) {
             const task = activeTasks.get(taskId);
-            if (task && (task.status === 'completed' || task.status === 'failed')) {
+            console.log(`[Task] Checking if task ${taskId.substring(0, 8)} can be removed... Status: ${task ? task.status : 'unknown'}`);
+            if (task && (task.status === 'completed' || task.status === 'failed' || task.status === 'SUCCESS')) {
                 activeTasks.delete(taskId);
                 updateTaskDisplay();
                 console.log(`[Task] Removed completed task ${taskId.substring(0, 8)}`);
@@ -1954,7 +1961,8 @@
                         localTask.progress = task.progress;
                         localTask.error = task.error;
                         
-                        if ((task.status === 'completed' || task.status === 'failed') && !localTask.removeScheduled) {
+                        console.log(`[Task] Updated task ${taskId.substring(0, 8)} - Status: ${task.status}, Progress: ${task.progress}%`);
+                        if ((task.status === 'SUCCESS' || task.status === 'completed' || task.status === 'failed') && !localTask.removeScheduled) {
                             localTask.removeScheduled = true;
                             setTimeout(() => removeCompletedTask(taskId), 60000);
                         }
