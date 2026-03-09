@@ -64,19 +64,6 @@ services:
     networks:
       - appnet
 
-  nginxproxymanager:
-    image: jc21/nginx-proxy-manager:latest
-    container_name: nginx_proxy_manager
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "81:81"
-    volumes:
-      - ./data:/data
-      - ./letsencrypt:/etc/letsencrypt
-    networks:
-      - appnet
 
   ollama:
     image: fz96tw/llama3.2-1b:v1
@@ -175,6 +162,15 @@ services:
       - goaccess
     networks:
       - appnet
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - /home/nadeem/github/excelread/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: unless-stopped
 
 #networks:
 #  appnet:

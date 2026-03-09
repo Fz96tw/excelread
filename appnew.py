@@ -1962,12 +1962,17 @@ def get_task_status():
         elif state == "FAILURE":
             task_info["error"] = str(result.info)
             status["failure"] += 1
+            metrics_resync_errors += 1    # ← add this here to increment error counter for metrics
 
         elif state in ("PENDING", "RECEIVED"):
             status["pending"] += 1
 
         elif state == "STARTED":
             status["running"] += 1
+
+        # remove the task from celery redis queue
+        if state in ("SUCCESS", "FAILURE"):
+            redis_client.srem("celery:tasks", task_id)
 
         print(f"Task {task_id} is in state {state} with info: {result.info}")
         tasks.append(task_info)
@@ -2057,9 +2062,210 @@ redis_client = redis.Redis(
     decode_responses=True
 )
 
+import time
+import platform
+#from datetime import datetime
+
+# At module level, add these counters (put near the redis_client definition)
+_app_start_time = time.time()
+metrics_resync_total = 0       # increment in resync_sharepoint()
+metrics_resync_errors = 0      # increment on Celery FAILURE detection
+
+
+@app.route("/metrics")
+def metrics():
+    """
+    Service observability endpoint.
+    Returns application metrics in JSON (default) or Prometheus text format (?format=prometheus).
+
+    Covers:
+      - Uptime & process info
+      - Celery task queue state (via Redis)
+      - Registered users & tracked files
+      - Redis connectivity
+      - Resync operation counters
+    """
+    output_format = request.args.get("format", "json")
+
+    # ------------------------------------------------------------------
+    # 1. Uptime
+    # ------------------------------------------------------------------
+    uptime_seconds = time.time() - _app_start_time
+
+    # ------------------------------------------------------------------
+    # 2. Celery task queue state (read from Redis tracking set)
+    # ------------------------------------------------------------------
+    task_counts = {"pending": 0, "running": 0, "success": 0, "failure": 0, "total": 0}
+    redis_ok = False
+    redis_latency_ms = None
+
+    try:
+        t0 = time.time()
+        redis_client.ping()
+        redis_latency_ms = round((time.time() - t0) * 1000, 2)
+        redis_ok = True
+
+        task_ids = redis_client.smembers("celery:tasks")
+        task_counts["total"] = len(task_ids)
+
+        for task_id in task_ids:
+            try:
+                result = AsyncResult(task_id, app=celery_app)
+                state = result.state
+                if state in ("PENDING", "RECEIVED"):
+                    task_counts["pending"] += 1
+                elif state == "STARTED":
+                    task_counts["running"] += 1
+                elif state == "SUCCESS":
+                    task_counts["success"] += 1
+                elif state == "FAILURE":
+                    task_counts["failure"] += 1
+            except Exception:
+                pass  # stale task ID — ignore
+
+    except Exception as e:
+        app.logger.warning(f"/metrics: Redis unavailable: {e}")
+
+    # ------------------------------------------------------------------
+    # 3. Registered users & tracked files
+    # ------------------------------------------------------------------
+    users = []
+    total_sharepoint_files = 0
+    total_google_files = 0
+    total_local_files = 0
+
+    try:
+        users = load_users()
+        for u in users:
+            uname = u.get("username", "")
+            sp = load_shared_files(f"./config/shared_files_sharepoint_{uname}.json")
+            goog = load_shared_files(f"./config/shared_files_google_{uname}.json")
+            loc = load_shared_files(f"./config/shared_files_local_{uname}.json")
+            total_sharepoint_files += len(sp)
+            total_google_files += len(goog)
+            total_local_files += len(loc)
+    except Exception as e:
+        app.logger.warning(f"/metrics: error reading user/file data: {e}")
+
+    # ------------------------------------------------------------------
+    # 4. Active schedules
+    # ------------------------------------------------------------------
+    total_schedules = 0
+    try:
+        schedules = load_schedules(SCHEDULE_FILE)
+        total_schedules = len(schedules)
+    except Exception:
+        pass
+
+    # ------------------------------------------------------------------
+    # 5. Log directory size (bytes)
+    # ------------------------------------------------------------------
+    log_dir_bytes = 0
+    try:
+        for dirpath, _, filenames in os.walk("./logs"):
+            for fname in filenames:
+                fp = os.path.join(dirpath, fname)
+                log_dir_bytes += os.path.getsize(fp)
+    except Exception:
+        pass
+
+    # ------------------------------------------------------------------
+    # Build response
+    # ------------------------------------------------------------------
+    data = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "uptime_seconds": round(uptime_seconds, 1),
+        "process": {
+            "pid": os.getpid(),
+            "python": platform.python_version(),
+            "host": platform.node(),
+        },
+        "redis": {
+            "ok": redis_ok,
+            "latency_ms": redis_latency_ms,
+        },
+        "celery_tasks": task_counts,
+        "resyncs": {
+            "total_triggered": metrics_resync_total,
+            "total_errors": metrics_resync_errors,
+        },
+        "users": {
+            "registered": len(users),
+        },
+        "tracked_files": {
+            "sharepoint": total_sharepoint_files,
+            "google": total_google_files,
+            "local": total_local_files,
+            "total": total_sharepoint_files + total_google_files + total_local_files,
+        },
+        "schedules": {
+            "active": total_schedules,
+        },
+        "logs": {
+            "dir_bytes": log_dir_bytes,
+        },
+    }
+
+    if output_format == "prometheus":
+        # Prometheus text exposition format
+        lines = [
+            f"# HELP app_uptime_seconds Seconds since application start",
+            f"# TYPE app_uptime_seconds gauge",
+            f"app_uptime_seconds {data['uptime_seconds']}",
+
+            f"# HELP redis_ok 1 if Redis is reachable, 0 otherwise",
+            f"# TYPE redis_ok gauge",
+            f"redis_ok {1 if redis_ok else 0}",
+
+            f"# HELP redis_latency_ms Redis ping latency in milliseconds",
+            f"# TYPE redis_latency_ms gauge",
+            f"redis_latency_ms {redis_latency_ms if redis_latency_ms is not None else -1}",
+
+            f"# HELP celery_tasks_total Tasks in Redis tracking set by state",
+            f"# TYPE celery_tasks_total gauge",
+            f'celery_tasks_total{{state="pending"}} {task_counts["pending"]}',
+            f'celery_tasks_total{{state="running"}} {task_counts["running"]}',
+            f'celery_tasks_total{{state="success"}} {task_counts["success"]}',
+            f'celery_tasks_total{{state="failure"}} {task_counts["failure"]}',
+
+            f"# HELP resync_triggered_total Total resync tasks dispatched since start",
+            f"# TYPE resync_triggered_total counter",
+            f"resync_triggered_total {metrics_resync_total}",
+
+            f"# HELP resync_errors_total Total resync tasks that ended in FAILURE",
+            f"# TYPE resync_errors_total counter",
+            f"resync_errors_total {metrics_resync_errors}",
+
+            f"# HELP registered_users_total Number of registered user accounts",
+            f"# TYPE registered_users_total gauge",
+            f"registered_users_total {len(users)}",
+
+            f"# HELP tracked_files_total Files tracked by source type",
+            f"# TYPE tracked_files_total gauge",
+            f'tracked_files_total{{source="sharepoint"}} {total_sharepoint_files}',
+            f'tracked_files_total{{source="google"}} {total_google_files}',
+            f'tracked_files_total{{source="local"}} {total_local_files}',
+
+            f"# HELP active_schedules Number of configured sync schedules",
+            f"# TYPE active_schedules gauge",
+            f"active_schedules {total_schedules}",
+
+            f"# HELP log_dir_bytes Total bytes consumed by the logs directory",
+            f"# TYPE log_dir_bytes gauge",
+            f"log_dir_bytes {log_dir_bytes}",
+        ]
+        return "\n".join(lines) + "\n", 200, {"Content-Type": "text/plain; version=0.0.4"}
+
+    return jsonify(data)
+
+
+
+
 @app.route("/resync_sharepoint", methods=["POST"])
 def resync_sharepoint():
     """Queue a resync task (async via Celery)"""
+
+    global metrics_resync_total, metrics_resync_errors
 
     val = request.form.get("resync_bar")
     user = current_user.username if current_user.is_authenticated else None
@@ -2076,6 +2282,8 @@ def resync_sharepoint():
         userlogin=user,
         delegated_auth=delegated_auth
     )
+
+    metrics_resync_total += 1          # ← add this after .delay()
 
     task_id = task.id
 
@@ -2388,7 +2596,8 @@ def remove_google():
 LOG_BASE_DIR = "./logs"
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
+
 from flask import jsonify
 
 @app.route("/logs")

@@ -25,6 +25,11 @@ app = Celery(
     backend=f"redis://{REDIS_HOST}:6379/1"
 )
 
+app.conf.update(
+    task_track_started=True,
+    result_expires=3600
+)
+
 # Get configured embedder (supports multiple backends)
 embedder = get_embedder()
 logger.info(f"Using embedder: {embedder.get_name()}")
