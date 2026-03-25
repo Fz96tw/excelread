@@ -7,6 +7,8 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 COPY requirements.txt .
+
+RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install exceptiongroup
 COPY . /app/
@@ -21,5 +23,8 @@ RUN apt-get update && \
 
 ENV TZ=America/New_York
 
-# Celery worker default start command
-CMD ["celery", "-A", "tasks", "worker", "--loglevel=INFO"]
+# Record build timestamp
+RUN date -u +"%Y-%m-%dT%H:%M:%SZ" > /build_date
+
+# Celery worker default start command. see docker compose yml for overrides for different queues and concurrency settings.
+CMD ["celery", "-A", "tasks", "worker", "--loglevel=INFO", "--concurrency=1","--queues=resync_queue","--prefetch-multiplier=1"]

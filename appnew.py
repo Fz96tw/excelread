@@ -123,6 +123,10 @@ app.logger.setLevel(logging.INFO)
 # ---------------------------------------------------------
 @app.before_request
 def before_request_logging():
+
+    if request.path == "/metrics":  # exlucde /metrics since prmomethus pings it repeatedly and we dont want to log those requests
+        return
+    
     # Assume you set g.current_user from your auth layer
     #g.current_user = request.headers.get("X-User", "anonymous")  # demo only
     if current_user.is_authenticated:
@@ -134,10 +138,13 @@ def before_request_logging():
 
 @app.after_request
 def after_request_logging(response):
-    g.last_status = response.status_code
-    app.logger.info("Request completed")
-    return response
+    if request.path != "/metrics":
+    #    duration = time.time() - request.start_time
+    #    app.logger.info(f"{request.path} took {duration:.3f}s")
 
+        g.last_status = response.status_code
+        app.logger.info("Request completed")
+    return response
 
 
 
@@ -387,12 +394,13 @@ LOCK_FILE = USERS_FILE + ".lock"
 SCHEDULE_LOCK = "./config/schedules.json.lock"
 
 def load_users():
-    lock = FileLock(LOCK_FILE)
-    with lock:  # Only one process at a time
-        if not os.path.exists(USERS_FILE):
-            return []
-        with open(USERS_FILE, "r") as f:
-            return json.load(f)
+    #lock = FileLock(LOCK_FILE)
+    print(f"Skipping lock for loading users from {USERS_FILE}")
+    #with lock:  # Only one process at a time
+    if not os.path.exists(USERS_FILE):
+        return []
+    with open(USERS_FILE, "r") as f:
+        return json.load(f)
 
 def save_users(users):
     lock = FileLock(LOCK_FILE)
@@ -411,9 +419,10 @@ class User(UserMixin):
         self.date_registered = date_registered
         self.email = email
     
-
 @login_manager.user_loader
 def load_user(user_id):
+    if request.path == "/metrics":
+        return None # Don't bother hitting the disk/lock for metrics requests since they don't need user info and we want to keep them super fast and avoid lock contention with the regular app routes.
     users = load_users()
     for u in users:
         if u["id"] == user_id:
@@ -1932,6 +1941,7 @@ from vector_worker import resync_task_worker
 
 @app.route("/tasks/status", methods=["GET"])
 def get_task_status():
+    global metrics_resync_errors
     print("/tasks/status endpoint called")
     task_ids = redis_client.smembers("celery:tasks")
     print(f"Retrieved task IDs from Redis: {task_ids}")
@@ -1947,6 +1957,7 @@ def get_task_status():
     }
 
     for task_id in task_ids:
+        #task_id = task_id.decode()   
         result = AsyncResult(task_id, app=celery_app)
         state = result.state
 
@@ -1969,6 +1980,8 @@ def get_task_status():
 
         elif state == "STARTED":
             status["running"] += 1
+            state = "RUNNING"  # normalize state name for frontend
+            task_info["status"] = state
 
         # remove the task from celery redis queue
         if state in ("SUCCESS", "FAILURE"):
@@ -2072,6 +2085,11 @@ metrics_resync_total = 0       # increment in resync_sharepoint()
 metrics_resync_errors = 0      # increment on Celery FAILURE detection
 
 
+def metrics_foo():
+    # Bypass everything else
+    print("/metrics endpoint called - returning OK for health check")
+    return "OK", 200
+
 @app.route("/metrics")
 def metrics():
     """
@@ -2091,6 +2109,13 @@ def metrics():
     # 1. Uptime
     # ------------------------------------------------------------------
     uptime_seconds = time.time() - _app_start_time
+
+    # read the contents of ./build_date file_handler
+    try:
+        with open("/build_date", "r") as f:
+            build_date = f.read().strip()
+    except FileNotFoundError:
+        build_date = "Unknown"
 
     # ------------------------------------------------------------------
     # 2. Celery task queue state (read from Redis tracking set)
@@ -2134,6 +2159,7 @@ def metrics():
     total_google_files = 0
     total_local_files = 0
 
+    
     try:
         users = load_users()
         for u in users:
@@ -2146,7 +2172,7 @@ def metrics():
             total_local_files += len(loc)
     except Exception as e:
         app.logger.warning(f"/metrics: error reading user/file data: {e}")
-
+    
     # ------------------------------------------------------------------
     # 4. Active schedules
     # ------------------------------------------------------------------
@@ -2156,6 +2182,7 @@ def metrics():
         total_schedules = len(schedules)
     except Exception:
         pass
+    
 
     # ------------------------------------------------------------------
     # 5. Log directory size (bytes)
@@ -2168,11 +2195,17 @@ def metrics():
                 log_dir_bytes += os.path.getsize(fp)
     except Exception:
         pass
+    
 
     # ------------------------------------------------------------------
     # Build response
     # ------------------------------------------------------------------
     data = {
+        "build_date": build_date
+        }
+    
+    data = {
+        "build_date": build_date,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "uptime_seconds": round(uptime_seconds, 1),
         "process": {
@@ -2208,7 +2241,10 @@ def metrics():
 
     if output_format == "prometheus":
         # Prometheus text exposition format
+        #lines = [f"# Application metrics for Prometheus scraping - build date: {build_date}"]
+
         lines = [
+            f"# Application metrics for Prometheus scraping - build date: {build_date}",
             f"# HELP app_uptime_seconds Seconds since application start",
             f"# TYPE app_uptime_seconds gauge",
             f"app_uptime_seconds {data['uptime_seconds']}",
@@ -2235,7 +2271,7 @@ def metrics():
             f"# HELP resync_errors_total Total resync tasks that ended in FAILURE",
             f"# TYPE resync_errors_total counter",
             f"resync_errors_total {metrics_resync_errors}",
-
+            
             f"# HELP registered_users_total Number of registered user accounts",
             f"# TYPE registered_users_total gauge",
             f"registered_users_total {len(users)}",
@@ -2249,11 +2285,13 @@ def metrics():
             f"# HELP active_schedules Number of configured sync schedules",
             f"# TYPE active_schedules gauge",
             f"active_schedules {total_schedules}",
+            
 
             f"# HELP log_dir_bytes Total bytes consumed by the logs directory",
             f"# TYPE log_dir_bytes gauge",
             f"log_dir_bytes {log_dir_bytes}",
         ]
+
         return "\n".join(lines) + "\n", 200, {"Content-Type": "text/plain; version=0.0.4"}
 
     return jsonify(data)
@@ -2290,8 +2328,8 @@ def resync_sharepoint():
     print(f"/resync_sharepoint returned taskid {task_id} to process val={val}, user={user}")
 
     # Store task ID in Redis set for tracking, used by the /status endpoint
-    redis_client.sadd("celery:tasks", task.id)
-    print(f"Stored task ID {task.id} in Redis for tracking")
+    redis_client.sadd("celery:tasks", task_id)
+    print(f"Stored task ID {task_id} in Redis for tracking")
 
 
 

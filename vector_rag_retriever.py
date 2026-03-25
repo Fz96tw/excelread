@@ -69,16 +69,23 @@ def prepare_rag_context(
     
     print(f"\n[STEP 2] Searching for documents (requesting {top_k * 2} results for filtering)...")
     try:
-        #results = retriever.search(query, top_k=top_k * 2)
-        for doc in docs_list:
-            print(f"calling retriever.search_specific_document '{doc}' in docs_list")
-            #def search_specific_document(self, url: str, query: str, top_k: int = 5) -> List[SearchResult]:
-            results = retriever.search_specific_document(doc, query, top_k=top_k * 2)
+        results = []
+
+        if docs_list is not None:
+            for doc in docs_list:
+                print(f"calling retriever.search_specific_document '{doc}' in docs_list")
+                doc_results = retriever.search_specific_document(doc, query, top_k=top_k * 2)
+                results.extend(doc_results)
+        else:
+            print("docs_list is None or empty, falling back to general search")
+            results = retriever.search(query, top_k=top_k * 2)
+
         print(f"✓ Search completed: {len(results)} results retrieved")
+
     except Exception as e:
         print(f"✗ Search failed: {e}")
         raise
-    
+
     if not results:
         print(f"\n✗ NO RESULTS FOUND")
         print(f"{'='*60}\n")
@@ -121,6 +128,10 @@ def prepare_rag_context(
         before_dedup = len(filtered_results)
         try:
             filtered_results = _deduplicate_chunks(filtered_results)
+            # If _deduplicate_chunks() changes order, you may lose ranking quality.
+            # Ensure it preserves order, or re-sort after:
+            filtered_results.sort(key=lambda r: r.score)
+            
             removed = before_dedup - len(filtered_results)
             if removed > 0:
                 print(f"✓ Removed {removed} duplicate(s), {len(filtered_results)} unique results remain")
@@ -146,10 +157,13 @@ def prepare_rag_context(
                 source_label = f"[Source {i}]"
                 context_parts.append(f"{source_label}\n{chunk_text}")
                 
+                metadata = result.metadata or {}
+                title = metadata.get('title', 'Unknown')
+
                 sources.append({
                     'id': i,
                     'url': result.url,
-                    'title': result.metadata.get('title', 'Unknown'),
+                    'title': title,
                     'chunk_index': result.chunk_index,
                     'score': result.score
                 })
@@ -286,7 +300,7 @@ Answer:"""
 def search_and_prepare_for_llm(
     user_id: str,
     query: str,
-    docs_list,    
+    docs_list = None,    
     top_k: int = 5,
     include_sources: bool = True
 ) -> Dict[str, any]:

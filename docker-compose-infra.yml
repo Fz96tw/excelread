@@ -1,0 +1,74 @@
+version: "3.9"
+
+services:
+  namecheap_ddns:
+    image: curlimages/curl:latest
+    container_name: namecheap_ddns
+    restart: unless-stopped
+    entrypoint: >
+      /bin/sh -c "while true;
+        do
+          curl -s \"https://dynamicdns.park-your-domain.com/update?host=poc&domain=cloudcurio.com&password=9e6c63261fec47b9a2baa765fda4e375&ip=$(curl -s ifconfig.me)\";
+          sleep ${INTERVAL:-600};
+        done"
+    environment:
+      - HOST=@                            # ✅ FIXED (was 'app=' before)
+      - DOMAIN=cloudcurio.com
+      - PASSWORD=2c3fead7c88a4613b1b0b3ca4e9639e8
+      - INTERVAL=600
+    networks:
+      - appnet
+
+
+  #-------------------------------
+  # 🧠 GoAccess + Nginx Dashboard
+  # -------------------------------
+  goaccess:
+    #image: allinurl/goaccess
+    image: allinurl/goaccess:1.8
+    container_name: goaccess_npm
+    restart: unless-stopped
+    volumes:
+      - ./data/logs:/srv/logs:ro                # NPM logs
+      - ./goaccess/report:/srv/report
+      - ./goaccess/goaccess.conf:/srv/goaccess.conf:ro
+      - ./goaccess/start.sh:/start.sh:ro
+    entrypoint: ["/bin/sh", "/start.sh"]
+    ports:
+      - "7890:7890"
+    expose:
+      - "7890"
+    networks:
+      - appnet
+
+  goaccess_nginx:
+    image: nginx:alpine
+    container_name: goaccess_nginx
+    restart: unless-stopped
+    volumes:
+      - ./goaccess/report:/usr/share/nginx/html:ro       # Serve GoAccess reports
+    ports:
+      - "8890:80"                               # Access http://localhost:8890
+    depends_on:
+      - goaccess
+    networks:
+      - appnet
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - /home/nadeem/github/excelread/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: unless-stopped
+    networks:
+      - appnet
+
+networks:
+  appnet:
+    name: appnet      # <-- must match exactly
+    driver: bridge
+  
+
+  

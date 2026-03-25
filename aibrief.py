@@ -639,13 +639,14 @@ import requests
 from urllib.parse import urlparse
 
 
-def post_to_confluence_wiki(JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN, wiki_link, report):
+def post_to_confluence_wiki(J_URL, JIRA_EMAIL, JIRA_API_TOKEN, wiki_link, report):
     """
     Updates a Confluence wiki page with new content.
     If the page exists, it overwrites the body and increments the version.
     Title is preserved and never changed.
     """
 
+    
     def parse_confluence_url(link):
         print(f"[INFO] Parsing wiki link: {link}")
         parsed = urlparse(link)
@@ -661,7 +662,7 @@ def post_to_confluence_wiki(JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN, wiki_link, rep
         return space_key, page_id
 
     def get_page_metadata(page_id):
-        url = f"{JIRA_URL}/wiki/api/v2/pages/{page_id}"
+        url = f"{J_URL}/wiki/api/v2/pages/{page_id}"
         print(f"[INFO] Fetching page metadata: {url}")
 
         response = requests.get(url, auth=(JIRA_EMAIL, JIRA_API_TOKEN))
@@ -682,7 +683,7 @@ def post_to_confluence_wiki(JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN, wiki_link, rep
         print(f"       - Title: {title}")
         print(f"       - Version: {current_version} → {new_version}")
 
-        url = f"{JIRA_URL}/wiki/api/v2/pages/{page_id}"
+        url = f"{J_URL}/wiki/api/v2/pages/{page_id}"
 
         payload = {
             "id": page_id,
@@ -710,6 +711,7 @@ def post_to_confluence_wiki(JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN, wiki_link, rep
     # Main function execution flow
     # ------------------------------    
 
+    print(f"[INFO] Starting Confluence wiki update for link: {wiki_link}, J_URL={J_URL}, JIRA_EMAIL={JIRA_EMAIL}")
     # Extract page ID from URL
     space_key, page_id = parse_confluence_url(wiki_link)
 
@@ -833,14 +835,20 @@ print(f"<aibrief> Context saved to {filename}")
 if llm_prompt:
     sysprompt = f"The following text is delimited data separated by | character. Follow these instructions exactly. " + llm_prompt
 else:
-    sysprompt = f"The following text is a csv data separated by | character. Refer to this project as Project {tablename}.  Read all of it and briefly as possible in the form of project status report for executive summary. highlight all milestones,  risks or blocking issues. Also add a paragraph of titled 'Executive Summary' at the top of your response with very brief business executive summary. Provide your summary in markdown format. When listing Jira ID also include the URL link for that jira id provided in the source text."
+    sysprompt = f"""The following text is a csv data separated by | character. 
+Refer to this project as Project {tablename}.
+Read all of it and briefly as possible in the form of project status report for executive summary.
+Highlight all milestones, risks or blocking issues.
+Also add a paragraph titled 'Executive Summary' at the top of your response with a very brief business executive summary.
+Provide your summary in markdown format."""
+
 
 if isinstance(aibrief_context, list):
     aibrief_context = "\n".join(aibrief_context)
 
 print(f"Calling get_summarized_comments with aibrief_context={aibrief_context[:255]}... and sysprompt={sysprompt[:255]}...")
 report = get_summarized_comments(aibrief_context, sysprompt)
-
+ 
 # Compose filename
 #filename = f"{os.path.splitext(source)[0]}.{tablename}.llm.txt"
 filename = f"{basename}.{sheet}.{tablename}.aibrief.llm.txt"
@@ -887,26 +895,27 @@ if aibrief_cells:
 
         JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
         JIRA_URL = os.environ.get("JIRA_URL")
+        #JIRA_URL = JIRA_URL.replace("fz96tw","fz96tw1")  # temporary hotfix to switch to new jira site since old one is on free plan and has very limited API rate limits. will remove this hotfix after we switch the site permanently and update the env files.
         JIRA_EMAIL = os.environ.get("JIRA_EMAIL")
         JIRA_PASSWORD = os.environ.get("JIRA_PASSWORD")
         print(f"load_dotenv({ENV_PATH_USER}) has read JIRA_URL={JIRA_URL} JIRA_EMAIL={JIRA_EMAIL} JIRA_API_TOKEN={JIRA_API_TOKEN}")
 
         if ("fz96tw" in wiki_link):
             print("Using hardcoded JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN for fz96tw wiki link")
-            JIRA_URL='https://fz96tw.atlassian.net'
+            JIRA_URL='https://fz96tw1.atlassian.net'
             JIRA_EMAIL='fz96tw@gmail.com'
             #print(f"override to JIRA_URL={JIRA_URL} JIRA_EMAIL={JIRA_EMAIL} JIRA_API_TOKEN={JIRA_API_TOKEN}")
+
+        print(f"Ready to Post to wiki page {wiki_link}")
 
         if not JIRA_API_TOKEN:
             print("Warning: unable to post to wiki link since JIRA_API_TOKEN environment variable not set.")
         else:
-            print(f"Posting to wiki page {wiki_link}")
+            print(f"invoking post_to_confluence_wiki with JIRA_URL={JIRA_URL} JIRA_EMAIL={JIRA_EMAIL} wiki_link={wiki_link}...")
             # Convert markdown string to HTML
             htmlreport = markdown.markdown(report)
-
             # Wrap HTML in a <div> or send directly
             confluence_body = f"<div>{htmlreport}</div>"
-
             post_to_confluence_wiki(JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN, wiki_link, confluence_body)
 
 

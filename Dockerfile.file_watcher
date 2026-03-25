@@ -15,6 +15,9 @@ WORKDIR /app
 
 # Install dependencies
 COPY requirements.txt .
+
+RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
+
 RUN pip install --no-cache-dir -r requirements.txt
 # Copy dependency file first for efficient caching
 #COPY requirements.txt /app/

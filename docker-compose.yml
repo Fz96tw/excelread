@@ -18,52 +18,48 @@ services:
       - REDIS_HOST=redis  # <-- Add this
     volumes:
       #- .:/app              # needs docs.yaml + code
-      - config:/appnew/config
+      - /home/nadeem/github/excelread/config:/app/config
       - /c:/mnt/c
-      - /home/nadeem/github/excelread/logs:/appnew/logs
-      - /home/nadeem/github/excelread/config:/appnew/config_local  # just so i can write contactus.messages.txt
+      - /home/nadeem/github/excelread/logs:/app/logs
     networks:
       - appnet
     depends_on:
       - redis
     
-  vector_worker:
+  resync_worker:
     image: vector_worker:latest
-    container_name: vector_worker
-    command: celery -A vector_worker worker --loglevel=INFO
+    container_name: resync_worker
+    command: celery -A vector_worker worker -n resync@%h --loglevel=INFO --concurrency=1 -Q resync_queue --prefetch-multiplier=1
     environment:
-      - REDIS_HOST=redis  # <-- Add this
+      - REDIS_HOST=redis
       - SUMMARIZER_HOST=http://summarizer:8000
-
     volumes:
-      #- .:/app              # needs tasks.py + vectorizer + redis_state
-      - config:/app/config
+      - /home/nadeem/github/excelread/config:/app/config
       - /c:/mnt/c
       - /home/nadeem/github/excelread/logs:/app/logs
-      - /home/nadeem/github/excelread/config:/app/config_local  # just so i can write contactus.messages.txt
+#      - /home/nadeem/github/excelread/config:/app/config_local
     networks:
       - appnet
     depends_on:
       - redis
 
-  namecheap_ddns:
-    image: curlimages/curl:latest
-    container_name: namecheap_ddns
-    restart: unless-stopped
-    entrypoint: >
-      /bin/sh -c "while true;
-        do
-          curl -s \"https://dynamicdns.park-your-domain.com/update?host=poc&domain=cloudcurio.com&password=9e6c63261fec47b9a2baa765fda4e375&ip=$(curl -s ifconfig.me)\";
-          sleep ${INTERVAL:-600};
-        done"
+
+  url_worker:
+    image: vector_worker:latest
+    container_name: url_worker
+    command: celery -A vector_worker worker -n url@%h --loglevel=INFO --concurrency=1 -Q url_processing_queue --prefetch-multiplier=1
     environment:
-      - HOST=@                            # ✅ FIXED (was 'app=' before)
-      - DOMAIN=cloudcurio.com
-      - PASSWORD=2c3fead7c88a4613b1b0b3ca4e9639e8
-      - INTERVAL=600
+      - REDIS_HOST=redis
+      - SUMMARIZER_HOST=http://summarizer:8000
+    volumes:
+      - /home/nadeem/github/excelread/config:/app/config
+      - /c:/mnt/c
+      - /home/nadeem/github/excelread/logs:/app/logs
+  #    - /home/nadeem/github/excelread/config:/app/config_local
     networks:
       - appnet
-
+    depends_on:
+      - redis
 
   ollama:
     image: fz96tw/llama3.2-1b:v1
@@ -84,10 +80,11 @@ services:
     networks:
       - appnet
     volumes:
-      - config:/appnew/config
+      #- config:/appnew/config
+      - /home/nadeem/github/excelread/config:/appnew/config
       - /c:/mnt/c
       - /home/nadeem/github/excelread/logs:/appnew/logs
-      - /home/nadeem/github/excelread/config:/appnew/config_local  # just so i can write contactus.messages.txt
+      #- /home/nadeem/github/excelread/config:/appnew/config_local  # just so i can write contactus.messages.txt
     environment:
       - SUMMARIZER_HOST=http://summarizer:8000
       - REDIS_HOST=redis  # <-- Add this so ai-connector can publish tasks to Redis for vector_worker
@@ -101,7 +98,8 @@ services:
       context: .
       dockerfile: Dockerfile.scheduler
     volumes:
-      - config:/scheduler/config  # Shared config directory
+      #- config:/scheduler/config  # Shared config directory
+      - /home/nadeem/github/excelread/config:/scheduler/config
       - /home/nadeem/github/excelread/logs:/scheduler/logs    
     environment:
       #- AUTH=user_auth
@@ -124,65 +122,17 @@ services:
     networks:
       - appnet
     volumes:
-      - config:/summarizer/config
+     # - config:/summarizer/config
+      - /home/nadeem/github/excelread/config:/summarizer/config
     environment:
       - OLLAMA_HOST=http://ollama:11434
 
-
-  #-------------------------------
-  # 🧠 GoAccess + Nginx Dashboard
-  # -------------------------------
-  goaccess:
-    #image: allinurl/goaccess
-    image: allinurl/goaccess:1.8
-    container_name: goaccess_npm
-    restart: unless-stopped
-    volumes:
-      - ./data/logs:/srv/logs:ro                # NPM logs
-      - ./goaccess/report:/srv/report
-      - ./goaccess/goaccess.conf:/srv/goaccess.conf:ro
-      - ./goaccess/start.sh:/start.sh:ro
-    entrypoint: ["/bin/sh", "/start.sh"]
-    ports:
-      - "7890:7890"
-    expose:
-      - "7890"
-    networks:
-      - appnet
-
-  goaccess_nginx:
-    image: nginx:alpine
-    container_name: goaccess_nginx
-    restart: unless-stopped
-    volumes:
-      - ./goaccess/report:/usr/share/nginx/html:ro       # Serve GoAccess reports
-    ports:
-      - "8890:80"                               # Access http://localhost:8890
-    depends_on:
-      - goaccess
-    networks:
-      - appnet
-
-  prometheus:
-    image: prom/prometheus
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - /home/nadeem/github/excelread/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    restart: unless-stopped
-
-#networks:
-#  appnet:
-#    driver: bridge
 
 networks:
   appnet:
     name: appnet      # <-- must match exactly
     driver: bridge
 
-volumes:
-  config:
 
   
 

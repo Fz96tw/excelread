@@ -550,7 +550,7 @@ def checksum_sha256(content):
 #from celery import shared_task
 from refresh import resync
 
-@app.task(bind=True)
+@app.task(bind=True, queue="resync_queue")
 def resync_task_worker(self, file_url, userlogin, delegated_auth):
     print(f"[Task Worker] Starting resync for {file_url}, user: {userlogin}")
 
@@ -569,7 +569,7 @@ def resync_task_worker(self, file_url, userlogin, delegated_auth):
         raise
 
 
-@app.task
+@app.task(queue="url_processing_queue")
 def process_url(user_id, url):
     """Process a URL for a specific user: fetch, check changes, and vectorize."""
     logger.info(f"[{user_id}] Processing URL: {url}")
