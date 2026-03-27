@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+    "remote-retriever": {
+      "command": "/Users/nadeemh/mcp-servers/venv/bin/python3",
+      "args": ["/Users/nadeemh/mcp-servers/mcp_proxy.py"],
+      "env": {
+        "MCP_API_KEY": "6bc1e665-5167-44dc-bfec-dec9281a100a"
+      }
+    }
+  }
+}

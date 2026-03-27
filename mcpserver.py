@@ -261,6 +261,10 @@ def retrieve():
         print(f"[/mcp/v1/retrieve] ❌ ERROR: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+
+
+'''
 @app.route('/mcp/initialize', methods=['POST'])
 def initialize():
     """
@@ -268,7 +272,16 @@ def initialize():
     This is the handshake that establishes the MCP connection
     """
     try:
+        data = request.get_json() 
+'''
+@app.route('/mcp/initialize', methods=['POST'])
+def initialize():
+    try:
+        print(f"[/mcp/initialize] Raw body: {request.data}")          # ← add this
+        print(f"[/mcp/initialize] Content-Type: {request.content_type}") # ← and this
         data = request.get_json()
+        print(f"[/mcp/initialize] Parsed JSON: {data}")                # ← and this
+
         print(f"[/mcp/initialize] Received initialize request")
         print(f"[/mcp/initialize] Protocol version: {data.get('protocolVersion', 'not specified')}")
         print(f"[/mcp/initialize] Client info: {data.get('clientInfo', {})}")
@@ -366,7 +379,7 @@ def add_document():
         "instructions": f"Add CSV files to: {user_folder}"
     }), 200
 
-@app.route('/health', methods=['GET'])
+@app.route('/mcp/health', methods=['GET'])
 def health():
     """
     Health check endpoint
@@ -387,7 +400,9 @@ def check_auth():
     Any non-empty API key is accepted
     """
     # Skip auth for health and initialize endpoints
-    if request.path in ['/health', '/mcp/initialize']:
+    print(f"[check_auth] Incoming request: {request.method} {request.path}")
+    if request.path in ['/mcp/health', '/mcp/initialize']:
+        print(f"[check_auth] Skipping auth for endpoint: {request.path}")
         return None
     
     provided_key = request.headers.get('X-API-Key')
@@ -399,8 +414,8 @@ def check_auth():
     request.api_key = provided_key
 
 if __name__ == '__main__':
-    # Port is configurable via PORT environment variable, defaults to 5000
-    port = int(os.environ.get('PORT', 5000))
+    # Port is configurable via PORT environment variable, defaults to 5050
+    port = int(os.environ.get('PORT', 5050))
     debug = os.environ.get('DEBUG', 'False').lower() == 'true'
     
     print(f"Starting MCP Retriever Service on port {port}")
