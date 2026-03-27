@@ -6,7 +6,7 @@
 *.log
 logs/
 *.changes.txt
-*.json
+config/*.json
 *.tfstate
 *.tfstate.backup
 *.hcl
