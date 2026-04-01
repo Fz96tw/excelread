@@ -708,7 +708,8 @@ if __name__ == "__main__":
                     
                     if docs_list:
                         print(f"saving <docs> to output yaml: {docs_list}")
-                        yaml.dump({"docs": docs_list}, f, default_flow_style=False)
+                        with open(scope_output_file, 'a') as f:
+                            yaml.dump({"docs": docs_list}, f, default_flow_style=False)
 
                     if jira_ids:
                         print("closing out previous scope file")
@@ -802,7 +803,7 @@ if __name__ == "__main__":
                     # we are inside a <docs> block
                     docs_list.append(orig_case_cell_str)
                     print(f"adding to <docs> block: {orig_case_cell_str}")
-                else:
+                elif "<docs>" in cell_str:
                     # starting a <docs> block
                     print(f"<docs> found in cell_str={cell_str}")
                     docs_found = True
