@@ -1,4 +1,4 @@
-flowchart TD
+<pre> ```mermaid flowchart TD 
 
     A[Start Program] --> B[start_watcher()]
     B --> C[Create Observer]
@@ -58,3 +58,5 @@ flowchart TD
 
     %% Loop back
     X -->|Done| J
+
+``` </pre>
