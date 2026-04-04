@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 import csv
+from vector_rag_retriever import *
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for remote access
@@ -196,6 +197,7 @@ def read_aibrief_llm_txt_files(folder_path: Path) -> list:
     print(f"[read_aibrief_llm_txt_files] ✓ Completed. Total .aibrief.llm.txt documents: {len(documents)}")
     return documents
 
+
 # MCP Protocol Implementation
 @app.route('/mcp/v1/retrieve', methods=['POST'])
 def retrieve():
@@ -217,6 +219,8 @@ def retrieve():
         print(f"[/mcp/v1/retrieve] Query: '{query}'")
         print(f"[/mcp/v1/retrieve] Max results: {max_results if max_results else 'unlimited'}")
         
+
+
         # Get user's vectorstore folder
         user_folder = get_user_folder(api_key)
         
@@ -227,13 +231,37 @@ def retrieve():
         
         documents.extend(csv_docs)
         documents.extend(txt_docs)
+
+
+
+        # check for matches using RAG retriever         
+        print(f"[/mcp/v1/retrieve] Calling RAG retriever for query: '{query}'")
+        userlogin = get_username_from_api_key(api_key)
+        print(f"[/mcp/v1/retrieve] RAG retriever userlogin: {userlogin}")
+
+        # save current working dir to return to it later
+        original_cwd = os.getcwd()
+        # HACK! need to change working dir to logs/userlogin before calling RAG retriever so it can find the vectorstore folder and files
+        os.chdir(f"./config/{userlogin}/vectors")  # Change to logs/userlogin
+        print(f"Changed working directory to: {os.getcwd()} for RAG retriever")
+
+        rag_result = search_and_prepare_for_llm(userlogin, query)
+        print(f"[/mcp/v1/retrieve] RAG retriever rag_result: {rag_result}")
+        if rag_result and rag_result.get('has_context'):
+            rag_context = rag_result.get('context', '')
+            print(f"RAG context for MCP query {query}: {rag_context[:500]}{'...' if len(rag_context) > 500 else ''}")
+            documents.extend(rag_context)  # Add RAG retrieved docs if available
+        else:
+            print(f"No RAG context for query {query}. Proceeding without RAG context.")
+        # Change back to original working directory
+        os.chdir(original_cwd)
         
         print(f"[/mcp/v1/retrieve] Total documents: {len(documents)} (CSV: {len(csv_docs)}, TXT: {len(txt_docs)})")
         
         # Return all documents (no filtering), optionally limit by max_results
-        if max_results is not None:
-            documents = documents[:max_results]
-            print(f"[/mcp/v1/retrieve] Limited results to: {max_results}")
+        #if max_results is not None:
+        #    documents = documents[:max_results]
+        #    print(f"[/mcp/v1/retrieve] Limited results to: {max_results}")
         
         results = [
             {
@@ -246,6 +274,20 @@ def retrieve():
             for doc in documents
         ]
         
+        if rag_context:
+            rag_context_doc = {
+                "id": "rag_context",
+                "title": "RAG Retrieved Context",
+                "content": rag_context,
+                "type": "rag_context",
+                "metadata": {
+                    "source": "RAG Retriever",
+                    "retrieved_at": datetime.utcnow().isoformat()
+                }
+            }
+            results.append(rag_context_doc)
+            print(f"[/mcp/v1/retrieve] Added rag_context_doc to results")
+
         response = {
             "query": query,
             "folder": str(user_folder),
