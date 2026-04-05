@@ -1059,8 +1059,67 @@
                 </div>
             </div>
 
+            <!-- Section 11: Supporting docs for RAG -->
+            <div id="section11" class="section-content">
+                <div class="user-header">
+                    <img src="/static/usericon2.png" alt="User">
+                    <span>{{username}}</span>
+                </div>
 
-
+                <div class="card">
+                    <h2>Support documents shared with Agent for Retrieval Augementation</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">#</th>
+                                <th style="width: 40px;"></th>
+                                <th>File Location</th>
+                                <th style="width: 100px; text-align: center;">Actions</th>
+                                <th style="width: 180px;">Schedule</th>
+                                <th style="width: 60px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for val in docs_list %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td><img src="/static/excelcon.jpg" style="height:24px;"></td>
+                                <td>
+                                    <span style="font-weight: 500;">{{ val.url }}</span>
+                                    <br><small style="color: var(--text-light);">Added {{ val.added_at}}</small>
+                                </td>
+                                <td style="text-align: center;">
+                                    <button type="button" onclick="handleResync('{{ val.url }}', event)" title="Resync">
+                                        <img src="/static/refreshicon.png" alt="Resync">
+                                    </button>
+                                    <button type="button" onclick="openSchedule('{{ val.location }}')" title="Schedule">
+                                        <img src="/static/timeicon.png" alt="Schedule">
+                                    </button>
+                                </td>
+                                <td>
+                                    {% set sched = schedule_dict.get(val.url) %}
+                                    {% if sched %}
+                                        {% if sched.time %}
+                                            <small>{{sched.mode}} at {{ sched.time }}</small>
+                                        {% elif sched.interval %}
+                                            <small>Every {{ sched.interval }} min</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <small style="color: var(--text-light);">None</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <form method="POST" action="/remove_docslist">
+                                        <input type="hidden" name="remove_docslist" value="{{ val.url }}">
+                                        <button type="submit" onclick="return confirm('Remove {{ val.url }}?')"  style="padding: 4px 8px;">❌</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
                 <!-- Section 5: Local Files -->
                 <div id="section5" class="section-content">
@@ -1418,281 +1477,154 @@
 
 
     <script>
-        /* Section Management */
-        const sections = {
-            section1: document.getElementById('section1'),
-            section2: document.getElementById('section2'),
-            section3: document.getElementById('section3'),
-            section4: document.getElementById('section4'),
-            section5: document.getElementById('section5'),
-            section6: document.getElementById('section6'),
-            section7: document.getElementById('section7'),
-            section8: document.getElementById('section8'),
-            section9: document.getElementById('section9'),  // ADDED THIS LINE
-            section10: document.getElementById('section10')  // ADDED THIS LINE
+        // =========================================================
+        // SECTION MANAGEMENT
+        // =========================================================
+
+        // Auto-discover sections and buttons from the DOM instead of
+        // maintaining two manually-typed lists.
+        const sections = {};
+        const buttons  = {};
+
+        document.querySelectorAll('.section-content').forEach(el => {
+            sections[el.id] = el;
+        });
+        document.querySelectorAll('[id^="btn-section"]').forEach(el => {
+            const key = el.id.replace('btn-', '');
+            buttons[key] = el;
+        });
+
+        // Per-section callbacks fired whenever that section becomes visible.
+        // To add a new hook just drop a key/function here — no other code changes needed.
+        const sectionOnShow = {
+            section3: () => loadRunFolders(),
+            section9: () => loadRunLog(),
         };
-
-
-
-        const buttons = {
-            section1: document.getElementById('btn-section1'),
-            section2: document.getElementById('btn-section2'),
-            section3: document.getElementById('btn-section3'),
-            section4: document.getElementById('btn-section4'),
-            section5: document.getElementById('btn-section5'),
-            section6: document.getElementById('btn-section6'),
-            section7: document.getElementById('btn-section7'),
-            section8: document.getElementById('btn-section8'),
-            section10: document.getElementById('btn-section10')
-        };
-
-        /* Info Menu Expandable */
-        const infoBtn = document.getElementById('btn-section7');
-        const infoSubmenu = document.getElementById('submenu-info');
-
-        if (infoBtn && infoSubmenu) {
-            infoBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                const isExpanded = infoSubmenu.classList.contains('show');
-                
-                if (isExpanded) {
-                    infoSubmenu.classList.remove('show');
-                    infoBtn.classList.remove('expanded');
-                } else {
-                    infoSubmenu.classList.add('show');
-                    infoBtn.classList.add('expanded');
-                }
-            });
-        }
-
 
         function showSection(sectionId) {
             Object.keys(sections).forEach(key => {
-                sections[key].classList.remove('active');
-                if (buttons[key]) buttons[key].classList.remove('active');
+                sections[key]?.classList.remove('active');
+                buttons[key]?.classList.remove('active');
             });
             if (sections[sectionId]) {
                 sections[sectionId].classList.add('active');
-                if (buttons[sectionId]) buttons[sectionId].classList.add('active');
+                buttons[sectionId]?.classList.add('active');
                 history.replaceState(null, '', '#' + sectionId);
+                sectionOnShow[sectionId]?.();
             }
         }
 
+        // Wire nav buttons (skip section7 — it only toggles the submenu)
         Object.keys(buttons).forEach(key => {
             const btn = buttons[key];
-            if (btn && key !== 'section7') {  // Added this condition
+            if (btn && key !== 'section7') {
                 btn.addEventListener('click', () => showSection(key));
             }
         });
 
-        window.addEventListener("DOMContentLoaded", () => {
-            fetch('/getmodel')
-            .then(res => res.json())
-            .then(data => {
-                if (data.default_model) {
-                    const s = document.getElementById('llmSelect');
-                    if (s) s.value = data.default_model;
-                }
-            })
-            .catch(err => console.error('Failed to fetch default model:', err));
-
-            const hash = window.location.hash.substring(1);
-            if (hash && sections[hash]) {
-                showSection(hash);
-            } else {
-                showSection('section2');
-            }
-        });
-
-        /* Login Popups */
-        let lastLoginBtn = null;
-        function openLoginPopup(btn) {
-            lastLoginBtn = btn;
-            const popup = window.open("/login", "LoginWindow", "width=600,height=700");
-            if (!popup) alert("Please allow popups for this site.");
+        // Info submenu toggle
+        const infoBtn     = document.getElementById('btn-section7');
+        const infoSubmenu = document.getElementById('submenu-info');
+        if (infoBtn && infoSubmenu) {
+            infoBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const expanded = infoSubmenu.classList.contains('show');
+                infoSubmenu.classList.toggle('show', !expanded);
+                infoBtn.classList.toggle('expanded', !expanded);
+            });
         }
 
-        window.addEventListener("message", function(e) {
-            if (e.data === "login-success" && lastLoginBtn) {
-                location.reload();
-            }
-        });
+        // =========================================================
+        // TOAST UTILITY
+        // =========================================================
 
-        let lastGoogleLoginBtn = null;
-        function openGoogleLoginPopup(btn) {
-            lastGoogleLoginBtn = btn;
-            const popup = window.open("/google/login", "GoogleLoginWindow", "width=600,height=700");
-            if (!popup) alert("Please allow popups for this site.");
-        }
-
-        window.addEventListener("message", function(e) {
-            if (e.data === "google-login-success" && lastGoogleLoginBtn) {
-                location.reload();
-            }
-        });
-
-        /* Schedule Modal */
-        const scheduleTime = document.getElementById("scheduleTime");
-        const scheduleInterval = document.getElementById("scheduleInterval");
-        const modeCheckboxes = document.querySelectorAll(".scheduleMode");
-
-        function enforceMutualExclusivity() {
-            const timeVal = scheduleTime.value.trim();
-            const intervalVal = scheduleInterval.value.trim();
-
-            scheduleTime.disabled = !!intervalVal;
-            scheduleInterval.disabled = !!timeVal;
-            modeCheckboxes.forEach(cb => cb.disabled = !!intervalVal);
-            document.getElementById("scheduleSubmit").disabled = !(timeVal || intervalVal);
-        }
-
-        if (scheduleTime) scheduleTime.addEventListener("input", enforceMutualExclusivity);
-        if (scheduleInterval) scheduleInterval.addEventListener("input", enforceMutualExclusivity);
-
-        function openSchedule(filename) {
-            const sched = scheduleData[filename];
-
-            document.getElementById("scheduleFilename").value = filename;
-            document.getElementById("scheduleTime").value = sched && sched.time ? sched.time : "";
-            document.getElementById("scheduleInterval").value = sched && sched.interval ? sched.interval : "";
-
-            document.querySelectorAll("input[name='mode']").forEach(r => r.checked = false);
-
-            if (sched && sched.mode) {
-                const el = document.querySelector(`input[name='mode'][value='${sched.mode}']`);
-                if (el) el.checked = true;
-
-                if (sched.mode.toLowerCase() === "weekly") {
-                    document.getElementById("weeklyDays").style.display = "grid";
-                } else {
-                    document.getElementById("weeklyDays").style.display = "none";
-                }
-            } else {
-                document.getElementById("weeklyDays").style.display = "none";
-            }
-
-            document.querySelectorAll("#weeklyDays input[type=checkbox]").forEach(cb => cb.checked = false);
-            if (sched && sched.days) {
-                sched.days.forEach(day => {
-                    const cb = document.querySelector(`#weeklyDays input[value='${day}']`);
-                    if (cb) cb.checked = true;
-                });
-            }
-
-            document.getElementById("scheduleModal").style.display = "block";
-            enforceMutualExclusivity();
-        }
-
-        document.querySelector(".close").onclick = function() {
-            document.getElementById("scheduleModal").style.display = "none";
-        };
-
-        window.onclick = function(event) {
-            if (event.target === document.getElementById("scheduleModal")) {
-                document.getElementById("scheduleModal").style.display = "none";
-            }
-        };
-
-        function showToast(message, success=true) {
-            const toast = document.getElementById("toast");
+        function showToast(message, success = true) {
+            const toast = document.getElementById('toast');
             toast.textContent = message;
-            toast.style.backgroundColor = success ? "var(--success)" : "var(--danger)";
-            toast.className = "show";
-            setTimeout(() => { toast.className = ""; }, 3000);
+            toast.style.backgroundColor = success ? 'var(--success)' : 'var(--danger)';
+            toast.className = 'show';
+            setTimeout(() => { toast.className = ''; }, 3000);
         }
 
-        document.getElementById("scheduleForm").addEventListener("submit", function(event) {
-            event.preventDefault();
-            const time = scheduleTime.value.trim();
-            const interval = scheduleInterval.value.trim();
-            if (!time && !interval) { showToast("⚠ Enter time or interval", false); return; }
+        // =========================================================
+        // GENERIC AJAX FORM HELPER
+        // Eliminates the six nearly-identical fetch/toast/reload blocks.
+        // Usage: apiForm(selector, { redirectSection })
+        // =========================================================
 
-            const formData = new FormData(this);
-            let selectedMode = "";
-            document.querySelectorAll("input[name='mode']").forEach(r => { if (r.checked) selectedMode = r.value; });
-            formData.append("mode", selectedMode);
-
-            fetch(this.action, { method: "POST", body: formData })
-            .then(response => {
-                if (response.ok) {
-                    showToast("✅ Schedule saved successfully");
-                    document.getElementById("scheduleModal").style.display = "none";
-                    setTimeout(() => location.reload(), 800);
-                } else {
-                    showToast("⚠ Failed to save schedule", false);
-                }
-            })
-            .catch(() => showToast("⚠ Error connecting to server", false));
-        });
-
-        const clearScheduleBtn = document.getElementById("clearScheduleBtn");
-        clearScheduleBtn.addEventListener("click", function() {
-            const filename = document.getElementById("scheduleFilename").value;
-            if (!filename) return;
-           /* if (!confirm(`Clear schedule for ${filename}?`)) return;*/
-
-            fetch('/schedule/clear', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast("✅ Schedule cleared");
-                    document.getElementById("scheduleModal").style.display = "none";
-                    setTimeout(() => location.reload(), 800);
-                } else {
-                    showToast("⚠ Failed to clear schedule", false);
-                }
-            })
-            .catch(() => showToast("⚠ Error connecting to server", false));
-        });
-
-        modeCheckboxes.forEach(cb => {
-            cb.addEventListener("change", function() {
-                if (this.checked) {
-                    modeCheckboxes.forEach(other => {
-                        if (other !== this) other.checked = false;
-                    });
-                }
+        function apiForm(selector, { redirectSection, onSuccess } = {}) {
+            document.querySelectorAll(selector).forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    fetch(this.action, { method: 'POST', body: new FormData(this) })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.success) {
+                                showToast(`✅ ${data.message}`);
+                                if (onSuccess) onSuccess(data);
+                                if (redirectSection) {
+                                    setTimeout(() => {
+                                        window.location.hash = redirectSection;
+                                        window.location.reload();
+                                    }, 900);
+                                }
+                            } else {
+                                showToast(`⚠ ${data.message || 'Operation failed'}`, false);
+                            }
+                        })
+                        .catch(() => showToast('⚠ Error connecting to server', false));
+                });
             });
-        });
+        }
 
-        flatpickr("#scheduleTime", {
-            enableTime: true,
-            noCalendar: true,
-            dateFormat: "H:i",
-            time_24hr: true
-        });
+        // Wire all standard CRUD forms with one line each
+        apiForm('form[action="/add_sharepoint"]',    { redirectSection: 'section2' });
+        apiForm('form[action="/remove_sharepoint"]', { redirectSection: 'section2' });
+        apiForm('form[action="/add_local"]',         { redirectSection: 'section5' });
+        apiForm('form[action="/remove_local"]',      { redirectSection: 'section5' });
+        apiForm('form[action="/add_google"]',        { redirectSection: 'section6' });
+        apiForm('form[action="/remove_google"]',     { redirectSection: 'section6' });
 
-        document.querySelectorAll("input[name='mode']").forEach(radio => {
-            radio.addEventListener("change", function() {
-                const weeklyDaysDiv = document.getElementById("weeklyDays");
-                if (this.value.toLowerCase() === "weekly") {
-                    weeklyDaysDiv.style.display = "grid";
-                } else {
-                    weeklyDaysDiv.style.display = "none";
-                }
+        // =========================================================
+        // JIRA FORM (JSON body, not FormData)
+        // =========================================================
+
+        const jiraForm = document.querySelector('#section1 form.left-form');
+        if (jiraForm) {
+            jiraForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                fetch('/save_jira', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        jira_url:      this.querySelector('input[name="jira_url"]').value,
+                        jira_user:     this.querySelector('input[name="jira_user"]').value,
+                        jira_token:    this.querySelector('input[name="jira_token"]').value,
+                        jira_password: this.querySelector('input[name="jira_password"]').value,
+                    })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    data.success
+                        ? showToast('✅ Jira settings saved')
+                        : showToast('⚠ Failed to save Jira settings', false);
+                })
+                .catch(() => showToast('⚠ Error connecting to server', false));
             });
-        });
+        }
 
-       const scheduleData = {{ schedule_dict | tojson | safe }} || {};
-        
+        // =========================================================
+        // LLM FORM
+        // =========================================================
 
-        /* LLM Form */
-        const llmSelect = document.getElementById('llmSelect');
+        const llmSelect        = document.getElementById('llmSelect');
         const openaiTokenField = document.getElementById('openaiTokenField');
-        
+
         function toggleTokenField() {
             if (!llmSelect) return;
-            if (llmSelect.value === 'OpenAI') {
-                openaiTokenField.style.display = 'flex';
-            } else {
-                openaiTokenField.style.display = 'none';
-            }
+            openaiTokenField.style.display = llmSelect.value === 'OpenAI' ? 'flex' : 'none';
         }
-        
+
         if (llmSelect) {
             toggleTokenField();
             llmSelect.addEventListener('change', toggleTokenField);
@@ -1700,23 +1632,19 @@
 
         const llmForm = document.getElementById('llmForm');
         if (llmForm) {
-            llmForm.addEventListener('submit', function(event) {
-                event.preventDefault();
-                const selectedModel = document.getElementById('llmSelect').value;
-                const openaiToken = document.querySelector('input[name="openai_token"]') ? document.querySelector('input[name="openai_token"]').value : '';
-
+            llmForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const selectedModel = llmSelect.value;
+                const openaiToken   = document.querySelector('input[name="openai_token"]')?.value || '';
                 fetch('/setmodel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        llm_model: selectedModel,
-                        openai_token: openaiToken
-                    })
+                    body: JSON.stringify({ llm_model: selectedModel, openai_token: openaiToken })
                 })
                 .then(res => {
                     if (res.ok) {
                         showToast(`✅ Saved LLM model: ${selectedModel}`);
-                        setTimeout(() => { window.location.hash = "section4"; window.location.reload(); }, 900);
+                        setTimeout(() => { window.location.hash = 'section4'; window.location.reload(); }, 900);
                     } else {
                         showToast('⚠ Failed to save settings', false);
                     }
@@ -1725,151 +1653,180 @@
             });
         }
 
-        /* Jira Form */
-        const jiraForm = document.querySelector('#section1 form.left-form');
-        if (jiraForm) {
-            jiraForm.addEventListener('submit', function(event) {
-                event.preventDefault();
-                const formData = {
-                    jira_url: this.querySelector('input[name="jira_url"]').value,
-                    jira_user: this.querySelector('input[name="jira_user"]').value,
-                    jira_token: this.querySelector('input[name="jira_token"]').value,
-                    jira_password: this.querySelector('input[name="jira_password"]').value
-                };
-                fetch('/save_jira', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(formData)
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) showToast('✅ Jira settings saved');
-                    else showToast('⚠ Failed to save Jira settings', false);
+        // =========================================================
+        // LOGIN POPUPS
+        // Both message listeners are merged into one handler.
+        // =========================================================
+
+        let lastLoginBtn       = null;
+        let lastGoogleLoginBtn = null;
+
+        function openLoginPopup(btn) {
+            lastLoginBtn = btn;
+            const popup = window.open('/login', 'LoginWindow', 'width=600,height=700');
+            if (!popup) alert('Please allow popups for this site.');
+        }
+
+        function openGoogleLoginPopup(btn) {
+            lastGoogleLoginBtn = btn;
+            const popup = window.open('/google/login', 'GoogleLoginWindow', 'width=600,height=700');
+            if (!popup) alert('Please allow popups for this site.');
+        }
+
+        window.addEventListener('message', function(e) {
+            if (e.data === 'login-success'        && lastLoginBtn)       location.reload();
+            if (e.data === 'google-login-success' && lastGoogleLoginBtn) location.reload();
+        });
+
+        // =========================================================
+        // SCHEDULE MODAL
+        // =========================================================
+
+        const scheduleModal    = document.getElementById('scheduleModal');
+        const scheduleTime     = document.getElementById('scheduleTime');
+        const scheduleInterval = document.getElementById('scheduleInterval');
+        const modeCheckboxes   = document.querySelectorAll('.scheduleMode');
+        const scheduleData     = {{ schedule_dict | tojson | safe }} || {};
+
+        function enforceMutualExclusivity() {
+            const timeVal     = scheduleTime.value.trim();
+            const intervalVal = scheduleInterval.value.trim();
+            scheduleTime.disabled     = !!intervalVal;
+            scheduleInterval.disabled = !!timeVal;
+            modeCheckboxes.forEach(cb => cb.disabled = !!intervalVal);
+            document.getElementById('scheduleSubmit').disabled = !(timeVal || intervalVal);
+        }
+
+        if (scheduleTime)     scheduleTime.addEventListener('input', enforceMutualExclusivity);
+        if (scheduleInterval) scheduleInterval.addEventListener('input', enforceMutualExclusivity);
+
+        function openSchedule(filename) {
+            const sched = scheduleData[filename];
+            document.getElementById('scheduleFilename').value  = filename;
+            document.getElementById('scheduleTime').value      = sched?.time     || '';
+            document.getElementById('scheduleInterval').value  = sched?.interval || '';
+
+            document.querySelectorAll("input[name='mode']").forEach(r => r.checked = false);
+            if (sched?.mode) {
+                const el = document.querySelector(`input[name='mode'][value='${sched.mode}']`);
+                if (el) el.checked = true;
+            }
+
+            const weeklyDays = document.getElementById('weeklyDays');
+            weeklyDays.style.display = sched?.mode?.toLowerCase() === 'weekly' ? 'grid' : 'none';
+
+            document.querySelectorAll('#weeklyDays input[type=checkbox]').forEach(cb => cb.checked = false);
+            sched?.days?.forEach(day => {
+                const cb = document.querySelector(`#weeklyDays input[value='${day}']`);
+                if (cb) cb.checked = true;
+            });
+
+            scheduleModal.style.display = 'block';
+            enforceMutualExclusivity();
+        }
+
+        // Close modal on X or backdrop click
+        document.querySelector('.close').onclick = () => scheduleModal.style.display = 'none';
+        window.onclick = e => { if (e.target === scheduleModal) scheduleModal.style.display = 'none'; };
+
+        // Schedule form submit
+        document.getElementById('scheduleForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const time     = scheduleTime.value.trim();
+            const interval = scheduleInterval.value.trim();
+            if (!time && !interval) { showToast('⚠ Enter time or interval', false); return; }
+
+            const formData     = new FormData(this);
+            let selectedMode   = '';
+            document.querySelectorAll("input[name='mode']").forEach(r => { if (r.checked) selectedMode = r.value; });
+            formData.append('mode', selectedMode);
+
+            fetch(this.action, { method: 'POST', body: formData })
+                .then(res => {
+                    if (res.ok) {
+                        showToast('✅ Schedule saved successfully');
+                        scheduleModal.style.display = 'none';
+                        setTimeout(() => location.reload(), 800);
+                    } else {
+                        showToast('⚠ Failed to save schedule', false);
+                    }
                 })
                 .catch(() => showToast('⚠ Error connecting to server', false));
-            });
-        }
+        });
 
-        /* AJAX Form Submissions */
-        const addSharepointForm = document.querySelector('form[action="/add_sharepoint"]');
-        if (addSharepointForm) {
-            addSharepointForm.addEventListener("submit", function(event) {
-                event.preventDefault();
-                const formData = new FormData(this);
-                fetch(this.action, { method: "POST", body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast(`✅ ${data.message}`);
-                        setTimeout(() => { window.location.hash = "section2"; window.location.reload(); }, 900);
-                    } else {
-                        showToast(`⚠ ${data.message || "Operation failed"}`, false);
-                    }
-                })
-                .catch(() => showToast("⚠ Error connecting to server", false));
-            });
-        }
+        // Clear schedule button
+        document.getElementById('clearScheduleBtn').addEventListener('click', function() {
+            const filename = document.getElementById('scheduleFilename').value;
+            if (!filename) return;
+            fetch('/schedule/clear', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('✅ Schedule cleared');
+                    scheduleModal.style.display = 'none';
+                    setTimeout(() => location.reload(), 800);
+                } else {
+                    showToast('⚠ Failed to clear schedule', false);
+                }
+            })
+            .catch(() => showToast('⚠ Error connecting to server', false));
+        });
 
-        document.querySelectorAll('form[action="/remove_sharepoint"]').forEach(form => {
-            form.addEventListener("submit", function(event) {
-                event.preventDefault();
-                const formData = new FormData(this);
-                fetch(this.action, { method: "POST", body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast(`✅ ${data.message}`);
-                        setTimeout(() => { window.location.hash = "section2"; window.location.reload(); }, 900);
-                    } else {
-                        showToast(`⚠ ${data.message || "Operation failed"}`, false);
-                    }
-                })
-                .catch(() => showToast("⚠ Error connecting to server", false));
+        // Radio mutual exclusivity + weekly days visibility
+        modeCheckboxes.forEach(cb => {
+            cb.addEventListener('change', function() {
+                if (this.checked) modeCheckboxes.forEach(o => { if (o !== this) o.checked = false; });
             });
         });
 
-        const localForm = document.querySelector('form[action="/add_local"]');
-        if (localForm) {
-            localForm.addEventListener("submit", function(event) {
-                event.preventDefault();
-                const formData = new FormData(this);
-                fetch(this.action, { method: "POST", body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast(`✅ ${data.message}`);
-                        setTimeout(() => { window.location.hash = "section5"; window.location.reload(); }, 900);
-                    } else {
-                        showToast(`⚠ ${data.message || "Operation failed"}`, false);
-                    }
-                })
-                .catch(() => showToast("⚠ Error connecting to server", false));
-            });
-        }
-
-        document.querySelectorAll('form[action="/remove_local"]').forEach(form => {
-            form.addEventListener("submit", function(event) {
-                event.preventDefault();
-                const formData = new FormData(this);
-                fetch(this.action, { method: "POST", body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast(`✅ ${data.message}`);
-                        setTimeout(() => { window.location.hash = "section5"; window.location.reload(); }, 900);
-                    } else {
-                        showToast(`⚠ ${data.message || "Operation failed"}`, false);
-                    }
-                })
-                .catch(() => showToast("⚠ Error connecting to server", false));
+        document.querySelectorAll("input[name='mode']").forEach(radio => {
+            radio.addEventListener('change', function() {
+                document.getElementById('weeklyDays').style.display =
+                    this.value.toLowerCase() === 'weekly' ? 'grid' : 'none';
             });
         });
 
-        const addGoogleForm = document.querySelector('form[action="/add_google"]');
-        if (addGoogleForm) {
-            addGoogleForm.addEventListener("submit", function(event) {
-                event.preventDefault();
-                const formData = new FormData(this);
-                fetch(this.action, { method: "POST", body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast(`✅ ${data.message}`);
-                        setTimeout(() => { window.location.hash = "section6"; window.location.reload(); }, 900);
-                    } else {
-                        showToast(`⚠ ${data.message || "Operation failed"}`, false);
-                    }
-                })
-                .catch(() => showToast("⚠ Error connecting to server", false));
+        flatpickr('#scheduleTime', { enableTime: true, noCalendar: true, dateFormat: 'H:i', time_24hr: true });
+
+        // =========================================================
+        // CONTACT FORM (Section 8)
+        // =========================================================
+
+        const contactForm = document.getElementById('contactForm');
+        if (contactForm) {
+            contactForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const name    = contactForm.querySelector('input[name="contactus"]').value.trim();
+                const email   = contactForm.querySelector('input[name="feedback_email"]').value.trim();
+                const message = contactForm.querySelector('textarea[name="feedback_message"]').value.trim();
+                const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+                if (!name)               { showToast('⚠ Please enter your name.', false);          return; }
+                if (!email)              { showToast('⚠ Please enter your email.', false);         return; }
+                if (!emailRe.test(email)){ showToast('⚠ Please enter a valid email.', false);      return; }
+                if (!message)            { showToast('⚠ Please enter a message.', false);          return; }
+
+                fetch('/contactus', { method: 'POST', body: new FormData(contactForm) })
+                    .then(r => r.json())
+                    .then(() => { showToast('✅ Message sent successfully!'); contactForm.reset(); })
+                    .catch(() => showToast('⚠ Failed to send message', false));
             });
         }
 
-        document.querySelectorAll('form[action="/remove_google"]').forEach(form => {
-            form.addEventListener("submit", function(event) {
-                event.preventDefault();
-                const formData = new FormData(this);
-                fetch(this.action, { method: "POST", body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast(`✅ ${data.message}`);
-                        setTimeout(() => { window.location.hash = "section6"; window.location.reload(); }, 900);
-                    } else {
-                        showToast(`⚠ ${data.message || "Operation failed"}`, false);
-                    }
-                })
-                .catch(() => showToast("⚠ Error connecting to server", false));
-            });
-        });
+        // =========================================================
+        // TASK QUEUE MANAGEMENT
+        // =========================================================
 
-        /* Task Queue Management */
         const activeTasks = new Map();
         let globalPollInterval = null;
 
         function formatTime(dateString) {
             if (!dateString) return '--:--:--';
-            const date = new Date(dateString);
-            return date.toLocaleTimeString('en-US', { hour12: false });
+            return new Date(dateString).toLocaleTimeString('en-US', { hour12: false });
         }
 
         function getShortFilename(url) {
@@ -1879,106 +1836,68 @@
 
         function updateTaskDisplay() {
             const taskQueueDiv = document.getElementById('taskQueueStatus');
-            const taskListDiv = document.getElementById('taskList');
-            
-            if (activeTasks.size === 0) {
-                taskQueueDiv.style.display = 'none';
-                return;
-            }
-            
+            const taskListDiv  = document.getElementById('taskList');
+            if (activeTasks.size === 0) { taskQueueDiv.style.display = 'none'; return; }
+
             taskQueueDiv.style.display = 'block';
-            
+            const statusIcons = { pending: '⏳', running: '🔄', completed: '✅', failed: '❌' };
             let html = '';
             activeTasks.forEach((task, taskId) => {
-                /*const shortFilename = getShortFilename(task.fileUrl);*/
-                const shortFilename = task.filename + "#"+ task.sheet;
-                const statusClass = task.status.toLowerCase();
-                const statusIcon = {
-                    'pending': '⏳',
-                    'running': '🔄',
-                    'completed': '✅',
-                    'failed': '❌'
-                }[task.status.toLowerCase()] || '•';
-                
+                const shortFilename = `${task.filename}#${task.sheet}`;
+                const statusClass   = task.status.toLowerCase();
+                const statusIcon    = statusIcons[statusClass] || '•';
                 html += `
                     <div class="task-item ${statusClass}" data-task-id="${taskId}">
                         <div class="task-info">
                             <div class="task-filename">${statusIcon} ${shortFilename}</div>
                             <div class="task-times">
-                                Created: ${formatTime(task.created_at)} | 
-                                Started: ${formatTime(task.started_at)} | 
+                                Created: ${formatTime(task.created_at)} |
+                                Started: ${formatTime(task.started_at)} |
                                 Completed: ${formatTime(task.completed_at)}
                             </div>
-                            ${task.error ? `<div style="color: var(--danger); font-size: 11px; margin-top: 4px;">Error: ${task.error}</div>` : ''}
+                            ${task.error ? `<div style="color:var(--danger);font-size:11px;margin-top:4px;">Error: ${task.error}</div>` : ''}
                         </div>
                         <span class="task-status-badge status-${statusClass}">${task.status}</span>
-                    </div>
-                `;
+                    </div>`;
             });
-            
             taskListDiv.innerHTML = html;
         }
 
         function removeCompletedTask(taskId) {
             const task = activeTasks.get(taskId);
-            console.log(`[Task] Checking if task ${taskId.substring(0, 8)} can be removed... Status: ${task ? task.status : 'unknown'}`);
-            if (task && (task.status === 'completed' || task.status === 'failed' || task.status === 'SUCCESS')) {
+            if (task && ['completed', 'failed', 'SUCCESS'].includes(task.status)) {
                 activeTasks.delete(taskId);
                 updateTaskDisplay();
-                console.log(`[Task] Removed completed task ${taskId.substring(0, 8)}`);
             }
         }
 
         function clearAllTasks() {
-           /* if (!confirm('Clear ALL tasks from the list? Running tasks will continue in the background.')) {
-                return;
-            }*/
-            
-            const count = activeTasks.size;
             activeTasks.clear();
             updateTaskDisplay();
-            console.log(`[Task] Cleared all ${count} tasks from display`);
         }
 
         async function pollAllTasks() {
             try {
-                const response = await fetch('/tasks/status');
-                const data = await response.json();
-                
-                if (!data.success) {
-                    console.error('Failed to fetch task status');
-                    return;
-                }
-                
+                const data = await fetch('/tasks/status').then(r => r.json());
+                if (!data.success) return;
                 data.tasks.forEach(task => {
-                    const taskId = task.task_id;
-                    
-                    if (activeTasks.has(taskId)) {
-                        const localTask = activeTasks.get(taskId);
-                        localTask.status = task.status;
-                        localTask.started_at = task.started_at;
-                        localTask.completed_at = task.completed_at;
-                        localTask.progress = task.progress;
-                        localTask.error = task.error;
-                        
-                        console.log(`[Task] Updated task ${taskId.substring(0, 8)} - Status: ${task.status}, Progress: ${task.progress}%`);
-                        if ((task.status === 'SUCCESS' || task.status === 'completed' || task.status === 'failed') && !localTask.removeScheduled) {
-                            localTask.removeScheduled = true;
-                            setTimeout(() => removeCompletedTask(taskId), 60000);
-                        }
+                    if (!activeTasks.has(task.task_id)) return;
+                    const local = activeTasks.get(task.task_id);
+                    Object.assign(local, {
+                        status: task.status, started_at: task.started_at,
+                        completed_at: task.completed_at, progress: task.progress, error: task.error
+                    });
+                    if (['SUCCESS', 'completed', 'failed'].includes(task.status) && !local.removeScheduled) {
+                        local.removeScheduled = true;
+                        setTimeout(() => removeCompletedTask(task.task_id), 60000);
                     }
                 });
-                
                 updateTaskDisplay();
-                
-            } catch (error) {
-                console.error('Error polling tasks:', error);
-            }
+            } catch (err) { console.error('Error polling tasks:', err); }
         }
 
         function startGlobalPolling() {
             if (globalPollInterval) return;
-            
             globalPollInterval = setInterval(() => {
                 if (activeTasks.size > 0) {
                     pollAllTasks();
@@ -1991,86 +1910,58 @@
 
         async function handleResync(fileUrl, filename, sheet, event) {
             if (event) event.preventDefault();
-            /*
-            if (!confirm(`Start resync for ${fileUrl}?`)) {
-                return;
-            }*/
-            
             try {
                 const formData = new FormData();
                 formData.append('resync_bar', fileUrl);
-                
-                const response = await fetch('/resync_sharepoint', {
-                    method: 'POST',
-                    body: formData
+                const data = await fetch('/resync_sharepoint', { method: 'POST', body: formData }).then(r => r.json());
+                if (!data.success) { showToast('Failed to start resync: ' + data.message, false); return; }
+
+                activeTasks.set(data.task_id, {
+                    taskId: data.task_id, fileUrl, filename, sheet,
+                    status: 'pending', created_at: new Date().toISOString(),
+                    started_at: null, completed_at: null, progress: 0,
+                    error: null, removeScheduled: false
                 });
-                
-                const data = await response.json();
-                
-                if (!data.success) {
-                    showToast('Failed to start resync: ' + data.message, false);
-                    return;
-                }
-                
-                const taskId = data.task_id;
-                
-                activeTasks.set(taskId, {
-                    taskId: taskId,
-                    fileUrl: fileUrl,
-                    status: 'pending',
-                    created_at: new Date().toISOString(),
-                    started_at: null,
-                    completed_at: null,
-                    progress: 0,
-                    error: null,
-                    removeScheduled: false,
-                    filename: filename,
-                    sheet:sheet
-                });
-                
                 updateTaskDisplay();
                 startGlobalPolling();
-                
                 showToast(`✅ Resync queued for ${getShortFilename(fileUrl)}`);
-                
-            } catch (error) {
-                console.error('Resync error:', error);
-                showToast('Error starting resync: ' + error.message, false);
+            } catch (err) {
+                console.error('Resync error:', err);
+                showToast('Error starting resync: ' + err.message, false);
             }
         }
 
+        // Persist task queue across page reloads via localStorage
         window.addEventListener('beforeunload', () => {
             localStorage.setItem('activeTasks', JSON.stringify([...activeTasks]));
         });
 
-        window.addEventListener('DOMContentLoaded', () => {
-            const saved = JSON.parse(localStorage.getItem('activeTasks') || '[]');
-            saved.forEach(([id, task]) => activeTasks.set(id, task));
-            updateTaskDisplay();
-            startGlobalPolling();
-        });
+        // =========================================================
+        // LOG VIEWER UTILITY
+        // Shared render helper used by both debug logs and run logs.
+        // =========================================================
 
-        /* Debug Logs Viewer */
+        function renderLog(viewerId, text, formatFn) {
+            const viewer     = document.getElementById(viewerId);
+            viewer.innerHTML = text.trim() ? formatFn(text) : '(empty)';
+            viewer.scrollTop = viewer.scrollHeight;
+        }
+
+        // Debug logs (Section 3)
         async function loadRunFolders() {
             try {
-                const res = await fetch("/logs");
-                const runs = await res.json();
-                const select = document.getElementById("logRunSelect");
-                select.innerHTML = "";
+                const runs   = await fetch('/logs').then(r => r.json());
+                const select = document.getElementById('logRunSelect');
+                select.innerHTML = '';
                 runs.forEach(run => {
-                    const opt = document.createElement("option");
-                    opt.value = run;
-                    opt.textContent = run;
+                    const opt = document.createElement('option');
+                    opt.value = opt.textContent = run;
                     select.appendChild(opt);
                 });
-                if (runs.length) {
-                    select.value = runs[0];
-                    loadLogFile(runs[0]);
-                } else {
-                    document.getElementById("logViewer").textContent = "No logs found.";
-                }
+                if (runs.length) { select.value = runs[0]; loadLogFile(runs[0]); }
+                else renderLog('logViewer', '', () => 'No logs found.');
             } catch (err) {
-                document.getElementById("logViewer").textContent = "⚠ Error loading log folders.";
+                document.getElementById('logViewer').textContent = '⚠ Error loading log folders.';
                 console.error(err);
             }
         }
@@ -2079,235 +1970,127 @@
             try {
                 const res = await fetch(`/logs/${run}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const text = await res.text();
-                const viewer = document.getElementById("logViewer");
-                
-                if (!text.trim()) {
-                    viewer.textContent = "(empty)";
-                } else {
-                    let formatted = text;
-
-                    formatted = formatted
-                        .replace(/(ERROR)/g, '<span class="log-error">$1</span>')
-                        .replace(/(WARNING)/g, '<span class="log-warning">$1</span>')
-                        .replace(/(--- Running.*?---)/g, '<span class="log-info">$1</span>')
-                        .replace(/(INFO)/g, '<span class="log-info">$1</span>');
-
-                    formatted = formatted.replace(
-                        /(Traceback \(most recent call last\):[\s\S]*?(?=\n\s*\n|$))/g,
-                        '<span class="traceback-block">$1</span>'
-                    );
-
-                    viewer.innerHTML = formatted;
-                }
-                
-                viewer.scrollTop = viewer.scrollHeight;
+                renderLog('logViewer', await res.text(), raw => raw
+                    .replace(/(ERROR)/g,             '<span class="log-error">$1</span>')
+                    .replace(/(WARNING)/g,            '<span class="log-warning">$1</span>')
+                    .replace(/(--- Running.*?---)/g,  '<span class="log-info">$1</span>')
+                    .replace(/(INFO)/g,               '<span class="log-info">$1</span>')
+                    .replace(/(Traceback \(most recent call last\):[\s\S]*?(?=\n\s*\n|$))/g,
+                              '<span class="traceback-block">$1</span>')
+                );
             } catch (err) {
-                document.getElementById("logViewer").textContent = "⚠ Failed to load log file.";
+                document.getElementById('logViewer').textContent = '⚠ Failed to load log file.';
                 console.error(err);
             }
         }
 
-        const logRunSelect = document.getElementById("logRunSelect");
-        if (logRunSelect) {
-            logRunSelect.addEventListener("change", e => loadLogFile(e.target.value));
-        }
+        document.getElementById('logRunSelect')?.addEventListener('change', e => loadLogFile(e.target.value));
 
-        window.addEventListener("DOMContentLoaded", () => {
-            if (document.getElementById("section3")) loadRunFolders();
-        });
-
-    const CLIENT_ID = "349167135617-aagidlgil4i5tftvkga480jks6nksts4.apps.googleusercontent.com";
-      const API_KEY = "AIzaSyBUhS45hA4P5l4Yb-4lOKF6preSlzA-2B4";
-      const SCOPES = "https://www.googleapis.com/auth/drive.file";
-      let accessToken;
-
-      // Initialize OAuth2 token client
-      const tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: (response) => {
-          accessToken = response.access_token;
-          createPicker();
-        },
-      });
-
-      function onPickFile() {
-        tokenClient.requestAccessToken();
-      }
-
-      function createPicker() {
-        gapi.load("picker", () => {
-          const view_old = new google.picker.DocsView()
-            .setMimeTypes("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel");
-          const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
-            .setIncludeFolders(true)
-            .setSelectFolderEnabled(false);
-
-          const picker = new google.picker.PickerBuilder()
-            .addView(view)
-            .setOAuthToken(accessToken)
-            .setDeveloperKey(API_KEY)
-            .setCallback(pickerCallback)
-            .build();
-
-          picker.setVisible(true);
-        });
-      }
-
-    let selectedFile;
-    function pickerCallback(data) {
-    if (data.action === google.picker.Action.PICKED) {
-        selectedFile = data.docs[0];
-        document.getElementById("sheetDialog").style.display = "block";
-    }
-    }
-
-    function submitSheetTab() {
-        const sheetTab = document.getElementById("sheetNameInput").value;
-        if (!sheetTab) {
-            showToast("⚠ Sheet tab name is required!", false);
-            return;
-        }
-
-        fetch("/register_drive_file", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-                fileId: selectedFile.id,
-                name: selectedFile.name,
-                url: selectedFile.url,
-                sheetTab: sheetTab
-            }),
-        })
-        .then((r) => r.json())
-        .then((res) => {
-            console.log("Registered:", res);
-            if (res.success) {
-                showToast(`✅ ${res.message || 'File registered successfully'}`);
-                document.getElementById("sheetDialog").style.display = "none";
-                setTimeout(() => { window.location.hash = "section6"; window.location.reload(); }, 900);
-            } else {
-                showToast(`⚠ ${res.message || 'Failed to register file'}`, false);
-            }
-        })
-        .catch((err) => {
-            console.error("Error:", err);
-            showToast("⚠ Error connecting to server", false);
-        });
-    }
-
-
-
-
-    //* Contact Form (Section 8) */
-const contactForm = document.getElementById('contactForm');
-if (contactForm) {
-    contactForm.addEventListener('submit', function (event) {
-        event.preventDefault();
-
-        const name = contactForm.querySelector('input[name="contactus"]').value.trim();
-        const email = contactForm.querySelector('input[name="feedback_email"]').value.trim();
-        const message = contactForm.querySelector('textarea[name="feedback_message"]').value.trim();
-
-        // Basic email regex
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-        // Validation checks
-        if (!name) {
-            showToast("⚠ Please enter your name.", false);
-            return;
-        }
-
-        if (!email) {
-            showToast("⚠ Please enter your email.", false);
-            return;
-        }
-
-        if (!emailRegex.test(email)) {
-            showToast("⚠ Please enter a valid email address.", false);
-            return;
-        }
-
-        if (!message) {
-            showToast("⚠ Please enter a message.", false);
-            return;
-        }
-
-        // If valid → submit with AJAX
-        const formData = new FormData(contactForm);
-
-        fetch('/contactus', {
-            method: 'POST',
-            body: formData
-        })
-        .then(res => res.json())
-        .then(data => {
-            showToast("✅ Message sent successfully!");
-            contactForm.reset();
-        })
-        .catch(() => {
-            showToast("⚠ Failed to send message", false);
-        });
-    });
-}
-
-
-
-        /* Run Logs Viewer */
+        // Run history logs (Section 9)
         async function loadRunLog() {
             try {
-                const username = "{{username}}"; // Get from template
+                const username = '{{username}}';
                 const res = await fetch(`/runlog/${username}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const text = await res.text();
-                const viewer = document.getElementById("runLogViewer");
-                
-                if (!text.trim()) {
-                    viewer.textContent = "(empty)";
-                } else {
-                    let formatted = text;
-
-                    // Format timestamps to be different color
-                    // Format two consecutive timestamps - first blue, second green
-                    formatted = formatted.replace(
-                        /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/g,
-                        '<span style="color: #4dabf7;">$1</span> <span style="color: #51cf66;">$2</span>'
-                    );
-                    viewer.innerHTML = formatted;
-                }
-                
-                // Auto-scroll to bottom
-                viewer.scrollTop = viewer.scrollHeight;
+                renderLog('runLogViewer', await res.text(), raw => raw.replace(
+                    /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/g,
+                    '<span style="color:#4dabf7;">$1</span> <span style="color:#51cf66;">$2</span>'
+                ));
             } catch (err) {
-                document.getElementById("runLogViewer").textContent = "⚠ Failed to load run log file.";
+                document.getElementById('runLogViewer').textContent = '⚠ Failed to load run log file.';
                 console.error(err);
             }
         }
 
+        // =========================================================
+        // GOOGLE DRIVE PICKER
+        // =========================================================
 
-        function showSection(sectionId) {
-            Object.keys(sections).forEach(key => {
-                sections[key].classList.remove('active');
-                if (buttons[key]) buttons[key].classList.remove('active');
+        const CLIENT_ID = '349167135617-aagidlgil4i5tftvkga480jks6nksts4.apps.googleusercontent.com';
+        const API_KEY   = 'AIzaSyBUhS45hA4P5l4Yb-4lOKF6preSlzA-2B4';
+        const SCOPES    = 'https://www.googleapis.com/auth/drive.file';
+        let accessToken;
+        let selectedFile;
+
+        const tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID,
+            scope: SCOPES,
+            callback: response => { accessToken = response.access_token; createPicker(); }
+        });
+
+        function onPickFile() { tokenClient.requestAccessToken(); }
+
+        function createPicker() {
+            gapi.load('picker', () => {
+                const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
+                    .setIncludeFolders(true)
+                    .setSelectFolderEnabled(false);
+                new google.picker.PickerBuilder()
+                    .addView(view)
+                    .setOAuthToken(accessToken)
+                    .setDeveloperKey(API_KEY)
+                    .setCallback(pickerCallback)
+                    .build()
+                    .setVisible(true);
             });
-            if (sections[sectionId]) {
-                sections[sectionId].classList.add('active');
-                if (buttons[sectionId]) buttons[sectionId].classList.add('active');
-                history.replaceState(null, '', '#' + sectionId);
-                
-                // Load run log when section9 is shown
-                if (sectionId === 'section9') {
-                    loadRunLog();
-                }
+        }
+
+        function pickerCallback(data) {
+            if (data.action === google.picker.Action.PICKED) {
+                selectedFile = data.docs[0];
+                document.getElementById('sheetDialog').style.display = 'block';
             }
         }
 
+        function submitSheetTab() {
+            const sheetTab = document.getElementById('sheetNameInput').value;
+            if (!sheetTab) { showToast('⚠ Sheet tab name is required!', false); return; }
+            fetch('/register_drive_file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fileId: selectedFile.id, name: selectedFile.name,
+                    url: selectedFile.url, sheetTab
+                })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    showToast(`✅ ${res.message || 'File registered successfully'}`);
+                    document.getElementById('sheetDialog').style.display = 'none';
+                    setTimeout(() => { window.location.hash = 'section6'; window.location.reload(); }, 900);
+                } else {
+                    showToast(`⚠ ${res.message || 'Failed to register file'}`, false);
+                }
+            })
+            .catch(err => { console.error('Error:', err); showToast('⚠ Error connecting to server', false); });
+        }
 
+        // =========================================================
+        // SINGLE DOMContentLoaded — all initialisation in one place
+        // =========================================================
 
-        window.addEventListener("DOMContentLoaded", () => {
-            if (document.getElementById("section3")) loadRunFolders();
-            if (document.getElementById("section9")) loadRunLog();  // ADDED THIS LINE
+        window.addEventListener('DOMContentLoaded', () => {
+            // Restore persisted task queue
+            const saved = JSON.parse(localStorage.getItem('activeTasks') || '[]');
+            saved.forEach(([id, task]) => activeTasks.set(id, task));
+            updateTaskDisplay();
+            startGlobalPolling();
+
+            // Fetch and apply the current LLM model selection
+            fetch('/getmodel')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.default_model) {
+                        const s = document.getElementById('llmSelect');
+                        if (s) s.value = data.default_model;
+                    }
+                })
+                .catch(err => console.error('Failed to fetch default model:', err));
+
+            // Navigate to the section in the URL hash, or default to section2
+            const hash = window.location.hash.substring(1);
+            showSection(hash && sections[hash] ? hash : 'section2');
         });
 
     </script>

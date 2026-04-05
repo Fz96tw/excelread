@@ -1408,6 +1408,10 @@ def index():
     shared_files_sharepoint = load_shared_files(f"./config/shared_files_sharepoint_{userlogin}.json")
     shared_files_google = load_shared_files(f"./config/shared_files_google_{userlogin}.json")
     shared_files_local = load_shared_files(f"./config/shared_files_local_{userlogin}.json")
+    docs_list = load_shared_files(f"./config/{userlogin}/docs.json")
+
+    print(f"loaded docs_list = {docs_list["docs"] if docs_list else 'None'}")
+
                                             
 
     foo_values["mcp_api_key"] = read_mcp_key(current_user.username)  #using foo_values to avoid passing yet another var to form.html
@@ -1561,9 +1565,7 @@ def index():
                            shared_files_sharepoint = shared_files_sharepoint,
                            shared_files_google = shared_files_google,
                            shared_files_local = shared_files_local,
-                           #bar_values=bar_values,
-                           #google_values=google_values,
-                           #local_values=local_file_values,
+                           docs_list = docs_list["docs"] if docs_list else [],
                            logged_in=session["is_logged_in"],
                            google_logged_in=google_logged_in,
                            folder_tree=folder_tree,
@@ -2524,6 +2526,37 @@ def get_google_sheet_filename(creds, url_or_id):
             raise ValueError(f"Sheet not found with ID: {sheet_id}")
         else:
             raise
+
+@app.route("/remove_docslist", methods=["POST"])
+def remove_docslist():
+    to_remove = request.form.get('remove_docslist')
+    userlogin = current_user.username
+    print(f"remove_docslist called with {to_remove}")
+
+    # Remove from shared_files_google list (independent check)
+    json_filename = f"./config/{userlogin}/docs.json"
+    docslist = load_shared_files(json_filename)
+    
+    if docslist:
+        original_length = len(docslist["docs"])
+        
+        # Filter out the entry with matching new_val and username
+        docslist["docs"] = [
+            entry for entry in docslist["docs"] 
+            if not (entry.get('url') == to_remove)
+        ]
+        
+        # Check if anything was removed
+        if len(docslist["docs"]) < original_length:
+            # Save updated list back to disk
+            save_shared_files(json_filename, docslist)
+            print(f"Removed from docslst the entry with new_val={to_remove}")
+            #return jsonify({"success": True, "message": "Google Sheet removed successfully"})
+            return jsonify({"success": True, "message": "RAG Document removed successfully"})
+        else:
+            print(f"{to_remove} not found in docslist, no action taken")
+    
+    return jsonify({"success": False, "message": "RAG Document collection is empty"})
 
 
 #--- Google Sheet routes ---
