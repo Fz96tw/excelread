@@ -250,13 +250,13 @@ def retrieve():
         if rag_result and rag_result.get('has_context'):
             rag_context = rag_result.get('context', '')
             print(f"RAG context for MCP query {query}: {rag_context[:500]}{'...' if len(rag_context) > 500 else ''}")
-            documents.extend(rag_context)  # Add RAG retrieved docs if available
+
         else:
             print(f"No RAG context for query {query}. Proceeding without RAG context.")
         # Change back to original working directory
         os.chdir(original_cwd)
         
-        print(f"[/mcp/v1/retrieve] Total documents: {len(documents)} (CSV: {len(csv_docs)}, TXT: {len(txt_docs)})")
+        print(f"[/mcp/v1/retrieve] Total documents: {len(documents)} (CSV: {len(csv_docs)}, TXT: {len(txt_docs)}")
         
         # Return all documents (no filtering), optionally limit by max_results
         #if max_results is not None:

@@ -1,5 +1,7 @@
 version: "3.9"
 
+name: excelread-app
+
 services:
 
   redis:
