@@ -123,6 +123,12 @@ def build_vector_store(
         file_stem = normalize_name(Path(filepath).stem)
         model_stem = normalize_name(embedder.model_name)
         out_dir = out_root / f"{file_stem}__{model_stem}"
+        # ✅ Wipe the old index files before rebuilding
+        if out_dir.exists():
+            for stale in ["index.faiss", "chunks.pkl", "bm25.pkl", "metadata.json"]:
+                (out_dir / stale).unlink(missing_ok=True)
+            print("🗑️  Cleared stale index files for re-vectorization")
+
         out_dir.mkdir(parents=True, exist_ok=True)
 
         print(f"📂 Output directory: {out_dir}")

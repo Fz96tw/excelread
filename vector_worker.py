@@ -465,8 +465,10 @@ def build_vector_store(user_id, url, text):
 
     # Save chunks for retrieval
     chunks_path = os.path.join(out_dir, "chunks.json")
-    with open(chunks_path, "w") as f:
+    tmp_chunks = chunks_path + ".tmp"
+    with open(tmp_chunks, "w") as f:
         json.dump(chunks, f, indent=2)
+    os.replace(tmp_chunks, chunks_path)
 
     return len(chunks)
 
