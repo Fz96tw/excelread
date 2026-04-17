@@ -760,7 +760,7 @@
                     <span>MCP</span>
                 </button>
                 <button id="btn-section11">
-                    <img src="/static/docsicon.png" style="width: 24px; height: 24px;" alt="">
+                    <img src="/static/url-icon.png" style="width: 24px; height: 24px;" alt="">
                     <span>Supporting Docs</span>
                 </button>
                 
@@ -1067,7 +1067,7 @@
                 </div>
 
                 <div class="card">
-                    <h2>Support documents shared with Agent for Retrieval Augementation</h2>
+                    <h2>Supporting documents available to Agent for Retrieval</h2>
                     <table>
                         <thead>
                             <tr>
@@ -1083,13 +1083,13 @@
                             {% for val in docs_list %}
                             <tr>
                                 <td>{{ loop.index }}</td>
-                                <td><img src="/static/excelcon.jpg" style="height:24px;"></td>
+                                <td><img src="/static/url-icon.png" style="height:24px;"></td>
                                 <td>
-                                    <span style="font-weight: 500;">{{ val.url }}</span>
+                                    <a href="{{ val.url }}" target="_blank" style="font-weight: 500; color: var(--primary); text-decoration: none;">{{ val.url }}</a>
                                     <br><small style="color: var(--text-light);">Added {{ val.added_at}}</small>
                                 </td>
                                 <td style="text-align: center;">
-                                    <button type="button" onclick="handleResync('{{ val.url }}', event)" title="Resync">
+                                    <button type="button" onclick="handleResyncDocs('{{ val.url }}', event)" title="Resync">
                                         <img src="/static/refreshicon.png" alt="Resync">
                                     </button>
                                     <button type="button" onclick="openSchedule('{{ val.location }}')" title="Schedule">
@@ -1843,7 +1843,9 @@
             const statusIcons = { pending: '⏳', running: '🔄', completed: '✅', failed: '❌' };
             let html = '';
             activeTasks.forEach((task, taskId) => {
-                const shortFilename = `${task.filename}#${task.sheet}`;
+                const shortFilename = task.filename
+                ? (task.sheet ? `${task.filename}#${task.sheet}` : task.filename)
+                : getShortFilename(task.fileUrl);
                 const statusClass   = task.status.toLowerCase();
                 const statusIcon    = statusIcons[statusClass] || '•';
                 html += `
@@ -1927,6 +1929,29 @@
                 showToast(`✅ Resync queued for ${getShortFilename(fileUrl)}`);
             } catch (err) {
                 console.error('Resync error:', err);
+                showToast('Error starting resync: ' + err.message, false);
+            }
+        }
+
+        async function handleResyncDocs(fileUrl, event) {
+            if (event) event.preventDefault();
+            try {
+                const formData = new FormData();
+                formData.append('resync_bar', fileUrl);
+                const data = await fetch('/resync_docslist', { method: 'POST', body: formData }).then(r => r.json());
+                if (!data.success) { showToast('Failed to start resync: ' + data.message, false); return; }
+
+                activeTasks.set(data.task_id, {
+                    taskId: data.task_id, fileUrl,
+                    status: 'pending', created_at: new Date().toISOString(),
+                    started_at: null, completed_at: null, progress: 0,
+                    error: null, removeScheduled: false
+                });
+                updateTaskDisplay();
+                startGlobalPolling();
+                showToast(`✅ Vectorizing queued for ${getShortFilename(fileUrl)}`);
+            } catch (err) {
+                console.error('Resync docs error:', err);
                 showToast('Error starting resync: ' + err.message, false);
             }
         }

@@ -572,7 +572,7 @@ def resync_task_worker(self, file_url, userlogin, delegated_auth):
 
 
 @app.task(queue="url_processing_queue")
-def process_url(user_id, url):
+def process_url(user_id, url, force=False):
     """Process a URL for a specific user: fetch, check changes, and vectorize."""
     logger.info(f"[{user_id}] Processing URL: {url}")
     update_url_state(user_id, url, status="DOWNLOADING")
@@ -617,7 +617,7 @@ def process_url(user_id, url):
         logger.info(f"LATEST [{user_id}] ETag: {etag}, Last-Modified: {last_modified}, Checksum: {checksum}")
 
         # Check if unchanged
-        if prev:
+        if prev and not force:
             logger.info(f"PREV [{user_id}] ETag: {prev.get('last_etag')}, Last-Modified: {prev.get('last_modified')}, Checksum: {prev.get('last_checksum')}")
             if (
                 prev.get("last_etag") == etag

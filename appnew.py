@@ -24,7 +24,7 @@ os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Allow HTTP for local dev
 
 from flask_cors import CORS
 
-from vector_worker import resync_task_worker
+from vector_worker import resync_task_worker, process_url
 
 app = Flask(__name__)
 # Allow requests from your frontend domain
@@ -1410,7 +1410,7 @@ def index():
     shared_files_local = load_shared_files(f"./config/shared_files_local_{userlogin}.json")
     docs_list = load_shared_files(f"./config/{userlogin}/docs.json")
 
-    print(f"loaded docs_list = {docs_list["docs"] if docs_list else 'None'}")
+    print(f"loaded docs_list = {docs_list['docs'] if docs_list else 'None'}")
 
                                             
 
@@ -2557,6 +2557,30 @@ def remove_docslist():
             print(f"{to_remove} not found in docslist, no action taken")
     
     return jsonify({"success": False, "message": "RAG Document collection is empty"})
+
+
+@app.route("/resync_docslist", methods=["POST"])
+@login_required
+def resync_docslist():
+    """Queue a re-embed task for a docs.json entry via the url_processing_queue."""
+    url = request.form.get("resync_bar")
+    userlogin = current_user.username
+
+    print(f"/resync_docslist called with url={url}, user={userlogin}")
+
+    if not url:
+        return jsonify({"success": False, "message": "No URL specified"}), 400
+
+    task = process_url.delay(userlogin, url, force=True)
+
+    redis_client.sadd("celery:tasks", task.id)
+    print(f"/resync_docslist queued task {task.id} for url={url}, user={userlogin}")
+
+    return jsonify({
+        "success": True,
+        "message": f"Resync started for {url}",
+        "task_id": task.id
+    })
 
 
 #--- Google Sheet routes ---

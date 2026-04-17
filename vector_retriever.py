@@ -64,7 +64,7 @@ class VectorRetriever:
             raise
         
         print(f"{'='*60}\n")
-        
+         
     def _load_vector_store(self, url_dir: str) -> Tuple[faiss.Index, List[str], Dict]:
         """Load FAISS index, chunks, and metadata for a single URL."""
         print(f"  Loading vector store from: {url_dir}")
@@ -237,7 +237,10 @@ class VectorRetriever:
                 # Create results
                 results_from_doc = 0
                 for i, (distance, chunk_idx) in enumerate(zip(distances[0], indices[0])):
-                    if chunk_idx < len(chunks):  # Valid index
+                    #if chunk_idx < len(chunks):  # Valid index
+                    #FAISS returns -1 for unfilled slots when k > ntotal. -1 < len(chunks) is always True in Python, so -1 
+                    #would pass the guard and chunks[-1] would silently return the last chunk instead of being skipped. Fix:
+                    if 0 <= chunk_idx < len(chunks):
                         result = SearchResult(
                             chunk_text=chunks[chunk_idx],
                             score=float(distance),
