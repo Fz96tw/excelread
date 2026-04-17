@@ -108,6 +108,93 @@
             padding: 12px;
         }
 
+        .btn-logout {
+            width: 100%;
+            justify-content: flex-start;
+            background: transparent !important;
+            color: #4a4a4a !important;
+            font-size: 16px;
+            padding: 12px 16px;
+            gap: 12px;
+        }
+
+        .btn-logout:hover {
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Sidebar toggle button */
+        .sidebar-toggle {
+            align-self: flex-end;
+            margin: 8px 8px 0 0;
+            background: transparent;
+            border: none;
+            color: var(--text-light);
+            cursor: pointer;
+            padding: 4px 8px;
+            font-size: 18px;
+            border-radius: 6px;
+            transition: color 0.2s, background 0.2s;
+            box-shadow: none;
+            width: auto;
+        }
+
+        .sidebar-toggle:hover {
+            background: rgba(0, 0, 0, 0.05);
+            color: var(--text-dark);
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Collapsed sidebar */
+        .left-frame {
+            transition: flex 0.25s ease;
+        }
+
+        .left-frame.collapsed {
+            flex: 0 0 56px;
+        }
+
+        .left-frame.collapsed .sidebar-logo,
+        .left-frame.collapsed .menu-bar button span,
+        .left-frame.collapsed .btn-logout span,
+        .left-frame.collapsed .menu-arrow,
+        .left-frame.collapsed .submenu {
+            display: none;
+        }
+
+        .left-frame.collapsed .sidebar-toggle {
+            align-self: center;
+            margin: 8px 0 0 0;
+        }
+
+        .left-frame.collapsed .menu-bar {
+            padding: 2px 4px;
+        }
+
+        .left-frame.collapsed .menu-bar button {
+            justify-content: center;
+            padding: 12px;
+        }
+
+        .left-frame.collapsed .menu-bar button:hover {
+            transform: none;
+        }
+
+        .left-frame.collapsed .menu-divider {
+            margin: 8px auto;
+            width: 32px;
+        }
+
+        .left-frame.collapsed .left-footer {
+            padding: 8px 4px;
+        }
+
+        .left-frame.collapsed .btn-logout {
+            justify-content: center !important;
+            padding: 12px !important;
+        }
+
         /* Main Content */
         .right-frame {
             flex: 1;
@@ -743,46 +830,47 @@
     <div class="app-container">
         <!-- Sidebar -->
         <aside class="left-frame">
+            <button id="sidebarToggle" class="sidebar-toggle" title="Collapse sidebar">‹</button>
             <img src="/static/curiologo.png" alt="Logo" class="sidebar-logo" style="width: 150px; margin-top: 20px; margin-left: 15px; margin-right: 0px;" alt="Logo">
             <!--img src="/static/sprintsenselogo.png" alt="Logo" class="sidebar-logo" style="width: 250px; margin-right: 0px;" alt="Logo"-->
-            
+
             <div class="menu-bar">
-                <button id="btn-section1">
+                <button id="btn-section1" title="Jira">
                     <img src="/static/jiraicon.png" style="width: 32px; height: 30px;" alt="">
                     <span>Jira</span>
                 </button>
-                <button id="btn-section4">
+                <button id="btn-section4" title="LLM Model">
                     <img src="/static/llmicon.png" style="width: 24px; height: 24px;" alt="">
                     <span>LLM Model</span>
                 </button>
-                <button id="btn-section10">
+                <button id="btn-section10" title="MCP">
                     <img src="/static/mcpicon.png" style="width: 24px; height: 24px;" alt="">
                     <span>MCP</span>
                 </button>
-                <button id="btn-section11">
+                <button id="btn-section11" title="Supporting Docs">
                     <img src="/static/url-icon.png" style="width: 24px; height: 24px;" alt="">
                     <span>Supporting Docs</span>
                 </button>
-                
+
                 <div class="menu-divider"></div>
-                
-                <button id="btn-section5">
+
+                <button id="btn-section5" title="Local Files">
                     <img src="/static/localfiles.png" alt="">
                     <span>Local Files</span>
                 </button>
-                <button id="btn-section2">
-                    <img src="/static/sharepointicontransparent.png"  style="width: 30px; height: 30px;" alt="">
+                <button id="btn-section2" title="Sharepoint">
+                    <img src="/static/sharepointicontransparent.png" style="width: 30px; height: 30px;" alt="">
                     <span>Sharepoint</span>
                 </button>
-                <button id="btn-section6">
+                <button id="btn-section6" title="Google Drive">
                     <img src="/static/googlesheetsicon.png" alt="">
                     <span>Google Drive</span>
                 </button>
-                
+
                 <div class="menu-divider"></div>
-                
+
                 <div class="menu-item-container">
-                    <button id="btn-section7" class="menu-item-with-submenu">
+                    <button id="btn-section7" class="menu-item-with-submenu" title="Info">
                         <img src="/static/versioninfoicon.png" alt="">
                         <span>Info</span>
                         <span class="menu-arrow">›</span>
@@ -793,17 +881,17 @@
                         <a href="/system-info" class="submenu-item">System Info</a>
                         <a href="#section9" class="submenu-item" onclick="showSection('section9'); return false;">Run History</a>
                         <a href="#section3" class="submenu-item" onclick="showSection('section3'); return false;">Debug Logs</a>
-                    </div>               
-                 </div>
+                    </div>
+                </div>
 
-                <button id="btn-section8">
+                <button id="btn-section8" title="Send Feedback">
                     <img src="/static/feedbackicon.png" style="filter: none; width: 22px; height: 22px;" alt="">
-                    <span> Send Feedback</span>
+                    <span>Send Feedback</span>
                 </button>
             </div>
 
             <div class="left-footer">
-                <button id="btn-exit" onclick="window.location.href='/logout'" style="width: 100%; justify-content: flex-start; background: transparent; color: #4a4a4a; transform: none; font-size: 16px; padding: 12px 16px; gap: 12px;">
+                <button id="btn-exit" class="btn-logout" onclick="window.location.href='/logout'" title="Logout">
                     <img src="/static/exiticon.png" alt="" style="filter: none; width: 28px; height: 28px;">
                     <span>Logout</span>
                 </button>
@@ -1477,6 +1565,26 @@
 
 
     <script>
+        // =========================================================
+        // SIDEBAR COLLAPSE
+        // =========================================================
+
+        (function () {
+            const sidebar     = document.querySelector('.left-frame');
+            const toggleBtn   = document.getElementById('sidebarToggle');
+
+            function setCollapsed(collapsed) {
+                sidebar.classList.toggle('collapsed', collapsed);
+                toggleBtn.textContent = collapsed ? '›' : '‹';
+                toggleBtn.title       = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+                localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+            }
+
+            toggleBtn.addEventListener('click', () => setCollapsed(!sidebar.classList.contains('collapsed')));
+
+            if (localStorage.getItem('sidebarCollapsed') === '1') setCollapsed(true);
+        })();
+
         // =========================================================
         // SECTION MANAGEMENT
         // =========================================================
