@@ -129,6 +129,19 @@ services:
     environment:
       - OLLAMA_HOST=http://ollama:11434
 
+  mcpserver:
+    image: mcpserver:latest
+    container_name: mcpserver
+    ports:
+      - "5050:5050"
+    networks:
+      - appnet
+    volumes:
+      - /home/nadeem/github/excelread/config:/appnew/config
+      - /home/nadeem/github/excelread/logs:/appnew/logs
+    environment:
+      - PORT=5050
+
 
 networks:
   appnet:
