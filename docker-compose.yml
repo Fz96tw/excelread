@@ -143,6 +143,17 @@ services:
       - PORT=5050
 
 
+  mydocs:
+    image: squidfunk/mkdocs-material
+    container_name: mydocs
+    ports:
+      - "8001:8000"
+    volumes:
+      - .:/docs
+    environment:
+      - WATCHDOG_USE_POLLING=1
+    command: serve -f /docs/mkdocs.yml --dev-addr=0.0.0.0:8000
+
 networks:
   appnet:
     name: appnet      # <-- must match exactly

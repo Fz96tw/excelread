@@ -1,0 +1,29 @@
+site_name: My Product Documentation
+docs_dir: docs
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - search.suggest
+    - content.code.annotate
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Scope Tag Reference: scope-tags.md
+  - API Reference: api.md
+  - Design Notes:
+      - Architecture Overview: design/architecture-overview.md
+      - Detailed Architecture: design/architecture-detailed.md
+      - Resync Data Flow: resync-dataflow.md
+      - Resync Sequence: resync-sequence.md
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
