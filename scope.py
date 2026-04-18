@@ -814,43 +814,48 @@ if __name__ == "__main__":
                 
 
             import re
-            # remove non-breaking spaces and newlines, then lower case. 
+            # remove non-breaking spaces and newlines, then lower case.
             cell_str = str(cell).replace("\xa0", " ").replace("\n", " ").replace("\r", " ").lower().strip()
 
-            match = re.search(r'<(.*?)>', cell_str)    
-            if match and not fields_found:  # ignore <..> is found in other rows after we have already found the fields for the jira table
-                value = match.group(1).strip()
-                print(f"Found field definition in cell for field {value} at column index {idx}")
-
-                #jira_fields.append({"value": value, "index": idx})
+            # Find all <tag>[text until next tag or end] pairs — supports multiple tags per cell.
+            # Text immediately following a tag (before the next tag) is that tag's field arg / LLM prompt.
+            # <key> is special: it must be alone in its cell (one Jira ID per row).
+            tag_parts = re.findall(r'<([^>]+)>(.*?)(?=<[^>]+>|$)', cell_str, re.DOTALL)
+            if tag_parts and not fields_found:
+                tag_names = [t[0].strip() for t in tag_parts]
+                if 'key' in tag_names:
+                    # <key> must be alone — discard any other tags found alongside it
+                    tag_parts = [(t, txt) for t, txt in tag_parts if t.strip() == 'key']
 
                 # dual-use of default values here. pay attention...
-                # scenario 1 
-                # create mode. treated as default value for this field if specified in this cell 
+                # scenario 1
+                # create mode: treated as default value for this field if specified in this cell
                 # Match everything after <...> if create mode then used as default value
-                # 
+                #
                 # scenario 2
                 # for all other tables default_value is treated as the prompt for llm
-                print(f"checking for fieldname args for {cell_str}...")
-                match2 = re.search(r"<[^>]+>\s*(.+)", cell_str)
-                value_counts = {}
-                if match2:
-                    default_value = match2.group(1)  
-                    default_value = default_value.replace(",",";")#.replace(" ","")
-                                    
-                    # initialize or increment the counter
-                    value_counts[value] = value_counts.get(value, 0) + 1
-                    value = f"{value}_{value_counts[value]}"  # add numeric suffix
-                    
-                    jira_fields_default_value[value] = default_value
-                    print(f"Found default value in cell for field {match} = {default_value}")
-                    print(f"set jira_fields_default_value({value}) = {jira_fields_default_value.get(value)}")
-                    
-                else:
-                    print(f"No fieldname arg found in {cell_str}")
+                value_counts = {}  # per-cell counter to avoid field name clashes
+                for tag_name, tag_trailing in tag_parts:
+                    value = tag_name.strip()
+                    print(f"Found field definition in cell for field {value} at column index {idx}")
 
-                # at this point value may have been updated if there was a prompt string found above
-                jira_fields.append({"value": value, "index": idx})
+                    trailing = tag_trailing.strip()
+                    print(f"checking for fieldname args for value={value} trailing={trailing!r}...")
+                    if trailing:
+                        default_value = trailing.replace(",", ";")
+
+                        # initialize or increment the counter
+                        value_counts[value] = value_counts.get(value, 0) + 1
+                        value = f"{value}_{value_counts[value]}"  # add numeric suffix
+
+                        jira_fields_default_value[value] = default_value
+                        print(f"Found default value for field {value} = {default_value}")
+                        print(f"set jira_fields_default_value({value}) = {default_value}")
+                    else:
+                        print(f"No fieldname arg found for {value}")
+
+                    # all tags from the same cell share the same column index
+                    jira_fields.append({"value": value, "index": idx})
 
 
         if jira_fields and not fields_found:
@@ -893,7 +898,6 @@ if __name__ == "__main__":
             index_of_id = next((field['index'] for field in jira_fields if field['value'] == "key"), None)
             if index_of_id is not None:
                 cell_value = row[index_of_id]
-                #if pd.notna(cell_value) and str(cell_value).strip():
                 if is_valid_jira_id(str(cell_value).strip()):
                     jira_ids.append(cell_value)
                     jira_id_exec_summary.append(cell_value)

@@ -311,22 +311,33 @@ if not llm_model:
 fields = data.get('fields', [])
 field_values = [field.get('value') for field in fields if 'value' in field]
 field_indexes = [field.get('index') for field in fields if 'index' in field]
+
+# Group fields by column index to combine results for multi-tag cells (e.g. <summary> <description> in one cell).
+# col_groups preserves insertion order: {col_index: [field_name, ...]}
+col_groups = {}
+for fv, fi in zip(field_values, field_indexes):
+    col_groups.setdefault(fi, []).append(fv)
+
+# Effective header strings use one entry per unique column (joining multi-field names with '+')
+eff_field_indexes_str = ','.join(map(str, col_groups.keys()))
+eff_field_values_str = ','.join('+'.join(flist) for flist in col_groups.values())
+
 field_values_str = ','.join(field_values)
 field_indexes_str = ','.join(map(str, field_indexes))
 
 print("Source file,", source)
 print("basename,", basename)
 print("Table,", tablename)
-print("Field indexes,", field_indexes_str)
-print("Field values,", field_values_str)
+print("Field indexes,", eff_field_indexes_str)
+print("Field values,", eff_field_values_str)
 
 with open(output_file, "w") as outfile:
     outfile.write("Source file," + source + "\n")
     outfile.write("Basename," + basename + "\n")
-    outfile.write("Scope file," + scope_file + "\n")    
+    outfile.write("Scope file," + scope_file + "\n")
     outfile.write("Table," + tablename + "\n")
-    outfile.write("Field indexes," + field_indexes_str + "\n")
-    outfile.write("Field values," + field_values_str + "\n")
+    outfile.write("Field indexes," + eff_field_indexes_str + "\n")
+    outfile.write("Field values," + eff_field_values_str + "\n")
 
 #jira_ids = data.get('jira_ids', [])
 #jira_filter_str = "id in (" + ','.join(jira_ids) + ")"
@@ -337,7 +348,7 @@ filtered_ids = [jid for jid in jira_ids if 'jql' not in jid.lower()]
 
 # IDs with "JQL"
 jql_ids = [jid for jid in jira_ids if 'jql' in jid.lower()]
-jira_filter_str = "key in (" + ','.join(filtered_ids) + ")" 
+jira_filter_str = "key in (" + ','.join(filtered_ids) + ")"
 print(jira_filter_str)
 
 # Replace with your Jira Cloud credentials and URL
@@ -411,23 +422,19 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
 
     print(f"Found {len(issues)} issues matching the filter:{jira_filter_str}")
 
-
     # Print only the fields specified in field_values_str for each issue
     for issue in issues:
-        values = [] 
+        values = []
         for field in field_values:
-            #value = getattr(issue.fields, field, None)
-            
             # get field name without any field_arg for llm prompt - if present
             field2 = re.sub(r"_\d$", "", field)
 
-            # use regex to remove any _d prefix that may have been 
+            # use regex to remove any _d prefix that may have been
             # created by scope.py to prevent field name clashes with llm prompt
             value = getattr(issue.fields, re.sub(r"_\d$", "", field), None)
 
             value = clean_jira_wiki(value)
-            #print(f"getattr value {field} = {value}")
-            
+
             if field2 == "assignee":
                 value = issue.fields.assignee.displayName if issue.fields.assignee else "unassigned"
             elif field2 == "id":
@@ -436,28 +443,25 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 value = now_str
             elif field2 == "headline":
-                #value = "[" + issue.key + "] " + issue.fields.summary[:10] | "..."
-                value = f"[{issue.key}] {issue.fields.summary[:25]}{'...' if len(issue.fields.summary) > 10 else ''}" 
-                value += "  Status: " + issue.fields.status.name  
-                value += "  Assignee: " + issue.fields.assignee.displayName  if issue.fields.assignee else "   Assignee: unassigned" 
-                value += "  Type: " + issue.fields.issuetype.name  
-                value += "  Created: " + issue.fields.created[:10] 
+                value = f"[{issue.key}] {issue.fields.summary[:25]}{'...' if len(issue.fields.summary) > 10 else ''}"
+                value += "  Status: " + issue.fields.status.name
+                value += "  Assignee: " + issue.fields.assignee.displayName  if issue.fields.assignee else "   Assignee: unassigned"
+                value += "  Type: " + issue.fields.issuetype.name
+                value += "  Created: " + issue.fields.created[:10]
                 print(f"headline value: {value}")
             elif field2 == "key":
-                value = "URL " + issue.key  # we want to turn plain key into hyperlink too in the sheet. 
+                value = "URL " + issue.key  # we want to turn plain key into hyperlink too in the sheet.
             elif field2 == "url":
                 value = "URL " + getattr(issue, 'key', None)     # set it to the issue key for now. will be converted to hyperlink by update_sharepoint.py
             elif field2 == "children":
                 issuetype = getattr(issue.fields, "issuetype", None)
                 if issuetype and getattr(issuetype, "name", "") == "Epic":
-                    # Get all issues linked to this epic
                     print(f"Fetching child issues for epic {issue.key}")
                     epic_linked_issues = jira.search_issues(
-                        f'"Epic Link" = {issue.key}', 
+                        f'"Epic Link" = {issue.key}',
                         maxResults=JIRA_MAX_RESULTS
                     )
                     if epic_linked_issues:
-                        # Sort issues by numeric part of key (e.g. "ABC-2" < "ABC-12")
                         epic_linked_issues = sorted(
                             epic_linked_issues,
                             key=lambda x: (x.key.split("-")[0], int(x.key.split("-")[1]))
@@ -472,29 +476,16 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                 else:
                     value = ""
             elif field2 == "links":
-                #outward_links = []
-                #inward_links = []
                 linked_jira_str = []
                 if hasattr(issue.fields, 'issuelinks'):
                     for link in issue.fields.issuelinks:
                         if hasattr(link, 'outwardIssue'):
                             linked_jira_str.append(f"▫️ {link.outwardIssue.key} {link.outwardIssue.fields.summary[:30]}[{link.type.outward}]".strip())
-                            #outward_links.append(f"{link.type.outward} {link.outwardIssue.key}")
                         elif hasattr(link, 'inwardIssue'):
                             linked_jira_str.append(f"▫️ {link.inwardIssue.key} {link.inwardIssue.fields.summary[:30]}[{link.type.inward}]".strip())
-                            #inward_links.append(f"{link.type.inward} {link.inwardIssue.key}")
-                        # strip out first and trailing commas in linked_jira_ids
                     value = ";".join(linked_jira_str) if linked_jira_str else ""
                 else:
-                    value = ""            
-                '''
-                links = []
-                if outward_links:
-                    links.append("▫️ Outward: " + ", ".join(outward_links))
-                if inward_links:
-                    links.append("▫️ Inward: " + ", ".join(inward_links))
-                value = ";".join(links) if links else ""
-                '''
+                    value = ""
 
             elif field2 == "comments":
                 if issue.fields.comment.comments:
@@ -503,8 +494,6 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                         f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
                         for comment in sorted_comments
                     ])
-
-#                    value = value.replace("\n","")
                     value = str(value).replace("\r", "").replace("\n", "")
                     value = clean_jira_wiki(value)
                     print(f"After removing newlines and jira rich text formating from value = {value}")
@@ -513,7 +502,7 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                     value = "As of " + now_str + ";" + value
                 else:
                     value = "No comments"
-            
+
             elif field2 == "synopsis":
                 value_parts = []
                 issuetype = getattr(issue.fields, 'issuetype', None)
@@ -523,18 +512,12 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                 if hasattr(issue.fields, 'subtasks'):
                     value_parts.append(f"sub-tasks {len(issue.fields.subtasks)}")
                 value = "|".join(value_parts) if value_parts else ""
-                # Add more text to the synopsis if needed below here
-            
-            #elif field == "ai":
-            #    if value is None: # don't want to set this to None, so make it blank
-            #        value = ""
 
-#            value_str =str(value).replace("\n","")
-            value_str =str(value).replace("\r", "").replace("\n", "")   
+            value_str = str(value).replace("\r", "").replace("\n", "")
 
             if field in field_args:
                 print(f"found field_args[{field}] = {field_args.get(field)}")
-                
+
                 from vector_rag_retriever import *
                 rag_result = search_and_prepare_for_llm(field_args[field], userlogin)
                 if rag_result and rag_result.get('has_context'):
@@ -544,20 +527,28 @@ if filtered_ids:  # make sure we have some JIRA IDs in the excel file otherwise 
                 else:
                     print(f"No RAG context found for field {field}. Proceeding without context.")
 
-
                 print(f"about to call get_summarized_comments(value_str={value_str}, field_args={field_args[field]}")
                 value_from_llm = get_summarized_comments(value_str, field_args[field])
                 if (value_from_llm):
                     value_str = value_from_llm
             else:
                 print(f"field_args[{field}] not found")
-        
 
             values.append(value_str)
 
-        print(','.join(values))
+        # Combine values for fields that share the same column index (multi-tag cells)
+        out_values = []
+        seen_cols = {}
+        for fi, fv in zip(field_indexes, values):
+            if fi in seen_cols:
+                out_values[seen_cols[fi]] += '; ' + fv
+            else:
+                seen_cols[fi] = len(out_values)
+                out_values.append(fv)
+
+        print(','.join(out_values))
         with open(output_file, "a") as outfile:
-            outfile.write('|'.join(values) + "\n")  
+            outfile.write('|'.join(out_values) + "\n")
 
 # Now process the JQL queries
 if jql_ids:
@@ -811,11 +802,21 @@ if jql_ids:
                 else:
                     print(f"field_args[{field}] not found")
 
-                values.append(value_str)                
-                
-            print('|'.join(values))
+                values.append(value_str)
+
+            # Combine values for fields that share the same column index (multi-tag cells)
+            out_values = []
+            seen_cols = {}
+            for fi, fv in zip(field_indexes, values):
+                if fi in seen_cols:
+                    out_values[seen_cols[fi]] += '; ' + fv
+                else:
+                    seen_cols[fi] = len(out_values)
+                    out_values.append(fv)
+
+            print('|'.join(out_values))
             with open(output_file, "a") as outfile:
-                outfile.write('|'.join(values) + "\n")
+                outfile.write('|'.join(out_values) + "\n")
         
         except Exception as e:
             print(f"❌ Failed to run JQL query '{jql_id}': {e}")
