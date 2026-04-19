@@ -243,7 +243,7 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
             cleaned_value = str(cell.value).strip().replace(" ", "_")
             #print(f"Cleaned cell value: {cleaned_value}" + f" | file_info['table']: {file_info['table']}")
             #if file_info["table"] in str(cell).strip().replace(" ", "_"):
-            if file_info["table"] in cleaned_value and "<jira>" in cleaned_value:
+            if "<jira>" in cleaned_value and cleaned_value.split("<jira>")[0].strip("_") == file_info["table"]:
                 print(f"Found table header '{file_info['table']}' in cell {cell.coordinate}")
                 printing = True
                 table_row = cell.row
