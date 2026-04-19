@@ -20,6 +20,7 @@ import calendar
 import glob
 import hashlib
 from bs4 import BeautifulSoup
+from my_utils import user_config_file, _CONFIG_DIR
 
 
 # Cache dictionary to avoid repeated calls
@@ -674,7 +675,7 @@ def get_summarized_comments(comments_list_asc, field_arg=None):
         if field_arg:
             payload["field"] = field_arg  # include field if provided
 
-        LLMCONFIG_FILE = f"../../../config/llmconfig_{userlogin}.json"
+        LLMCONFIG_FILE = user_config_file(userlogin, "llmconfig.json")
         llm_model = get_llm_model(LLMCONFIG_FILE)
          # Determine endpoint
         if llm_model == "OpenAI":
@@ -857,7 +858,7 @@ print(f"scan_ahead_nonblank_rows initialized = {scan_ahead_nonblank_rows}")
 llm_user_prompt = data.get('llm', "Read all of it and briefly as possible categorize types of issues and work that was done. Mention any reason you see that could have blocked work on these issues or could have been done more quickly or correctly." )
 sysprompt = "The following text is a delimited data separated by | character. These are rows of jira issues. " + llm_user_prompt
 
-print (f"llm prompt = {sysprompt}")
+print (f"llm sysprompt = {sysprompt}")
 
 
 
@@ -886,7 +887,7 @@ if runrate_params.get("mode", "") == "":
 
 # Load environment variables from a .env file if present
 #load_dotenv()
-ENV_PATH = f"../../../config/env.{userlogin}"
+ENV_PATH = user_config_file(userlogin, "env")
 load_dotenv(dotenv_path=ENV_PATH)
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
 JIRA_URL = os.environ.get("JIRA_URL")
@@ -950,6 +951,7 @@ if csv_files:
             rag_context = rag_result.get('context', '')
             print(f"RAG context for llm_user_prompt {llm_user_prompt}: {rag_context[:500]}{'...' if len(rag_context) > 500 else ''}")
             context = f"Context: {rag_context}\n\n{context}"
+            updated_prompt = rag_result.get('prompt', sysprompt)
         else:
             print(f"No RAG context for llm_user_prompt {llm_user_prompt}. Proceeding without context.")
         

@@ -206,7 +206,7 @@ def load_cache(userlogin=None):
     cache = msal.SerializableTokenCache()
 
     if userlogin:
-        TOKEN_CACHE_FILE = f"./config/token_cache_{userlogin}.json"
+        TOKEN_CACHE_FILE = user_config_file(userlogin, "token_cache.json")
     else:
         TOKEN_CACHE_FILE = "./config/token_cache.json"
     
@@ -224,7 +224,7 @@ def save_cache(cache, userlogin=None):
     if cache.has_state_changed:
 
         if userlogin:
-            TOKEN_CACHE_FILE = f"./config/token_cache_{userlogin}.json"
+            TOKEN_CACHE_FILE = user_config_file(userlogin, "token_cache.json")
         else:
             TOKEN_CACHE_FILE = "./config/token_cache.json"
 
@@ -1355,7 +1355,7 @@ def index():
     else:
         print(f"Schedule file already exists {user_sched_file}")
 
-    LLMCONFIG_FILE = f"./config/llmconfig_{current_user.username}.json"
+    LLMCONFIG_FILE = user_config_file(current_user.username, "llmconfig.json")
     if not os.path.exists(LLMCONFIG_FILE):
         with open(LLMCONFIG_FILE, "w") as f:
             print(f"creating LLM config settings file = {LLMCONFIG_FILE}")
@@ -1366,7 +1366,7 @@ def index():
 
     # Load saved value
     #ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{userlogin}")
-    ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{current_user.username}")
+    ENV_PATH_USER = user_config_file(current_user.username, "env")
 
     foo_values = {}
     foo_values["jira_url"] = read_env("JIRA_URL", ENV_PATH_USER)
@@ -1405,9 +1405,9 @@ def index():
         #print(f"using delegated auth so BAR_FILE = {BAR_FILE}, LOCAL_FILES = {LOCAL_FILES}, GOOGLE_FILE = {GOOGLE_FILE}")
    
     #bar_values = get_bar_values(userlogin)
-    shared_files_sharepoint = load_shared_files(f"./config/shared_files_sharepoint_{userlogin}.json")
-    shared_files_google = load_shared_files(f"./config/shared_files_google_{userlogin}.json")
-    shared_files_local = load_shared_files(f"./config/shared_files_local_{userlogin}.json")
+    shared_files_sharepoint = load_shared_files(user_config_file(userlogin, "shared_files_sharepoint.json"))
+    shared_files_google = load_shared_files(user_config_file(userlogin, "shared_files_google.json"))
+    shared_files_local = load_shared_files(user_config_file(userlogin, "shared_files_local.json"))
     docs_list = load_shared_files(f"./config/{userlogin}/docs.json")
 
     print(f"loaded docs_list = {docs_list['docs'] if docs_list else 'None'}")
@@ -1584,7 +1584,7 @@ def logout_sharepoint():
     userlogin = current_user.username
     print("recvd /logout_sharepoint endpoint called")
     #if session['logged_in'] == True:
-    token_file = f"./config/token_cache_{userlogin}.json"
+    token_file = user_config_file(userlogin, "token_cache.json")
     print(f"Revoking sharepoint access token for user={userlogin} token_file={token_file}")
 
     if os.path.exists(token_file):
@@ -1616,7 +1616,7 @@ def save_jira():
     jira_password = data.get("jira_password")
 
     userlogin = current_user.username
-    ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{userlogin}")
+    ENV_PATH_USER = user_config_file(userlogin, "env")
     print(f"Saving new .env values {jira_url}, {jira_user}, {jira_token}, {jira_password}")
     write_env("JIRA_URL", jira_url, ENV_PATH_USER)
     write_env("JIRA_EMAIL", jira_user, ENV_PATH_USER)
@@ -1640,7 +1640,7 @@ def setmodel():
     
     print(f"/setmodel setting model to {llm_model}")
 
-    LLMCONFIG_FILE = f"./config/llmconfig_{current_user.username}.json"
+    LLMCONFIG_FILE = user_config_file(current_user.username, "llmconfig.json")
      # Ensure config folder exists
     os.makedirs(os.path.dirname(LLMCONFIG_FILE), exist_ok=True)
 
@@ -1661,7 +1661,7 @@ def add_sharepoint():
     new_val = unquote(new_val);      # remove %20, etc
     userlogin = current_user.username
     print(f"/add_sharepoint endpoint called with new_val = {new_val} by {userlogin}")
-    shared_files_sharepoint= load_shared_files(f"./config/shared_files_sharepoint_{current_user.username}.json")
+    shared_files_sharepoint= load_shared_files(user_config_file(current_user.username, "shared_files_sharepoint.json"))
 
     if new_val:
         print(f"add_sharepoint with shared_files_sharepoint={new_val}")
@@ -1676,7 +1676,7 @@ def add_sharepoint():
             print(f"Added to shared_files_sharepoint: {shared_files_sharepoint[-1]}")
 
           # Save to JSON file
-            json_filename = f"./config/shared_files_sharepoint_{current_user.username}.json"
+            json_filename = user_config_file(current_user.username, "shared_files_sharepoint.json")
             save_shared_files(json_filename, shared_files_sharepoint)
             print(f"Saved shared_files_sharepoint to {json_filename}")
 
@@ -1693,7 +1693,7 @@ def remove_sharepoint():
     print(f"remove_sharepoint called with {to_remove}")
 
     # Remove from shared_files_google list (independent check)
-    json_filename = f"./config/shared_files_sharepoint_{userlogin}.json"
+    json_filename = user_config_file(userlogin, "shared_files_sharepoint.json")
     shared_files_sharepoint = load_shared_files(json_filename)
     
     if shared_files_sharepoint:
@@ -1728,7 +1728,7 @@ def add_local():
     new_val = request.form.get('local_value', '').strip()
     userlogin = current_user.username
     print(f"/add_local endpoint called with new_val = {new_val} by {userlogin}")
-    shared_files_local = load_shared_files(f"./config/shared_files_local_{current_user.username}.json")
+    shared_files_local = load_shared_files(user_config_file(current_user.username, "shared_files_local.json"))
 
     if new_val:
         print(f"add_local with shared_files_local={new_val}")
@@ -1744,7 +1744,7 @@ def add_local():
             print(f"Added to shared_files_local: {shared_files_local[-1]}")
 
           # Save to JSON file
-            json_filename = f"./config/shared_files_local_{current_user.username}.json"
+            json_filename = user_config_file(current_user.username, "shared_files_local.json")
             save_shared_files(json_filename, shared_files_local)
             print(f"Saved shared_files_local to {json_filename}")
 
@@ -1763,7 +1763,7 @@ def remove_local():
     print(f"remove_local called with {to_remove}")
 
     # Remove from shared_files_google list (independent check)
-    json_filename = f"./config/shared_files_local_{userlogin}.json"
+    json_filename = user_config_file(userlogin, "shared_files_local.json")
     shared_files_local = load_shared_files(json_filename)
     
     if shared_files_local:
@@ -2166,9 +2166,9 @@ def metrics():
         users = load_users()
         for u in users:
             uname = u.get("username", "")
-            sp = load_shared_files(f"./config/shared_files_sharepoint_{uname}.json")
-            goog = load_shared_files(f"./config/shared_files_google_{uname}.json")
-            loc = load_shared_files(f"./config/shared_files_local_{uname}.json")
+            sp = load_shared_files(user_config_file(uname, "shared_files_sharepoint.json"))
+            goog = load_shared_files(user_config_file(uname, "shared_files_google.json"))
+            loc = load_shared_files(user_config_file(uname, "shared_files_local.json"))
             total_sharepoint_files += len(sp)
             total_google_files += len(goog)
             total_local_files += len(loc)
@@ -2589,7 +2589,7 @@ def add_google():
     new_val = request.form.get('google_value', '').strip()
     userlogin = current_user.username
     print(f"/add_google endpoint called with new_val = {new_val} by {userlogin}")
-    shared_files_google = load_shared_files(f"./config/shared_files_google_{current_user.username}.json")
+    shared_files_google = load_shared_files(user_config_file(current_user.username, "shared_files_google.json"))
 
     if new_val:
 
@@ -2613,7 +2613,7 @@ def add_google():
             print(f"Added to shared_files_google: {shared_files_google[-1]}")
 
           # Save to JSON file
-            json_filename = f"./config/shared_files_google_{current_user.username}.json"
+            json_filename = user_config_file(current_user.username, "shared_files_google.json")
             save_shared_files(json_filename, shared_files_google)
             print(f"Saved shared_files_google to {json_filename}")
 
@@ -2631,7 +2631,7 @@ def remove_google():
     print(f"remove_google called with {to_remove}")
 
     # Remove from shared_files_google list (independent check)
-    json_filename = f"./config/shared_files_google_{userlogin}.json"
+    json_filename = user_config_file(userlogin, "shared_files_google.json")
     shared_files_google = load_shared_files(json_filename)
     
     if shared_files_google:
@@ -2843,7 +2843,7 @@ def register_drive_file():
     touch_file(data)
 
     # now save this in files collections
-    shared_files_google = load_shared_files(f"./config/shared_files_google_{current_user.username}.json")
+    shared_files_google = load_shared_files(user_config_file(current_user.username, "shared_files_google.json"))
 
     if not len(sheet_tab):
         sheet_tab = "Sheet1"
@@ -2871,7 +2871,7 @@ def register_drive_file():
             print(f"Added to shared_files_google: {shared_files_google[-1]}")
 
           # Save to JSON file
-            json_filename = f"./config/shared_files_google_{current_user.username}.json"
+            json_filename = user_config_file(current_user.username, "shared_files_google.json")
             save_shared_files(json_filename, shared_files_google)
             print(f"Saved shared_files_google to {json_filename}")
             return jsonify({"success": True, "message": f"Google Sheet {file_name} {sheet_tab} added successfully"})

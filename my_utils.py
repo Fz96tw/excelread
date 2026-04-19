@@ -1,8 +1,23 @@
 import re
+import os
 
 
 
 import smtplib
+
+# Absolute path to the config directory — works regardless of working directory,
+# so subprocess scripts running from logs/userlogin/run_id/ can use these helpers too.
+_CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config")
+
+def user_config_dir(userlogin: str) -> str:
+    """Return (and create) the per-user config subfolder: config/{userlogin}/"""
+    path = os.path.join(_CONFIG_DIR, userlogin)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def user_config_file(userlogin: str, filename: str) -> str:
+    """Return the absolute path to a file inside the per-user config subfolder."""
+    return os.path.join(user_config_dir(userlogin), filename)
 
 
 def send_text_email(subject: str, from_address: str, to_address: str, data: str):

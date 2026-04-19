@@ -6,13 +6,14 @@ import msal
 from dotenv import load_dotenv
 from urllib.parse import urlparse, quote, unquote
 import shutil
+from my_utils import user_config_file, _CONFIG_DIR
 
 
 
 # -------------------------------
 # Config from environment variables
 # -------------------------------
-ENV_PATH = "../../../config/env.system"
+ENV_PATH = os.path.join(_CONFIG_DIR, "env.system")
 #ENV_PATH = "./config/.env"
 load_dotenv(dotenv_path=ENV_PATH)
 
@@ -23,7 +24,7 @@ SCOPES = ["https://graph.microsoft.com/.default"] # only neded for app-only auth
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 
 #TOKEN_CACHE_FILE = "./config/token_cache.json"
-TOKEN_CACHE_FILE = "../../../config/token_cache.json"
+TOKEN_CACHE_FILE = os.path.join(_CONFIG_DIR, "token_cache.json")
 
 
 # -------------------------------
@@ -33,7 +34,7 @@ TOKEN_CACHE_FILE = "../../../config/token_cache.json"
 def load_cache(userlogin=None):
     global TOKEN_CACHE_FILE
     if userlogin:
-        TOKEN_CACHE_FILE = f"../../../config/token_cache_{userlogin}.json"
+        TOKEN_CACHE_FILE = user_config_file(userlogin, "token_cache.json")
 
     print(f"load_cache({userlogin})")
     cache = msal.SerializableTokenCache()
@@ -52,7 +53,7 @@ def save_cache(cache, userLogin=None):
     if cache.has_state_changed:
         global TOKEN_CACHE_FILE
         if userlogin:
-            TOKEN_CACHE_FILE = f"../../../config/token_cache_{userlogin}.json"
+            TOKEN_CACHE_FILE = user_config_file(userlogin, "token_cache.json")
         print(f"saved cache to file '{TOKEN_CACHE_FILE}'")
         open(TOKEN_CACHE_FILE, "w").write(cache.serialize())
 

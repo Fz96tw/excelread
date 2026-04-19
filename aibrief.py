@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import re
 import ollama
 from datetime import datetime
+from my_utils import user_config_file, _CONFIG_DIR
 from openpyxl.styles import Alignment
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
@@ -186,7 +187,7 @@ delegated_auth = "--user_auth" in sys.argv
 
 
 
-LLMCONFIG_FILE = f"../../../config/llmconfig_{userlogin}.json"
+LLMCONFIG_FILE = user_config_file(userlogin, "llmconfig.json")
 
 llm_model = get_llm_model(LLMCONFIG_FILE)
 if not llm_model:
@@ -890,7 +891,7 @@ if aibrief_cells:
         print(f"wiki link provided: {wiki_link} and will attempt to post the report there")
 
         # Load environment variables from a .env file if present
-        ENV_PATH_USER = f"../../../config/env.{userlogin}"
+        ENV_PATH_USER = user_config_file(userlogin, "env")
         load_dotenv(dotenv_path=ENV_PATH_USER)
 
         JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")

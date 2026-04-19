@@ -9,6 +9,7 @@ from datetime import datetime
 from openpyxl.styles import Alignment
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
+from my_utils import user_config_file, _CONFIG_DIR
 
 # Cache dictionary to avoid repeated calls
 user_cache = {}
@@ -547,7 +548,7 @@ else:
 
 # Load environment variables from a .env file if present
 #load_dotenv()
-ENV_PATH = f"../../../config/env.{userlogin}"
+ENV_PATH = user_config_file(userlogin, "env")
 load_dotenv(dotenv_path=ENV_PATH)
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
 JIRA_URL = os.environ.get("JIRA_URL")

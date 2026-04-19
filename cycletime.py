@@ -8,6 +8,7 @@ import json
 import glob
 import os
 import requests
+from my_utils import user_config_file, _CONFIG_DIR
 
 def calculate_average_status_transition_time(jira_issues: List[Any]) -> Dict[Tuple[str, str], Dict[str, Any]]:
     """
@@ -743,7 +744,7 @@ def get_summarized_comments(comments_list_asc, field_arg=None):
         if field_arg:
             payload["field"] = field_arg  # include field if provided
 
-        LLMCONFIG_FILE = f"../../../config/llmconfig_{userlogin}.json"
+        LLMCONFIG_FILE = user_config_file(userlogin, "llmconfig.json")
         llm_model = get_llm_model(LLMCONFIG_FILE)
          # Determine endpoint
         if llm_model == "OpenAI":
@@ -1002,7 +1003,7 @@ JIRA_MAX_RESULTS = False
 # -------------------------------
 #load_dotenv()
 # load .env from config folder
-ENV_PATH = f"../../../config/env.{userlogin}"
+ENV_PATH = user_config_file(userlogin, "env")
 load_dotenv(dotenv_path=ENV_PATH)
 
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")

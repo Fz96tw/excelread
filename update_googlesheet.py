@@ -7,6 +7,7 @@ from collections import defaultdict
 from urllib.parse import unquote
 from dotenv import load_dotenv
 from google_oauth import load_google_token, get_google_drive_filename
+from my_utils import user_config_file, _CONFIG_DIR
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -34,7 +35,7 @@ from dotenv import load_dotenv
 # -------------------------------
 # Config from environment variables
 # -------------------------------
-ENV_PATH = "../../../config/env.system"
+ENV_PATH = os.path.join(_CONFIG_DIR, "env.system")
 load_dotenv(dotenv_path=ENV_PATH)
 
 # --- PARSE COMMAND-LINE ARGUMENTS ---
@@ -58,7 +59,7 @@ print(f"Worksheet name = {worksheet_name}")
 print(f"User login = {userlogin}")
 
 # Load user settings from config folder
-ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{userlogin}")
+ENV_PATH_USER = user_config_file(userlogin, "env")
 load_dotenv(dotenv_path=ENV_PATH_USER)
 
 # Check for import mode

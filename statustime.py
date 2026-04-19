@@ -2,6 +2,7 @@ from datetime import datetime
 from collections import defaultdict
 from typing import List, Dict, Any, Tuple
 import statistics
+from my_utils import user_config_file, _CONFIG_DIR
 
 def calculate_average_status_transition_time(jira_issues: List[Any]) -> Dict[Tuple[str, str], Dict[str, Any]]:
     """
@@ -697,7 +698,7 @@ JIRA_MAX_RESULTS = False
 # -------------------------------
 #load_dotenv()
 # load .env from config folder
-ENV_PATH = f"../../../config/env.{userlogin}"
+ENV_PATH = user_config_file(userlogin, "env")
 load_dotenv(dotenv_path=ENV_PATH)
 
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")

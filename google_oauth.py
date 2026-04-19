@@ -5,12 +5,8 @@ from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 
-# 2 different CONFIG DIRs used in different functions
-# when authorizing and saving token use ./config because it's called by appnew.py whose workdir is not user/logs path
-# when loading token use ../../../config because it's called by scope.py whose workdir is user/logs folderpath
-CONFIG_DIR = "../../../config"
-#CONFIG_DIR_2 = "./config"
-GOOGLE_CLIENT_SECRETS_FILE = os.path.join(CONFIG_DIR, "google_credentials.json")
+from my_utils import user_config_file, _CONFIG_DIR
+GOOGLE_CLIENT_SECRETS_FILE = os.path.join(_CONFIG_DIR, "google_credentials.json")
 
 #REDIRECT_URI = 'http://localhost:5000/google/callback'
 #CREDENTIALS_FILE = './config/google_credentials.json'
@@ -47,7 +43,7 @@ def get_google_drive_filename(userlogin: str, file_id: str) -> str | None:
 
 def get_token_file(userlogin):
     """Return per-user token file path"""
-    return os.path.join(CONFIG_DIR, f"google_token_{userlogin}.json")
+    return user_config_file(userlogin, "google_token.json")
 
 
     
@@ -63,15 +59,6 @@ def get_google_flow(userlogin,redirectpath):
 
 def save_google_token(creds, userlogin):
     """Save OAuth token to per-user JSON file"""
-    os.makedirs(CONFIG_DIR, exist_ok=True)
-    token_file = get_token_file(userlogin)
-    with open(token_file, "w") as token:
-        token.write(creds.to_json())
-    print(f"✅ Saved Google token for user={userlogin} to {token_file}")
-
-def save_google_token(creds, userlogin):
-    """Save OAuth token to per-user JSON file"""
-    os.makedirs(CONFIG_DIR, exist_ok=True)
     token_file = get_token_file(userlogin)
     with open(token_file, "w") as token:
         token.write(creds.to_json())

@@ -12,11 +12,12 @@ from openpyxl.utils import column_index_from_string
 import re
 from dotenv import load_dotenv
 import time
+from my_utils import user_config_file, _CONFIG_DIR
 
 # -------------------------------
 # Config from environment variables
 # -------------------------------
-ENV_PATH = "../../../config/env.system"
+ENV_PATH = os.path.join(_CONFIG_DIR, "env.system")
 load_dotenv(dotenv_path=ENV_PATH)
 
 SCOPES = ["https://graph.microsoft.com/.default"]
@@ -24,7 +25,7 @@ CLIENT_ID = os.environ["CLIENT_ID"]
 CLIENT_SECRET = os.environ["CLIENT_SECRET"]
 TENANT_ID = os.environ["TENANT_ID"]
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-TOKEN_CACHE_FILE = "../../../config/token_cache.json"
+TOKEN_CACHE_FILE = os.path.join(_CONFIG_DIR, "token_cache.json")
 
 # -------------------------------
 # Token cache functions
@@ -32,7 +33,7 @@ TOKEN_CACHE_FILE = "../../../config/token_cache.json"
 def load_cache(userlogin=None):
     global TOKEN_CACHE_FILE
     if userlogin:
-        TOKEN_CACHE_FILE = f"../../../config/token_cache_{userlogin}.json"
+        TOKEN_CACHE_FILE = user_config_file(userlogin, "token_cache.json")
     
     cache = msal.SerializableTokenCache()
     if os.path.exists(TOKEN_CACHE_FILE):
@@ -44,7 +45,7 @@ def save_cache(cache, userlogin=None):
     if cache.has_state_changed:
         global TOKEN_CACHE_FILE
         if userlogin:
-            TOKEN_CACHE_FILE = f"../../../config/token_cache_{userlogin}.json"
+            TOKEN_CACHE_FILE = user_config_file(userlogin, "token_cache.json")
         open(TOKEN_CACHE_FILE, "w").write(cache.serialize())
 
 def get_app_token_delegated(userlogin):
@@ -116,7 +117,7 @@ else:
     print("Using application authorization")
 
 # Load user settings
-ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{userlogin}")
+ENV_PATH_USER = user_config_file(userlogin, "env")
 load_dotenv(dotenv_path=ENV_PATH_USER)
 
 # Get access token

@@ -621,7 +621,7 @@ if __name__ == "__main__":
 
 
     # Load user settings from config folder
-    ENV_PATH_USER = os.path.join(os.path.dirname(__file__), "config", f"env.{userlogin}")
+    ENV_PATH_USER = user_config_file(userlogin, "env")
     load_dotenv(dotenv_path=ENV_PATH_USER)
     # Get JIRA base URL from environment
     jira_base_url = os.environ.get("JIRA_URL", "")

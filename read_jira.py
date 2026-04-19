@@ -303,7 +303,7 @@ else:
     execsummary_mode = False
     output_file = basename + "." + sheet + "." + tablename + "." + timestamp + ".jira.csv"
 
-LLMCONFIG_FILE = f"../../../config/llmconfig_{userlogin}.json"
+LLMCONFIG_FILE = user_config_file(userlogin, "llmconfig.json")
 llm_model = get_llm_model(LLMCONFIG_FILE)
 if not llm_model:
     llm_model = "Local"
@@ -357,7 +357,7 @@ print(jira_filter_str)
 # -------------------------------
 #load_dotenv()
 # load .env from config folder
-ENV_PATH_USER = f"../../../config/env.{userlogin}"
+ENV_PATH_USER = user_config_file(userlogin, "env")
 load_dotenv(dotenv_path=ENV_PATH_USER)
 
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
@@ -583,13 +583,15 @@ if jql_ids:
             synopsis_list = []
         
             values = []
+            values_lists = []  # parallel: per-issue list for each field, or None for aggregates
 
             # we iterate over fields in outer loop, and iterate over issue in inner loop by design
             # for jql query row we want to assemble each field with values from all issues to get our bullet list value for each field.
             print(f"about to start field hunt to build jql result.  field_values={','.join(field_values)}")
-            for field in field_values:
+            for field_loop_idx, field in enumerate(field_values):
                 print(f"Processing field: {field}")
                 generic_fields_list = []
+                per_issue_list = []  # collects one entry per issue, in JQL order
                 headline_list = []
 
                 comments_list = []
@@ -620,9 +622,11 @@ if jql_ids:
                     if field2 == "assignee":
                         temp = (issue.fields.assignee.displayName) if issue.fields.assignee else "unassigned"
                         assignee_list.append(temp + "▫️ [" + issue.key + "]")
+                        per_issue_list.append("[" + issue.key + "] " + temp)
                     elif field2 == "summary":
                         temp = issue.fields.summary if issue.fields.summary else "No summary"
                         summary_list.append("▫️ [" + issue.key + "] " + temp)
+                        per_issue_list.append("▫️ [" + issue.key + "] " + temp)
                     elif field2 == "headline":
                         #temp = "[" + issue.key + "] " + issue.fields.summary[:10] 
                         temp = f"▫️ {issue.key} {issue.fields.summary[:15]}{'...' if len(issue.fields.summary) > 10 else ''}"
@@ -635,58 +639,83 @@ if jql_ids:
                     elif field2 == "status":
                         temp = issue.fields.status.name if issue.fields.status else "unknown"
                         status_list.append(temp + "▫️ [" + issue.key + "]")
+                        per_issue_list.append("[" + issue.key + "] " + temp)
                     elif field2 == "id":
                         id_list.append(issue.id)
+                        per_issue_list.append(issue.id)
                     elif field2 == "key":
                         key_list.append("▫️ " + issue.key)
+                        per_issue_list.append(issue.key)
                     elif field2 == "comments" or field == "ai" :   # always need to process comments even when only AI is requested in excel sheet
-                        if issue.fields.comment.comments:   
-                            sorted_comments_asc = sorted(issue.fields.comment.comments, key=lambda c: c.created) # ascending order for LLM   
+                        if issue.fields.comment.comments:
+                            sorted_comments_asc = sorted(issue.fields.comment.comments, key=lambda c: c.created) # ascending order for LLM
                             sorted_comments = sorted(issue.fields.comment.comments, key=lambda c: c.created, reverse=True)
                             comments_list.append("▫️ [" + issue.key +"] ")
                             comments_list_asc.append("▫️ [" + issue.key +"] ")
+                            issue_comment_parts = []
 
                             for comment in sorted_comments:
                                 comments_str = comment.body
                                 comments_str = comments_str.replace("\n","").replace("\r","")
                                 comments_str = clean_jira_wiki(comments_str)
-                                comments_list.append("; ".join([
-                                    f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comments_str)}"
-                                #    f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comment.body)}"
-                                #    for comment in sorted_comments
-                                ]))
-                                
+                                entry = f"{comment.created[:10]} - {comment.author.displayName}: {replace_account_ids_with_names(comments_str)}"
+                                comments_list.append(entry)
+                                issue_comment_parts.append(entry)
+
                             for comment in sorted_comments_asc:
                                 comments_str = comment.body
                                 comments_str = comments_str.replace("\n","").replace("\r","")
-                                comments_str = clean_jira_wiki(comments_str)   
+                                comments_str = clean_jira_wiki(comments_str)
                                 comments_list_asc.append("; ".join([
                                     f"{comment.created[:10]} - {comment.author.displayName} wrote: {replace_account_ids_with_names(comments_str)}"
-                                    #f"{comment.created[:10]} - {comment.author.displayName} wrote: {replace_account_ids_with_names(comment.body)}"
-                                    #for comment in sorted_comments_asc
                                 ]))
-                            
-                            # won't work since these are list types.  so i replaced with for loops above
-                            #comments_list = comments_list.replace("\n","").replace("\n", "")
-                            #comments_list_asc= comments_list_asc.replace("\n","").replace("\n", "")
-                           
+
                             print(f"*****comments_list_asc = {comments_list_asc}")
-                            #comments_list.append(";")  # Add a semicolon after final comment for this issue
-                            #comments_list_asc.append(";")  # Add a semicolon after final comment for this issue
-                            
-                            #<ai> no longer supported since field_arg for prompt was added
-                            #ai_summarized = get_summarized_comments(comments_list_asc)
-                            
-                            #print(f"+++++ ai_summarized = {ai_summarized}")
-                            #comments_summarized_list.append("▫️ [" + issue.key + "] " + ai_summarized + ";")
-                        
+                            per_issue_list.append("▫️ [" + issue.key + "] " + "; ".join(issue_comment_parts))
+
                         else:
                             comments_list.append("▫️ [" + issue.key + "] ")
                             comments_list.append("No comments;")
                             comments_list_asc.append("▫️ [" + issue.key + "] ")
                             comments_list_asc.append("No comments;")
-                            #comments_summarized_list.append("▫️ [" + issue.key + "]" + " No comments")
-                    
+                            per_issue_list.append("▫️ [" + issue.key + "] No comments")
+
+                    elif field2 == "children":
+                        issuetype = getattr(issue.fields, "issuetype", None)
+                        if issuetype and getattr(issuetype, "name", "") == "Epic":
+                            print(f"Fetching child issues for epic {issue.key}")
+                            epic_linked_issues = jira.search_issues(
+                                f'"Epic Link" = {issue.key}',
+                                maxResults=JIRA_MAX_RESULTS
+                            )
+                            if epic_linked_issues:
+                                epic_linked_issues = sorted(
+                                    epic_linked_issues,
+                                    key=lambda x: (x.key.split("-")[0], int(x.key.split("-")[1]))
+                                )
+                                child_summaries = [
+                                    f"▫️ {li.key} {li.fields.summary[:50]}{'...' if len(li.fields.summary) > 50 else ''}:{li.fields.status.name}:{li.fields.assignee.displayName if li.fields.assignee else 'unassigned'}"
+                                    for li in epic_linked_issues
+                                ]
+                                per_issue_list.append("▫️ [" + issue.key + "] " + ";".join(child_summaries))
+                            else:
+                                per_issue_list.append("▫️ [" + issue.key + "] No children")
+                        else:
+                            per_issue_list.append("▫️ [" + issue.key + "] Not an Epic")
+
+                    elif field2 == "links":
+                        linked_parts = []
+                        if hasattr(issue.fields, 'issuelinks'):
+                            for link in issue.fields.issuelinks:
+                                if hasattr(link, 'outwardIssue'):
+                                    linked_parts.append(f"▫️ {link.outwardIssue.key} {link.outwardIssue.fields.summary[:30]}[{link.type.outward}]".strip())
+                                elif hasattr(link, 'inwardIssue'):
+                                    linked_parts.append(f"▫️ {link.inwardIssue.key} {link.inwardIssue.fields.summary[:30]}[{link.type.inward}]".strip())
+                        if linked_parts:
+                            per_issue_list.append("▫️ [" + issue.key + "] " + ";".join(linked_parts))
+                        else:
+                            per_issue_list.append("▫️ [" + issue.key + "] No links")
+
                     elif field2 == "synopsis":
                         value_parts = []
                         issuetype = getattr(issue.fields, 'issuetype', None)
@@ -707,7 +736,9 @@ if jql_ids:
                             #value_str = "Not defined"
                         else:
                             # only show cell values if defined
-                            generic_fields_list.append("▫️ [" + issue.key + "] " + value_str)
+                            entry = "▫️ [" + issue.key + "] " + value_str
+                            generic_fields_list.append(entry)
+                            per_issue_list.append(entry)
                     
 
                     #values.append(str(value))
@@ -773,7 +804,10 @@ if jql_ids:
                     print(f"Synopsis list: {synopsis_list}")
                     final_value = ";".join(key_list) if key_list else ""
                     value = final_value + "; " + synopsis_list if synopsis_list else final_value
-                    #value = synopsis_list
+                elif field2 == "children":
+                    value = ";".join(per_issue_list) if per_issue_list else ""
+                elif field2 == "links":
+                    value = ";".join(per_issue_list) if per_issue_list else ""
                 else:
                     print(f"Field {field} and field2 {field2} is considered generic_field and will be processed as such.")
                     generic_fields_list.sort()
@@ -803,16 +837,36 @@ if jql_ids:
                     print(f"field_args[{field}] not found")
 
                 values.append(value_str)
+                values_lists.append(per_issue_list if per_issue_list else None)
 
-            # Combine values for fields that share the same column index (multi-tag cells)
+            # Combine values for fields that share the same column index (multi-tag cells).
+            # For multi-tag columns with per-issue lists, interleave by issue instead of
+            # concatenating all-of-field1 then all-of-field2.
             out_values = []
-            seen_cols = {}
-            for fi, fv in zip(field_indexes, values):
-                if fi in seen_cols:
-                    out_values[seen_cols[fi]] += '; ' + fv
-                else:
+            seen_cols = {}      # col_index -> position in out_values
+            seen_col_lists = {} # col_index -> accumulated [per_issue_list, ...] for interleaving
+
+            for fi, fv, fl in zip(field_indexes, values, values_lists):
+                if fi not in seen_cols:
                     seen_cols[fi] = len(out_values)
                     out_values.append(fv)
+                    seen_col_lists[fi] = [fl] if fl is not None else None
+                else:
+                    pos = seen_cols[fi]
+                    if seen_col_lists.get(fi) is not None and fl is not None:
+                        # Interleave: zip per-issue values across all fields in this column.
+                        # Fields within one issue are separated by ";" (→ newline in Excel).
+                        # Issues are separated by ";;" (→ blank line in Excel).
+                        seen_col_lists[fi].append(fl)
+                        n = min(len(lst) for lst in seen_col_lists[fi])
+                        out_values[pos] = ";;".join(
+                            ";".join(lst[i] for lst in seen_col_lists[fi])
+                            for i in range(n)
+                        )
+                    else:
+                        # Fallback: simple concatenation (aggregate fields like timestamp/url)
+                        out_values[pos] += '; ' + fv
+                        seen_col_lists[fi] = None
 
             print('|'.join(out_values))
             with open(output_file, "a") as outfile:
