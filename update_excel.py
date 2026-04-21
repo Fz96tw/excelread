@@ -105,7 +105,11 @@ def convert_row_col_to_excel_coordinate(row, col):
     return f"{col_letter}{row}"
 
 
+import httplib2
+from google_auth_httplib2 import AuthorizedHttp
 from google_oauth import *
+
+_GOOGLE_API_TIMEOUT = 30  # seconds
 
 # don't be confused, googlelogin param is just userlogin param passed to identify which google token to use
 # this var name is misleading and i need to fix it.
@@ -123,7 +127,8 @@ def read_google_rows(googlelogin, spreadsheet_url_or_id, sheet_name=None):
     if not creds or not creds.valid:
         raise Exception(f"❌ User {googlelogin} not logged in to Google Drive")
 
-    service = build("sheets", "v4", credentials=creds)
+    http = AuthorizedHttp(creds, http=httplib2.Http(timeout=_GOOGLE_API_TIMEOUT))
+    service = build("sheets", "v4", http=http)
 
     # If no sheet_name provided, get the first sheet
     if sheet_name is None:

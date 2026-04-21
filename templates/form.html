@@ -1976,6 +1976,7 @@
         function removeCompletedTask(taskId) {
             const task = activeTasks.get(taskId);
             if (task && ['completed', 'failed', 'SUCCESS'].includes(task.status)) {
+                console.log(`Removing completed task ${taskId} from display and tracking`);
                 activeTasks.delete(taskId);
                 updateTaskDisplay();
             }
@@ -1989,9 +1990,16 @@
         async function pollAllTasks() {
             try {
                 const data = await fetch('/tasks/status').then(r => r.json());
-                if (!data.success) return;
+                if (!data.success) {
+                    console.error('Error fetching task status:', data.message);
+                    return;
+                }
                 data.tasks.forEach(task => {
-                    if (!activeTasks.has(task.task_id)) return;
+                    if (!activeTasks.has(task.task_id)) {
+                        console.log(`Task ${task.task_id} is not in activeTasks`);
+                        return;
+                    }
+                    console.log(`Updating task ${task.task_id}: status=${task.status}, progress=${task.progress}%`);
                     const local = activeTasks.get(task.task_id);
                     Object.assign(local, {
                         status: task.status, started_at: task.started_at,
@@ -2000,6 +2008,7 @@
                     if (['SUCCESS', 'completed', 'failed'].includes(task.status) && !local.removeScheduled) {
                         local.removeScheduled = true;
                         setTimeout(() => removeCompletedTask(task.task_id), 60000);
+                        console.log(`Scheduled removal of task ${task.task_id} in 60 seconds`);
                     }
                 });
                 updateTaskDisplay();

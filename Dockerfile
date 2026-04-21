@@ -44,5 +44,5 @@ RUN date -u +"%Y-%m-%dT%H:%M:%SZ" > /build_date
 
 #CMD ["python", "appnew.py", "--auth", "user_auth"]
 #CMD ["gunicorn", "appnew:app", "--bind", "0.0.0.0:5000", "-w", "4"]
-CMD ["gunicorn", "appnew:app", "--bind", "0.0.0.0:5000", "--preload","-w", "4","--threads","8", "--worker-class","gthread","--timeout", "10","--keep-alive", "2","--log-level", "debug", "--access-logfile", "-", "--error-logfile", "-"]
+CMD ["gunicorn", "appnew:app", "--bind", "0.0.0.0:5000", "-w", "4","--threads","8", "--worker-class","gthread","--timeout", "120","--keep-alive", "2","--log-level", "debug", "--access-logfile", "-", "--error-logfile", "-"]
 

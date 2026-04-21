@@ -21,8 +21,12 @@ SCOPES = [
 
 
 
+import httplib2
 from googleapiclient.discovery import build
+from google_auth_httplib2 import AuthorizedHttp
 #from google_oauth import load_google_token
+
+_GOOGLE_API_TIMEOUT = 30  # seconds
 
 def get_google_drive_filename(userlogin: str, file_id: str) -> str | None:
     """
@@ -33,8 +37,8 @@ def get_google_drive_filename(userlogin: str, file_id: str) -> str | None:
     if not creds or not creds.valid:
         raise Exception(f"❌ User {userlogin} not logged in to Google Drive")
 
-    # Build Drive API service
-    service = build("drive", "v3", credentials=creds)
+    http = AuthorizedHttp(creds, http=httplib2.Http(timeout=_GOOGLE_API_TIMEOUT))
+    service = build("drive", "v3", http=http)
 
     # Retrieve file metadata (name)
     file = service.files().get(fileId=file_id, fields="name").execute()

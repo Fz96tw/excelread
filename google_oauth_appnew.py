@@ -1,6 +1,7 @@
 # google_oauth.py
 import os
 import json
+import httplib2
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -8,7 +9,10 @@ from google.auth.transport.requests import Request
 
 
 from googleapiclient.discovery import build
+from google_auth_httplib2 import AuthorizedHttp
 from google_oauth import load_google_token
+
+_GOOGLE_API_TIMEOUT = 30  # seconds
 
 def get_google_drive_filename(userlogin: str, file_id: str) -> str | None:
     """
@@ -19,8 +23,10 @@ def get_google_drive_filename(userlogin: str, file_id: str) -> str | None:
     if not creds or not creds.valid:
         raise Exception(f"❌ User {userlogin} not logged in to Google Drive")
 
-    # Build Drive API service
-    service = build("drive", "v3", credentials=creds)
+    # Build Drive API service with an explicit socket timeout so the Celery
+    # task doesn't hang for minutes waiting on a slow/unreachable Google endpoint.
+    http = AuthorizedHttp(creds, http=httplib2.Http(timeout=_GOOGLE_API_TIMEOUT))
+    service = build("drive", "v3", http=http)
 
     # Retrieve file metadata (name)
     file = service.files().get(fileId=file_id, fields="name").execute()
