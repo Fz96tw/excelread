@@ -128,16 +128,37 @@ All MCP requests require an `X-API-Key` header mapped to a username via `config/
 ### Key Files
 
 - **`appnew.py`** — Main Flask app: OAuth, all REST endpoints, session management, UI routes. Production start: gunicorn with 4 workers, 8 threads, gthread worker class.
+- **`refresh.py`** — Document sync orchestration: fetches/parses documents from all sources (SharePoint, Excel, Confluence, URLs) and triggers re-embedding. Called by both `scheduler.py` and Celery workers.
 - **`vector_worker.py`** — Celery task definitions for both queues
 - **`vector_embedder.py`** — Pluggable embedding strategies (SentenceTransformers, OpenAI, Cohere)
 - **`vector_retriever.py`** — FAISS search; `vector_rag_retriever.py` adds deduplication/ranking
 - **`file_watcher.py`** — Watchdog-based monitor; triggers Celery tasks on `docs.json` changes
 - **`summarizer.py`** — FastAPI service wrapping Ollama; `summarizer_claude.py` and `summarizer_openai.py` for cloud variants
+- **`aibrief.py`** — AI briefing generation logic (distinct from per-document summarization)
 - **`mcp_proxy.py`** — HTTP-to-stdio bridge so Claude Desktop can reach the remote MCP server
 - **`mcpserver.py`** — MCP server implementation exposing document retrieval as tools
 - **`my_utils.py`** — Shared utilities: URL cleaning, Jira markup stripping, env file management, email sending
 - **`redis_state.py`** — Thin wrapper around Redis DB 2 for URL embedding state
 - **`task_queue.py`** — Celery app config + local ThreadPool task queue for UI monitoring
+
+### Integration & Analytics Modules
+
+Source-specific sync logic lives in dedicated files called by `refresh.py`:
+- **`update_sharepoint.py`**, **`update_excel.py`**, **`update_googlesheet.py`** — per-source document fetchers
+- **`read_jira.py`**, **`create_jira.py`** — Jira data extraction and ticket creation
+
+Jira analytics are separate heavy modules (each 30–56KB), not part of the core RAG pipeline:
+- **`cycletime.py`**, **`statustime.py`** — issue cycle/status time analytics
+- **`runrate_assignee.py`**, **`runrate_created.py`**, **`runrate_resolved.py`** — run-rate reporting by dimension
+- **`scope.py`** — scope tracking/analysis
+
+### Frontend
+
+`templates/` uses Jinja2 + vanilla JavaScript (no frontend build step). `form.html` is the main dashboard (~93KB); it polls `/tasks/status` via AJAX for real-time task updates. Static assets (logos, icons) are in `static/`.
+
+### Legacy Files
+
+`app.py` and `app2.py` are legacy Flask apps superseded by `appnew.py`. Do not modify or extend them.
 
 ### User Data Layout
 
