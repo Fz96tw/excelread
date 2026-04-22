@@ -50,6 +50,13 @@
             z-index: 10;
         }
 
+        .logo-wrapper {
+            height: 80px;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+        }
+
         .sidebar-logo {
             width: 100px;
             display: block;
@@ -155,7 +162,14 @@
             flex: 0 0 56px;
         }
 
-        .left-frame.collapsed .sidebar-logo,
+        .left-frame.collapsed .sidebar-logo {
+            display: none;
+        }
+
+        .left-frame.collapsed .logo-wrapper {
+            height: 80px; /* keeps icons from shifting up */
+        }
+
         .left-frame.collapsed .menu-bar button span,
         .left-frame.collapsed .btn-logout span,
         .left-frame.collapsed .menu-arrow,
@@ -831,7 +845,9 @@
         <!-- Sidebar -->
         <aside class="left-frame">
             <button id="sidebarToggle" class="sidebar-toggle" title="Collapse sidebar">‹</button>
-            <img src="/static/curiologo.png" alt="Logo" class="sidebar-logo" style="width: 150px; margin-top: 20px; margin-left: 15px; margin-right: 0px;" alt="Logo">
+            <div class="logo-wrapper">
+                <img src="/static/curiologo.png" alt="Logo" class="sidebar-logo" style="width: 150px; margin-left: 15px; margin-right: 0px;">
+            </div>
             <!--img src="/static/sprintsenselogo.png" alt="Logo" class="sidebar-logo" style="width: 250px; margin-right: 0px;" alt="Logo"-->
 
             <div class="menu-bar">
