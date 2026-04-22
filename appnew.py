@@ -445,47 +445,45 @@ def load_llm_config(llm_config_file):
 
 def load_schedules(sched_file, userlogin=None):
     print("load_schedules called")
-    lock = FileLock(SCHEDULE_LOCK)
-    print("acquired lock for load_schedules")
-    with lock:
-        if os.path.exists(sched_file):
+    # No lock needed: writes use atomic os.rename() so readers never see a
+    # partial file. A missing file just returns [].
+    if os.path.exists(sched_file):
+        try:
             with open(sched_file, "r") as f:
                 print(f"loading schedule file = {sched_file}")
-                schedules = json.load(f)
-                # Only return schedules belonging to this user
-                '''
-                if (userlogin is not None):
-                    return [s for s in schedules if s.get("userlogin") == userlogin]
-                else:
-                    return schedules
-                '''
-                return schedules
-            
-        return []
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            print(f"load_schedules: could not parse {sched_file}, returning []")
+            return []
+    return []
+
+
+def _write_schedules_atomic(sched_file, schedules):
+    """Write schedules to sched_file via a temp file + rename so reads never
+    see a partial write (os.rename is atomic on Linux/macOS)."""
+    import tempfile
+    dir_ = os.path.dirname(sched_file) or "."
+    fd, tmp_path = tempfile.mkstemp(dir=dir_, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(schedules, f, indent=4)
+        os.replace(tmp_path, sched_file)   # atomic on POSIX
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def clear_schedule_file(sched_file, filename, userlogin):
     if not filename:
         return jsonify({"success": False, "message": "Filename missing"}), 400
 
-    lock = FileLock(SCHEDULE_LOCK)
-    with lock:
-        # Load existing schedules
-        schedules = load_schedules(sched_file)
-        # Remove the schedule for this filename if it exists
-        new_schedules = [s for s in schedules if s["filename"] != filename or s["userlogin"] != userlogin]
-        
-        '''
-        new_schedules = {}
-        for s in schedules:
-            if s["filename"] != filename or s["userlogin"] != userlogin:
-                new_schedules.append(s)
-        '''
-
-        # Save back to file
-        with open(sched_file, "w") as f:
-            json.dump(new_schedules, f, indent=4)
-            print(f"cleared schedule file = {sched_file}, removed {filename} replaced by {new_schedules}")
+    schedules = load_schedules(sched_file)
+    new_schedules = [s for s in schedules if s["filename"] != filename or s["userlogin"] != userlogin]
+    _write_schedules_atomic(sched_file, new_schedules)
+    print(f"cleared schedule file = {sched_file}, removed {filename} replaced by {new_schedules}")
 
         #return jsonify({"success": True, "message": f"Schedule for '{filename}' cleared."})
 
@@ -1306,44 +1304,51 @@ def index():
     
     if (delegated_auth):
         print ("/ route is using delegated_auth flow")
-        # Try silent token first
-        print(f"Attempting to acquire token silently for {userlogin}...")
-        cache = load_cache(userlogin)
-        print(f"Loaded cache, checking for accounts for {userlogin}...")
-        cca = _build_msal_app(cache)
-        accounts = cca.get_accounts()
-        if accounts:
-            print(f"Found {len(accounts)} accounts in token cache")
-            result = cca.acquire_token_silent(SCOPES, account=accounts[0])
-            #result = cca.acquire_token_silent(SCOPES + ["openid", "profile"], account=accounts[0])
-            
-            print("called 'acquire_token_silent'")
-            save_cache(cache, userlogin)
-            if result:
-                print (f"/ endpoint found valid user auth token = {result}")
-                print(f"token claims = {result.get('token_claims')}")
-                #logged_in = True
-                session["is_logged_in"] = True
-                session["user"] = result.get("id_token_claims")
-                session["access_token"] = result["access_token"]
-                auth_user_info = session.get("user")
-                print(f"%%%%%%%%% session = {session}")
-                
-                if auth_user_info:
-                    auth_user_email = auth_user_info.get("preferred_username")
-                    auth_user_name = auth_user_info.get("name")
-                    print(f"auth_user_info found in session, user = {auth_user_name}, email= {auth_user_email}")
-                else:
-                    print("No auth_user_info found in session!")
-
-                #return f"Access token ready!<br>{result['access_token'][:40]}..."
-            else:
-                return "Failed acquire_token_silent <br>"
+        # Skip MSAL entirely if the user has no Azure token cache (e.g. Google-only users).
+        # _build_msal_app() hits the Azure AD discovery endpoint on every call, so avoid
+        # it when there is nothing to refresh.
+        _token_cache_path = user_config_file(userlogin, "token_cache.json")
+        if not os.path.exists(_token_cache_path):
+            print(f"No Azure token cache found for {userlogin}, skipping MSAL token refresh")
+            session.setdefault("is_logged_in", False)
         else:
-            print("No existing accounts found in token cache")
-            #return '<a href="/login">Login with Microsoft</a>'
-            #logged_in = False
-            session["is_logged_in"] = False
+            print(f"Attempting to acquire token silently for {userlogin}...")
+            cache = load_cache(userlogin)
+            print(f"Loaded cache, checking for accounts for {userlogin}...")
+            cca = _build_msal_app(cache)
+            accounts = cca.get_accounts()
+            if accounts:
+                print(f"Found {len(accounts)} accounts in token cache")
+                result = cca.acquire_token_silent(SCOPES, account=accounts[0])
+                #result = cca.acquire_token_silent(SCOPES + ["openid", "profile"], account=accounts[0])
+
+                print("called 'acquire_token_silent'")
+                save_cache(cache, userlogin)
+                if result:
+                    print (f"/ endpoint found valid user auth token = {result}")
+                    print(f"token claims = {result.get('token_claims')}")
+                    #logged_in = True
+                    session["is_logged_in"] = True
+                    session["user"] = result.get("id_token_claims")
+                    session["access_token"] = result["access_token"]
+                    auth_user_info = session.get("user")
+                    print(f"%%%%%%%%% session = {session}")
+
+                    if auth_user_info:
+                        auth_user_email = auth_user_info.get("preferred_username")
+                        auth_user_name = auth_user_info.get("name")
+                        print(f"auth_user_info found in session, user = {auth_user_name}, email= {auth_user_email}")
+                    else:
+                        print("No auth_user_info found in session!")
+
+                    #return f"Access token ready!<br>{result['access_token'][:40]}..."
+                else:
+                    return "Failed acquire_token_silent <br>"
+            else:
+                print("No existing accounts found in token cache")
+                #return '<a href="/login">Login with Microsoft</a>'
+                #logged_in = False
+                session["is_logged_in"] = False
   
 
     user_sched_file = SCHEDULE_FILE #f"./logs/{userlogin}/{SCHEDULE_FILE}"
@@ -1519,7 +1524,7 @@ def index():
         return redirect(url_for('index'))
 
     
-    print(f"Sharepoint Authorization status: {session['is_logged_in']}")
+    print(f"Sharepoint Authorization status: {session.get('is_logged_in', False)}")
 
 
     # Check Google login status
@@ -1566,7 +1571,7 @@ def index():
                            shared_files_google = shared_files_google,
                            shared_files_local = shared_files_local,
                            docs_list = docs_list["docs"] if docs_list else [],
-                           logged_in=session["is_logged_in"],
+                           logged_in=session.get("is_logged_in", False),
                            google_logged_in=google_logged_in,
                            folder_tree=folder_tree,
                            schedule_dict=schedule_dict,
@@ -1856,15 +1861,12 @@ def schedule_file():
 
         # Save back to file
 
-    lock = FileLock(SCHEDULE_LOCK)
-    with lock:
-        with open(user_sched_file, "w") as f:
-            print(f"saving to schedule file = {user_sched_file}")
-            json.dump(schedules, f, indent=4)
+    print(f"saving to schedule file = {user_sched_file}")
+    _write_schedules_atomic(user_sched_file, schedules)
 
-        # update the scheduled jobs
-        global delegated_auth
-        #schedule_jobs(scheduler, user_sched_file, delegated_auth, filename, userlogin)
+    # update the scheduled jobs
+    global delegated_auth
+    #schedule_jobs(scheduler, user_sched_file, delegated_auth, filename, userlogin)
 
     return jsonify({"success": True, "message": "Schedule saved successfully"})
 
@@ -1883,16 +1885,10 @@ def clear_schedule():
     schedules = []
 
     schedules = load_schedules(user_sched_file)  # must load for all userlogins
-    # Remove the schedule for this file
-    #schedules = [s for s in schedules if s["filename"] != filename or s["userlogin"] != userlogin]
     schedules = [s for s in schedules if s["filename"] != filename]
 
-    # Save back
-    lock = FileLock(SCHEDULE_LOCK)
-    with lock:
-        with open(user_sched_file, "w") as f:
-            print(f"saving schedule file = {user_sched_file}")
-            json.dump(schedules, f, indent=4)
+    print(f"saving schedule file = {user_sched_file}")
+    _write_schedules_atomic(user_sched_file, schedules)
 
     return jsonify({"success": True})
 
@@ -1945,8 +1941,9 @@ from vector_worker import resync_task_worker
 def get_task_status():
     global metrics_resync_errors
     print("/tasks/status endpoint called")
-    task_ids = redis_client.smembers("celery:tasks")
-    print(f"Retrieved task IDs from Redis: {task_ids}")
+    username = current_user.username if current_user.is_authenticated else "anonymous"
+    task_ids = redis_client.smembers(f"celery:tasks:{username}")
+    print(f"Retrieved task IDs from Redis for user={username}: {task_ids}")
 
     tasks = []
 
@@ -1987,7 +1984,8 @@ def get_task_status():
 
         # remove the task from celery redis queue
         if state in ("SUCCESS", "FAILURE"):
-            redis_client.srem("celery:tasks", task_id)
+            redis_client.srem(f"celery:tasks:{username}", task_id)
+            print(f"Removed task_id={task_id} from Redis tracking set for user={username} after completion with state={state}")
 
         print(f"Task {task_id} is in state {state} with info: {result.info}")
         tasks.append(task_info)
@@ -2074,7 +2072,9 @@ redis_client = redis.Redis(
     host=REDIS_HOST,
     port=6379,
     db=2,              # pick a DB just for task tracking (not Celery broker/backend)
-    decode_responses=True
+    decode_responses=True,
+    socket_timeout=5,
+    socket_connect_timeout=5
 )
 
 import time
@@ -2132,7 +2132,11 @@ def metrics():
         redis_latency_ms = round((time.time() - t0) * 1000, 2)
         redis_ok = True
 
-        task_ids = redis_client.smembers("celery:tasks")
+        # Aggregate task IDs across all per-user sets for metrics
+        user_task_keys = redis_client.keys("celery:tasks:*")
+        task_ids = set()
+        for key in user_task_keys:
+            task_ids.update(redis_client.smembers(key))
         task_counts["total"] = len(task_ids)
 
         for task_id in task_ids:
@@ -2329,9 +2333,10 @@ def resync_sharepoint():
 
     print(f"/resync_sharepoint returned taskid {task_id} to process val={val}, user={user}")
 
-    # Store task ID in Redis set for tracking, used by the /status endpoint
-    redis_client.sadd("celery:tasks", task_id)
-    print(f"Stored task ID {task_id} in Redis for tracking")
+    # Store task ID in per-user Redis set for tracking, used by the /status endpoint
+    redis_client.sadd(f"celery:tasks:{user}", task_id)
+    redis_client.expire(f"celery:tasks:{user}", 3600)
+    print(f"Stored task ID {task_id} in Redis for tracking user={user}")
 
 
 
@@ -2573,7 +2578,8 @@ def resync_docslist():
 
     task = process_url.delay(userlogin, url, force=True)
 
-    redis_client.sadd("celery:tasks", task.id)
+    redis_client.sadd(f"celery:tasks:{userlogin}", task.id)
+    redis_client.expire(f"celery:tasks:{userlogin}", 3600)
     print(f"/resync_docslist queued task {task.id} for url={url}, user={userlogin}")
 
     return jsonify({
