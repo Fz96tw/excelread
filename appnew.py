@@ -186,7 +186,7 @@ SCOPES = ["https://graph.microsoft.com/.default"]
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 #AUTHORITY = "https://login.microsoftonline.com/common"   # to allow users from any tenant to authorize my app
 REDIRECT_PATH = "/getAToken"
-REDIRECT_URI = f"https://demo.cloudcurio.com{REDIRECT_PATH}"
+REDIRECT_URI = f"https://demo.cloudcurio.com{REDIRECT_PATH}"  # overwritten after args parsed below
 
 # default token cache file used when private client auth flow. 
 # file name is overwritten later if using delegated auth flow.
@@ -908,8 +908,10 @@ PORT = args["port"]
 AUTH = args["auth"]
 callback_host = args["callback"]
 env = args["env"]
+REDIRECT_URI = f"{callback_host.rstrip('/')}{REDIRECT_PATH}"
 
 print(f"callback_host provided as: {callback_host}")
+print(f"REDIRECT_URI = {REDIRECT_URI}")
 
 
 delegated_auth = False  # set to False to use app-only auth (no user context)
@@ -923,7 +925,7 @@ if "user_auth" in AUTH:
     CLIENT_SECRET = os.environ["CLIENT_SECRET2"] # only needed for app-only auth. Not used for delegated user auth.
     TENANT_ID = os.environ["TENANT_ID"]
     # Do NOT include reserved scopes here — MSAL adds them automatically
-    SCOPES = ["User.Read","Files.ReadWrite.All", "Sites.ReadWrite.All"]
+    SCOPES = ["User.Read","Files.ReadWrite.All", "Sites.ReadWrite.All", "Chat.Read"]
     #AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
     AUTHORITY = "https://login.microsoftonline.com/common"   # to allow users from any tenant to authorize my app
     print (f"Tenant id: {TENANT_ID}")
@@ -1329,17 +1331,21 @@ def index():
                     print(f"token claims = {result.get('token_claims')}")
                     #logged_in = True
                     session["is_logged_in"] = True
-                    session["user"] = result.get("id_token_claims")
                     session["access_token"] = result["access_token"]
-                    auth_user_info = session.get("user")
-                    print(f"%%%%%%%%% session = {session}")
-
-                    if auth_user_info:
-                        auth_user_email = auth_user_info.get("preferred_username")
-                        auth_user_name = auth_user_info.get("name")
-                        print(f"auth_user_info found in session, user = {auth_user_name}, email= {auth_user_email}")
+                    # id_token_claims is only present on interactive login, not silent refresh.
+                    # Fall back to the MSAL account username so auth_username is never blank.
+                    id_claims = result.get("id_token_claims")
+                    if id_claims:
+                        session["user"] = id_claims
+                        auth_user_email = id_claims.get("preferred_username", "")
+                        auth_user_name = id_claims.get("name", "")
                     else:
-                        print("No auth_user_info found in session!")
+                        auth_user_email = accounts[0].get("username", "")
+                        auth_user_name = accounts[0].get("name", auth_user_email)
+                        if not session.get("user"):
+                            session["user"] = {"preferred_username": auth_user_email, "name": auth_user_name}
+                    print(f"auth_user_email={auth_user_email}, auth_user_name={auth_user_name}")
+                    print(f"%%%%%%%%% session = {session}")
 
                     #return f"Access token ready!<br>{result['access_token'][:40]}..."
                 else:
@@ -2586,6 +2592,38 @@ def resync_docslist():
         "success": True,
         "message": f"Resync started for {url}",
         "task_id": task.id
+    })
+
+
+@app.route("/sync_teams", methods=["POST"])
+@login_required
+def sync_teams():
+    """Fetch Teams chats for the current user and write transcript files."""
+    if not delegated_auth:
+        return jsonify({"success": False, "message": "Teams sync requires delegated auth mode (--auth user_auth)"}), 400
+
+    from teams_chat import fetch_and_save_teams_chats, load_teams_config
+
+    userlogin = current_user.username
+    try:
+        token = get_app_token_delegated()
+    except Exception as e:
+        return jsonify({"success": False, "message": f"No valid token: {e}"}), 401
+
+    try:
+        cfg = load_teams_config()
+        stats = fetch_and_save_teams_chats(token, userlogin, cfg)
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+    return jsonify({
+        "success": True,
+        "total_chats": stats["total_chats"],
+        "new_messages": stats["new_messages"],
+        "partitions_updated": stats["partitions_updated"],
+        "skipped_chats": stats["skipped_chats"],
+        "partition_by": stats["partition_by"],
+        "output_dir": stats["output_dir"],
     })
 
 

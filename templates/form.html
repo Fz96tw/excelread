@@ -882,6 +882,10 @@
                     <img src="/static/googlesheetsicon.png" alt="">
                     <span>Google Drive</span>
                 </button>
+                <button id="btn-section12" title="Teams Chat">
+                    <img src="/static/teams-icon.png" style="width: 24px; height: 24px;" alt="">
+                    <span>Teams Chat</span>
+                </button>
 
                 <div class="menu-divider"></div>
 
@@ -1500,6 +1504,47 @@
                     </div>
                 </div>
 
+                <!-- Section 12: Teams Chat -->
+                <div id="section12" class="section-content">
+                    <div class="user-header">
+                        <img src="/static/usericon2.png" alt="User">
+                        <div>
+                            <div style="font-size: 24px; font-weight: 600; margin-bottom: 8px;">{{username}}</div>
+                            <div style="font-size: 14px; color: var(--text-light);">JIRA: {{ foo_values.get('jira_url', 'Not configured')}}</div>
+                            <div style="font-size: 14px; color: var(--text-light);">LLM: {{llm_default}}</div>
+                        </div>
+                        <div style="margin-left: auto; display: flex; gap: 12px; align-items: center;">
+                            <span class="auth-status {% if logged_in %}authorized{% else %}unauthorized{% endif %}" style="font-size: 16px;">
+                                {% if logged_in %}
+                                    ✅ Sharepoint: {{auth_username}}
+                                {% else %}
+                                    🔒 Sharepoint Login Required
+                                {% endif %}
+                            </span>
+                            {% if logged_in %}
+                                <form method="POST" action="/logout_sharepoint" style="margin: 0;">
+                                    <button type="submit" class="btn-danger" style="padding: 6px 12px; font-size: 13px;">Revoke</button>
+                                </form>
+                            {% else %}
+                                <button type="button" onclick="openLoginPopup(this)" style="padding: 6px 12px; font-size: 13px;">Login</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2>
+                            <img src="/static/teams-icon.png" style="height: 24px; vertical-align: middle; margin-right: 8px;" alt="">
+                            Microsoft Teams Chat Sync
+                        </h2>
+                        <p style="color: var(--text-light); margin-bottom: 20px;">
+                            Fetch all Teams chats you are part of and save transcripts locally so they can be searched and summarized.
+                        </p>
+                        <button id="teamsResyncBtn" onclick="handleTeamsResync(event)">
+                            Sync Teams Chats
+                        </button>
+                        <div id="teamsResyncResult" style="margin-top: 16px; font-size: 14px; color: var(--text-light);"></div>
+                    </div>
+                </div>
+
             </div>
         </main>
     </div>
@@ -2063,6 +2108,31 @@
             } catch (err) {
                 console.error('Resync error:', err);
                 showToast('Error starting resync: ' + err.message, false);
+            }
+        }
+
+        async function handleTeamsResync(event) {
+            if (event) event.preventDefault();
+            const btn = document.getElementById('teamsResyncBtn');
+            const resultEl = document.getElementById('teamsResyncResult');
+            btn.disabled = true;
+            btn.textContent = 'Syncing…';
+            resultEl.textContent = '';
+            try {
+                const data = await fetch('/sync_teams', { method: 'POST' }).then(r => r.json());
+                if (!data.success) {
+                    showToast('Teams sync failed: ' + data.message, false);
+                    resultEl.textContent = 'Error: ' + data.message;
+                } else {
+                    showToast('✅ Teams sync complete');
+                    resultEl.textContent = `Done — ${data.new_messages} new message(s) across ${data.partitions_updated} ${data.partition_by} file(s). ${data.skipped_chats} chat(s) skipped (${data.total_chats} total).`;
+                }
+            } catch (err) {
+                showToast('Teams sync error: ' + err.message, false);
+                resultEl.textContent = 'Error: ' + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Sync Teams Chats';
             }
         }
 
