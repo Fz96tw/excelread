@@ -25,7 +25,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   jq \
   nano \
   vim \
+  docker.io \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN groupmod -g 1001 docker && usermod -aG docker node
 
 # Ensure default node user has access to /usr/local/share
 RUN mkdir -p /usr/local/share/npm-global && \
