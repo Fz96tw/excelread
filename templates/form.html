@@ -1032,6 +1032,7 @@
                                     <td>
                                         <a href="{{ val.location }}" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 500;">{{ val.location }}</a>
                                         <br><small style="color: var(--text-light);">Added {{ val.datetime}}</small>
+                                        {% if val.last_resync %}<br><small style="color: var(--text-light);">Updated {{ val.last_resync }}</small>{% endif %}
                                     </td>
                                     <td style="text-align: center;">
                                         <button type="button" onclick="handleResync('{{ val.location }}', event)" title="Resync">
@@ -1388,6 +1389,7 @@
                                     <td>
                                         <a href="{{ val.location }}" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 500;">{{ val.filename }}#{{ val.sheet }}</a>
                                         <br><small style="color: var(--text-light);"> Added {{ val.datetime}}</small>
+                                        {% if val.last_resync %}<br><small style="color: var(--text-light);">Updated {{ val.last_resync }}</small>{% endif %}
                                         <!--br><small style="color: var(--text-light);">{{val.location}}</small-->
                                     </td>
                                     <td style="text-align: center;">

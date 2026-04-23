@@ -603,6 +603,31 @@ def checksum_sha256(content):
 
 #from celery import shared_task
 from refresh import resync
+from my_utils import user_config_file
+
+
+def _update_last_resync(file_url, userlogin):
+    """Stamp last_resync on the matching entry in sharepoint or google shared files JSON."""
+    now = datetime.now().isoformat()
+    for filename in ("shared_files_sharepoint.json", "shared_files_google.json"):
+        path = user_config_file(userlogin, filename)
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r") as f:
+                entries = json.load(f)
+            updated = False
+            for entry in entries:
+                if entry.get("location") == file_url:
+                    entry["last_resync"] = now
+                    updated = True
+            if updated:
+                with open(path, "w") as f:
+                    json.dump(entries, f, indent=2)
+                return
+        except Exception as e:
+            print(f"[Task Worker] Failed to update last_resync in {path}: {e}")
+
 
 @app.task(bind=True, queue="resync_queue")
 def resync_task_worker(self, file_url, userlogin, delegated_auth):
@@ -611,6 +636,7 @@ def resync_task_worker(self, file_url, userlogin, delegated_auth):
     try:
         result = resync(file_url, userlogin, delegated_auth)
 
+        _update_last_resync(file_url, userlogin)
         print(f"[Task Worker] Resync completed successfully for {file_url}")
         return {
             "status": "success",

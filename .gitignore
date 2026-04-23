@@ -11,6 +11,8 @@ config/*.json
 *.tfstate.backup
 *.hcl
 
+*.bak
+*.lock
 config/
  
 # Ignore virtual environment
