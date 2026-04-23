@@ -10,6 +10,8 @@ config/*.json
 *.tfstate
 *.tfstate.backup
 *.hcl
+
+config/
  
 # Ignore virtual environment
 venv/
