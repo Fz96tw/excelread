@@ -327,6 +327,7 @@ def fetch_and_save_teams_chats(token: str, userlogin: str, cfg: dict = None) -> 
         "skipped_chats": 0,
         "output_dir": teams_dir,
         "partition_by": partition_by,
+        "updated_partitions": {},   # key → {filename, filepath} for caller to embed
     }
 
     # Collect new messages per chat, then bucket by partition key
@@ -385,11 +386,13 @@ def fetch_and_save_teams_chats(token: str, userlogin: str, cfg: dict = None) -> 
             for chat, messages in chat_message_pairs:
                 f.write(_format_chat_block(chat, messages))
 
-        manifest["partitions"][key] = {
+        partition_entry = {
             "filename": filename,
             "filepath": filepath,
             "last_updated": now_label,
         }
+        manifest["partitions"][key] = partition_entry
+        stats["updated_partitions"][key] = partition_entry
         stats["partitions_updated"] += 1
         logger.info("Wrote %d chat(s) to %s", len(chat_message_pairs), filename)
 

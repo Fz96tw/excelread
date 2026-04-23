@@ -381,7 +381,59 @@ def fetch_confluence_web_authenticated(url: str, email: str, api_token: str) -> 
         
     except Exception as e:
         logger.error(f"Authenticated web scraping failed: {e}")
-        raise ValueError(f"Could not fetch Confluence page via API or web scraping: {url}")
+        raise
+
+
+@app.task(queue="url_processing_queue")
+def embed_local_file(user_id, filepath):
+    """
+    Embed a local text file directly into a FAISS index, bypassing HTTP fetch.
+    Used for Teams chat partition files and any other locally-written content.
+    The filepath is used as the vector store identifier (same role as URL in process_url).
+    """
+    logger.info(f"[{user_id}] embed_local_file: {filepath}")
+    update_url_state(user_id, filepath, status="VECTORIZING")
+
+    try:
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"Local file not found: {filepath}")
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            text = f.read()
+
+        checksum = checksum_sha256(text)
+        prev = get_url_state(user_id, filepath)
+        if prev and prev.get("last_checksum") == checksum:
+            logger.info(f"[{user_id}] File unchanged, skipping: {filepath}")
+            update_url_state(user_id, filepath, status="UNCHANGED")
+            return {"status": "unchanged", "filepath": filepath}
+
+        num_chunks = build_vector_store(user_id, filepath, text)
+
+        metadata = {
+            "url": filepath,
+            "checksum": checksum,
+            "num_chunks": num_chunks,
+            "last_processed": datetime.now().isoformat(),
+            "embedder": embedder.get_name(),
+            "embedding_dimension": embedder.get_dimension(),
+            "source_type": "local_file",
+        }
+        save_metadata(user_id, filepath, metadata)
+
+        update_url_state(
+            user_id, filepath,
+            status="DONE",
+            last_checksum=checksum,
+            num_chunks=num_chunks,
+        )
+        logger.info(f"[{user_id}] embed_local_file done: {num_chunks} chunks from {filepath}")
+        return {"status": "success", "filepath": filepath, "num_chunks": num_chunks}
+
+    except Exception as e:
+        logger.error(f"[{user_id}] embed_local_file error for {filepath}: {e}")
+        update_url_state(user_id, filepath, status="ERROR", error=str(e))
+        raise
 
 
 def fetch_regular_page(url: str) -> Tuple[str, str, str]:

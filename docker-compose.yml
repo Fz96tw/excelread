@@ -36,9 +36,9 @@ services:
       - REDIS_HOST=redis
       - SUMMARIZER_HOST=http://summarizer:8000
     volumes:
-      - /home/nadeem/github/excelread/config:/app/config
+      - /home/nadeem/github/excelread/config:/appnew/config
       - /c:/mnt/c
-      - /home/nadeem/github/excelread/logs:/app/logs
+      - /home/nadeem/github/excelread/logs:/appnew/logs
 #      - /home/nadeem/github/excelread/config:/app/config_local
     networks:
       - appnet
@@ -54,9 +54,9 @@ services:
       - REDIS_HOST=redis
       - SUMMARIZER_HOST=http://summarizer:8000
     volumes:
-      - /home/nadeem/github/excelread/config:/app/config
+      - /home/nadeem/github/excelread/config:/appnew/config
       - /c:/mnt/c
-      - /home/nadeem/github/excelread/logs:/app/logs
+      - /home/nadeem/github/excelread/logs:/appnew/logs
   #    - /home/nadeem/github/excelread/config:/app/config_local
     networks:
       - appnet

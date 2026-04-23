@@ -2616,6 +2616,17 @@ def sync_teams():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+    # Queue an embedding task for each partition file that received new content
+    from vector_worker import embed_local_file
+    task_ids = []
+    for partition_info in stats.get("updated_partitions", {}).values():
+        filepath = partition_info.get("filepath")
+        if filepath:
+            task = embed_local_file.delay(userlogin, filepath)
+            redis_client.sadd(f"celery:tasks:{userlogin}", task.id)
+            redis_client.expire(f"celery:tasks:{userlogin}", 3600)
+            task_ids.append(task.id)
+
     return jsonify({
         "success": True,
         "total_chats": stats["total_chats"],
@@ -2624,6 +2635,7 @@ def sync_teams():
         "skipped_chats": stats["skipped_chats"],
         "partition_by": stats["partition_by"],
         "output_dir": stats["output_dir"],
+        "embed_task_ids": task_ids,
     })
 
 
