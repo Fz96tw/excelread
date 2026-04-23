@@ -793,7 +793,7 @@ if __name__ == "__main__":
                 if idx + 1 < len(row):
                     adjacent_cell_str = row[idx + 1]
                     print(f"adjacent cell look ahead = {adjacent_cell_str}")
-                    r = extract_rows_count(adjacent_cell_str)
+                    r = extract_rows_count(adjacent_cell_str) if isinstance(adjacent_cell_str, str) else None
                     print(f"<jira> tag adjacent cell last update string = {r}")
                     with open(scope_output_file, 'a') as f:
                         yaml.dump({"last_update_row_count":r}, f, default_flow_style=False)
