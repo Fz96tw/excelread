@@ -41,7 +41,7 @@ VALID_PARTITIONS = ("day", "week", "month", "quarter", "year")
 
 DEFAULT_CONFIG = {
     "lookback_days": 90,
-    "partition_by": "quarter",   # day | week | month | quarter | year
+    "partition_by": "day",   # day | week | month | quarter | year
     "include_group_chats": True,
     "include_one_on_one": True,
     "min_messages": 1,
