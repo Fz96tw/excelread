@@ -1,784 +1,801 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Config Dashboard</title>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Curio Dashboard</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-        :root {
-            --primary: #2563eb;
-            --primary-dark: #1e40af;
-            --primary-light: #3b82f6;
-            --success: #10b981;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --text-dark: #1f2937;
-            --text-light: #6b7280;
-            --bg-light: #e5e7eb;
-            --bg-white: #ffffff;
-            --border: #d1d5db;
-            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
-            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-        }
+      :root {
+        --primary: #1d4ed8;
+        --primary-dark: #1e3a8a;
+        --primary-light: #3b82f6;
+        --accent: #0d9488;
+        --success: #059669;
+        --danger: #dc2626;
+        --warning: #d97706;
+        --text-dark: #0f172a;
+        --text-light: #64748b;
+        --bg-light: #f1f5f9;
+        --bg-sidebar: #f8fafc;
+        --bg-white: #ffffff;
+        --border: #e2e8f0;
+        --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06);
+        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08);
+      }
 
-        html, body {
-            height: 100%;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
-            color: var(--text-dark);
-            background: var(--bg-light);
-        }
+      html,
+      body {
+        height: 100%;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: var(--text-dark);
+        background: var(--bg-light);
+        display: flex;
+        flex-direction: column;
+      }
 
-        .app-container {
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-        }
+      .app-container {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+      }
 
-        /* Sidebar */
+      /* Sidebar */
+      .left-frame {
+        flex: 0 0 220px;
+        background: var(--bg-sidebar);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        box-shadow: none;
+        z-index: 10;
+      }
+
+      .menu-bar {
+        display: flex;
+        flex-direction: column;
+        padding: 2px 12px;
+        gap: 4px;
+        flex: 1;
+      }
+
+      .menu-bar button {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border: none;
+        background: transparent;
+        color: var(--text-light);
+        font-size: 15px;
+        cursor: pointer;
+        border-radius: 8px;
+        transition: all 0.2s;
+        text-align: left;
+      }
+
+      .menu-bar button:hover {
+        background: rgba(29, 78, 216, 0.06);
+        color: var(--primary);
+        transform: translateX(2px);
+      }
+
+      .menu-bar button.active {
+        background: rgba(29, 78, 216, 0.1);
+        color: var(--primary);
+        font-weight: 600;
+      }
+
+      .menu-bar button img {
+        height: 24px;
+        width: 24px;
+        object-fit: contain;
+        filter: none;
+      }
+
+      .menu-divider {
+        height: 1px;
+        background: var(--border);
+        margin: 12px 0;
+      }
+
+      .left-footer {
+        margin-top: auto;
+        padding: 12px;
+      }
+
+      .btn-logout {
+        width: 100%;
+        justify-content: flex-start;
+        background: transparent !important;
+        color: var(--text-light) !important;
+        font-size: 16px;
+        padding: 12px 16px;
+        gap: 12px;
+      }
+
+      .btn-logout:hover {
+        background: rgba(29, 78, 216, 0.06) !important;
+        color: var(--primary) !important;
+        transform: none !important;
+        box-shadow: none !important;
+      }
+
+      /* Sidebar toggle button */
+      .sidebar-toggle {
+        align-self: flex-end;
+        margin: 8px 8px 0 0;
+        background: transparent;
+        border: none;
+        color: var(--text-light);
+        cursor: pointer;
+        padding: 4px 8px;
+        font-size: 18px;
+        border-radius: 6px;
+        transition:
+          color 0.2s,
+          background 0.2s;
+        box-shadow: none;
+        width: auto;
+      }
+
+      .sidebar-toggle:hover {
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--text-dark);
+        transform: none;
+        box-shadow: none;
+      }
+
+      /* Collapsed sidebar */
+      .left-frame {
+        transition: flex 0.25s ease;
+      }
+
+      .left-frame.collapsed {
+        flex: 0 0 56px;
+      }
+
+      .left-frame.collapsed .menu-bar button span,
+      .left-frame.collapsed .btn-logout span,
+      .left-frame.collapsed .menu-arrow,
+      .left-frame.collapsed .submenu {
+        display: none;
+      }
+
+      .left-frame.collapsed .sidebar-toggle {
+        align-self: center;
+        margin: 8px 0 0 0;
+      }
+
+      .left-frame.collapsed .menu-bar {
+        padding: 2px 4px;
+      }
+
+      .left-frame.collapsed .menu-bar button {
+        justify-content: center;
+        padding: 12px;
+      }
+
+      .left-frame.collapsed .menu-bar button:hover {
+        transform: none;
+      }
+
+      .left-frame.collapsed .menu-divider {
+        margin: 8px auto;
+        width: 32px;
+      }
+
+      .left-frame.collapsed .left-footer {
+        padding: 8px 4px;
+      }
+
+      .left-frame.collapsed .btn-logout {
+        justify-content: center !important;
+        padding: 12px !important;
+      }
+
+      /* Main Content */
+      .right-frame {
+        flex: 1;
+        background: var(--bg-light);
+        overflow: auto;
+      }
+
+      .page-content {
+        padding: 40px;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      /* User Header */
+      .user-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 20px 24px;
+        background: var(--bg-white);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        margin-bottom: 30px;
+      }
+
+      .user-header img {
+        width: 55px;
+        height: 55px;
+        border-radius: 50%;
+        background: var(--bg-white);
+        padding: 8px;
+      }
+
+      .user-header span {
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--text-dark);
+      }
+
+      /* Section Content */
+      .section-content {
+        display: none;
+        animation: fadeIn 0.3s;
+      }
+
+      .section-content.active {
+        display: block;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Cards */
+      .card {
+        background: var(--bg-white);
+        border-radius: 12px;
+        padding: 28px;
+        box-shadow: var(--shadow);
+        margin-bottom: 24px;
+        overflow-x: auto;
+      }
+
+      .card h2 {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text-dark);
+        margin-bottom: 20px;
+      }
+
+      .card h2 img {
+        width: 32px;
+        height: 32px;
+      }
+
+      /* Forms */
+      .left-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        max-width: 800px;
+      }
+
+      .left-form .form-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .left-form label {
+        display: block;
+        font-weight: 500;
+        color: var(--text-dark);
+        font-size: 14px;
+        min-width: 200px;
+        flex-shrink: 0;
+      }
+
+      .left-form input[type="text"],
+      .left-form input[type="number"],
+      .left-form select {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 14px;
+        transition: all 0.2s;
+      }
+
+      .left-form button {
+        align-self: flex-start;
+      }
+
+      .left-form input:focus,
+      .left-form select:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+
+      /* Buttons */
+      button {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: var(--primary);
+        color: white;
+        width: auto;
+      }
+
+      button:hover {
+        background: var(--primary-dark);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow);
+      }
+
+      button img {
+        width: 18px;
+        height: 18px;
+        filter: brightness(0) invert(1);
+      }
+
+      .btn-success {
+        background: var(--success);
+      }
+
+      .btn-success:hover {
+        background: #059669;
+      }
+
+      .btn-danger {
+        background: var(--danger);
+      }
+
+      .btn-danger:hover {
+        background: #dc2626;
+      }
+
+      /* Tables */
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin-top: 20px;
+        table-layout: fixed;
+        overflow-wrap: break-word;
+      }
+
+      thead {
+        background: var(--bg-light);
+      }
+
+      th {
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--text-light);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      td {
+        padding: 16px 12px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+      }
+
+      td a {
+        word-break: break-all;
+        display: inline-block;
+        max-width: 100%;
+      }
+
+      tbody tr {
+        transition: background 0.2s;
+      }
+
+      tbody tr:hover {
+        background: var(--bg-light);
+      }
+
+      td button {
+        padding: 6px 10px;
+        font-size: 13px;
+        background: transparent;
+        color: var(--text-dark);
+        border: 1px solid var(--border);
+      }
+
+      td button:hover {
+        background: var(--bg-light);
+        transform: none;
+        box-shadow: none;
+      }
+
+      td button img {
+        width: 16px;
+        height: 16px;
+        filter: none;
+      }
+
+      /* Task Queue */
+      #taskQueueStatus {
+        background: var(--bg-white);
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: var(--shadow);
+        margin-bottom: 24px;
+      }
+
+      .task-item {
+        padding: 16px;
+        margin: 12px 0;
+        border-radius: 8px;
+        border-left: 4px solid var(--border);
+        background: var(--bg-light);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.3s;
+      }
+
+      .task-item.pending {
+        border-left-color: var(--warning);
+        background: #fffbeb;
+      }
+
+      .task-item.running {
+        border-left-color: var(--primary);
+        background: #eff6ff;
+      }
+
+      .task-item.completed {
+        border-left-color: var(--success);
+        background: #f0fdf4;
+      }
+
+      .task-item.success {
+        border-left-color: var(--success);
+        background: #f0fdf4;
+      }
+
+      .task-item.failed {
+        border-left-color: var(--danger);
+        background: #fef2f2;
+      }
+
+      .task-filename {
+        font-weight: 600;
+        color: var(--text-dark);
+        margin-bottom: 6px;
+      }
+
+      .task-times {
+        font-size: 12px;
+        color: var(--text-light);
+      }
+
+      .task-status-badge {
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .status-pending {
+        background: var(--warning);
+        color: white;
+      }
+      .status-running {
+        background: var(--primary);
+        color: white;
+      }
+      .status-completed {
+        background: var(--success);
+        color: white;
+      }
+      .status-success {
+        background: var(--success);
+        color: white;
+      }
+      .status-failed {
+        background: var(--danger);
+        color: white;
+      }
+
+      /* Log Viewer */
+      .log-viewer {
+        background: #ffffff;
+        color: #000000;
+        font-family: "Consolas", "Monaco", "Courier New", monospace;
+        font-size: 13px;
+        padding: 20px;
+        border-radius: 8px;
+        height: 70vh;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        line-height: 1.6;
+        border: 2px solid #d3d3d4;
+      }
+
+      .log-error {
+        color: #f87171;
+      }
+      .log-warning {
+        color: #fbbf24;
+      }
+      .log-info {
+        color: #60a5fa;
+      }
+      .traceback-block {
+        background: #ffc5c5;
+        border-left: 3px solid #ef4444;
+        padding-left: 12px;
+        margin: 8px 0;
+        display: block;
+      }
+
+      /* Modal */
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+      }
+
+      .modal-content {
+        background: var(--bg-white);
+        margin: 5% auto;
+        padding: 32px;
+        width: 550px;
+        max-width: 90%;
+        border-radius: 16px;
+        box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+      }
+
+      .close {
+        float: right;
+        font-size: 28px;
+        font-weight: 300;
+        cursor: pointer;
+        color: var(--text-light);
+        line-height: 1;
+      }
+
+      .close:hover {
+        color: var(--text-dark);
+      }
+
+      /* Toast */
+      #toast {
+        visibility: hidden;
+        min-width: 300px;
+        background: var(--success);
+        color: white;
+        text-align: center;
+        border-radius: 8px;
+        padding: 16px 24px;
+        position: fixed;
+        z-index: 2000;
+        right: 30px;
+        top: 30px;
+        font-size: 15px;
+        opacity: 0;
+        transition: all 0.3s;
+        box-shadow: var(--shadow-lg);
+      }
+
+      #toast.show {
+        visibility: visible;
+        opacity: 1;
+        top: 50px;
+      }
+
+      /* Spinner */
+      .spinner {
+        margin: 30px auto;
+        width: 50px;
+        height: 50px;
+        border: 4px solid var(--border);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Info badges */
+      .info-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: var(--bg-light);
+        border-radius: 8px;
+        font-size: 14px;
+        color: var(--text-dark);
+        margin: 4px 0;
+      }
+
+      .auth-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .auth-status.authorized {
+        background: #f0fdf4;
+        color: var(--success);
+      }
+
+      .auth-status.unauthorized {
+        background: #fef2f2;
+        color: var(--danger);
+      }
+
+      /* Responsive */
+      @media (max-width: 768px) {
         .left-frame {
-            flex: 0 0 220px;
-            /*background: #c2c3c5;*/
-            background: var(--bg-white);           
-            display: flex;
-            flex-direction: column;
-            box-shadow: var(--shadow-lg);
-            z-index: 10;
+          flex: 0 0 70px;
         }
-
-        .logo-wrapper {
-            height: 80px;
-            display: flex;
-            align-items: center;
-            overflow: hidden;
+        .menu-bar button span {
+          display: none;
         }
-
-        .sidebar-logo {
-            width: 100px;
-            display: block;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 10px;
-        }
-
-        .menu-bar {
-            display: flex;
-            flex-direction: column;
-            padding: 2px 12px;
-            gap: 4px;
-            flex: 1;
-        }
-
-        .menu-bar button {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            border: none;
-            background: transparent;
-            color: #4a4a4a;
-            font-size: 15px;
-            cursor: pointer;
-            border-radius: 8px;
-            transition: all 0.2s;
-            text-align: left;
-        }
-
-        .menu-bar button:hover {
-            background: rgba(0, 0, 0, 0.05);
-            transform: translateX(2px);
-        }
-
-        .menu-bar button.active {
-            background: rgba(0, 0, 0, 0.1);
-            font-weight: 500;
-        }
-
-        .menu-bar button img {
-            height: 24px;
-            width: 24px;
-            object-fit: contain;
-            filter: none;
-        }
-
-        .menu-divider {
-            height: 1px;
-            background: rgba(0, 0, 0, 0.1);
-            margin: 12px 0;
-        }
-
-        .left-footer {
-            margin-top: auto;
-            padding: 12px;
-        }
-
-        .btn-logout {
-            width: 100%;
-            justify-content: flex-start;
-            background: transparent !important;
-            color: #4a4a4a !important;
-            font-size: 16px;
-            padding: 12px 16px;
-            gap: 12px;
-        }
-
-        .btn-logout:hover {
-            transform: none !important;
-            box-shadow: none !important;
-        }
-
-        /* Sidebar toggle button */
-        .sidebar-toggle {
-            align-self: flex-end;
-            margin: 8px 8px 0 0;
-            background: transparent;
-            border: none;
-            color: var(--text-light);
-            cursor: pointer;
-            padding: 4px 8px;
-            font-size: 18px;
-            border-radius: 6px;
-            transition: color 0.2s, background 0.2s;
-            box-shadow: none;
-            width: auto;
-        }
-
-        .sidebar-toggle:hover {
-            background: rgba(0, 0, 0, 0.05);
-            color: var(--text-dark);
-            transform: none;
-            box-shadow: none;
-        }
-
-        /* Collapsed sidebar */
-        .left-frame {
-            transition: flex 0.25s ease;
-        }
-
-        .left-frame.collapsed {
-            flex: 0 0 56px;
-        }
-
-        .left-frame.collapsed .sidebar-logo {
-            display: none;
-        }
-
-        .left-frame.collapsed .logo-wrapper {
-            height: 80px; /* keeps icons from shifting up */
-        }
-
-        .left-frame.collapsed .menu-bar button span,
-        .left-frame.collapsed .btn-logout span,
-        .left-frame.collapsed .menu-arrow,
-        .left-frame.collapsed .submenu {
-            display: none;
-        }
-
-        .left-frame.collapsed .sidebar-toggle {
-            align-self: center;
-            margin: 8px 0 0 0;
-        }
-
-        .left-frame.collapsed .menu-bar {
-            padding: 2px 4px;
-        }
-
-        .left-frame.collapsed .menu-bar button {
-            justify-content: center;
-            padding: 12px;
-        }
-
-        .left-frame.collapsed .menu-bar button:hover {
-            transform: none;
-        }
-
-        .left-frame.collapsed .menu-divider {
-            margin: 8px auto;
-            width: 32px;
-        }
-
-        .left-frame.collapsed .left-footer {
-            padding: 8px 4px;
-        }
-
-        .left-frame.collapsed .btn-logout {
-            justify-content: center !important;
-            padding: 12px !important;
-        }
-
-        /* Main Content */
-        .right-frame {
-            flex: 1;
-            background: var(--bg-light);
-            overflow: auto;
-        }
-
         .page-content {
-            padding: 40px;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        /* User Header */
-        .user-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 20px 24px;
-            background: var(--bg-white);
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-            margin-bottom: 30px;
-        }
-
-        .user-header img {
-            width: 55px;
-            height: 55px;
-            border-radius: 50%;
-            background: var(--bg-white);
-            padding: 8px;
-        }
-
-        .user-header span {
-            font-size: 24px;
-            font-weight: 600;
-            color: var(--text-dark);
-        }
-
-        /* Section Content */
-        .section-content {
-            display: none;
-            animation: fadeIn 0.3s;
-        }
-
-        .section-content.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Cards */
-        .card {
-            background: var(--bg-white);
-            border-radius: 12px;
-            padding: 28px;
-            box-shadow: var(--shadow);
-            margin-bottom: 24px;
-            overflow-x: auto;
-        }
-
-        .card h2 {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 20px;
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 20px;
-        }
-
-        .card h2 img {
-            width: 32px;
-            height: 32px;
-        }
-
-        /* Forms */
-        .left-form {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            max-width: 800px;
-        }
-
-        .left-form .form-row {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .left-form label {
-            display: block;
-            font-weight: 500;
-            color: var(--text-dark);
-            font-size: 14px;
-            min-width: 200px;
-            flex-shrink: 0;
-        }
-
-        .left-form input[type="text"],
-        .left-form input[type="number"],
-        .left-form select {
-            flex: 1;
-            padding: 10px 14px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-
-        .left-form button {
-            align-self: flex-start;
-        }
-
-        .left-form input:focus,
-        .left-form select:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-        /* Buttons */
-        button {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-            background: var(--primary);
-            color: white;
-            width: auto;
-        }
-
-        button:hover {
-            background: var(--primary-dark);
-            transform: translateY(-1px);
-            box-shadow: var(--shadow);
-        }
-
-        button img {
-            width: 18px;
-            height: 18px;
-            filter: brightness(0) invert(1);
-        }
-
-        .btn-success {
-            background: var(--success);
-        }
-
-        .btn-success:hover {
-            background: #059669;
-        }
-
-        .btn-danger {
-            background: var(--danger);
-        }
-
-        .btn-danger:hover {
-            background: #dc2626;
-        }
-
-        /* Tables */
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            margin-top: 20px;
-            table-layout: fixed;
-            overflow-wrap: break-word;
-        }
-
-        thead {
-            background: var(--bg-light);
-        }
-
-        th {
-            padding: 12px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 13px;
-            color: var(--text-light);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        td {
-            padding: 16px 12px;
-            border-bottom: 1px solid var(--border);
-            vertical-align: middle;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-        }
-
-        td a {
-            word-break: break-all;
-            display: inline-block;
-            max-width: 100%;
-        }
-
-        tbody tr {
-            transition: background 0.2s;
-        }
-
-        tbody tr:hover {
-            background: var(--bg-light);
-        }
-
-        td button {
-            padding: 6px 10px;
-            font-size: 13px;
-            background: transparent;
-            color: var(--text-dark);
-            border: 1px solid var(--border);
-        }
-
-        td button:hover {
-            background: var(--bg-light);
-            transform: none;
-            box-shadow: none;
-        }
-
-        td button img {
-            width: 16px;
-            height: 16px;
-            filter: none;
-        }
-
-        /* Task Queue */
-        #taskQueueStatus {
-            background: var(--bg-white);
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: var(--shadow);
-            margin-bottom: 24px;
-        }
-
-        .task-item {
-            padding: 16px;
-            margin: 12px 0;
-            border-radius: 8px;
-            border-left: 4px solid var(--border);
-            background: var(--bg-light);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: all 0.3s;
-        }
-
-        .task-item.pending {
-            border-left-color: var(--warning);
-            background: #fffbeb;
-        }
-
-        .task-item.running {
-            border-left-color: var(--primary);
-            background: #eff6ff;
-        }
-
-        .task-item.completed {
-            border-left-color: var(--success);
-            background: #f0fdf4;
-        }
-
-        .task-item.success {
-            border-left-color: var(--success);
-            background: #f0fdf4;
-        }
-
-        .task-item.failed {
-            border-left-color: var(--danger);
-            background: #fef2f2;
-        }
-
-        .task-filename {
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 6px;
-        }
-
-        .task-times {
-            font-size: 12px;
-            color: var(--text-light);
-        }
-
-        .task-status-badge {
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .status-pending { background: var(--warning); color: white; }
-        .status-running { background: var(--primary); color: white; }
-        .status-completed { background: var(--success); color: white; }
-        .status-success { background: var(--success); color: white; }
-        .status-failed { background: var(--danger); color: white; }
-
-        /* Log Viewer */
-        .log-viewer {
-            background: #ffffff;
-            color: #000000;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            font-size: 13px;
-            padding: 20px;
-            border-radius: 8px;
-            height: 70vh;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            line-height: 1.6;
-            border: 2px solid #d3d3d4;  /* Add this line - change color as needed */
-
-        }
-
-        .log-error { color: #f87171; }
-        .log-warning { color: #fbbf24; }
-        .log-info { color: #60a5fa; }
-        .traceback-block {
-            background: #ffc5c5;
-            border-left: 3px solid #ef4444;
-            padding-left: 12px;
-            margin: 8px 0;
-            display: block;
-        }
-
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(4px);
-        }
-
-        .modal-content {
-            background: var(--bg-white);
-            margin: 5% auto;
-            padding: 32px;
-            width: 550px;
-            max-width: 90%;
-            border-radius: 16px;
-            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
-        }
-
-        .close {
-            float: right;
-            font-size: 28px;
-            font-weight: 300;
-            cursor: pointer;
-            color: var(--text-light);
-            line-height: 1;
-        }
-
-        .close:hover {
-            color: var(--text-dark);
-        }
-
-        /* Toast */
-        #toast {
-            visibility: hidden;
-            min-width: 300px;
-            background: var(--success);
-            color: white;
-            text-align: center;
-            border-radius: 8px;
-            padding: 16px 24px;
-            position: fixed;
-            z-index: 2000;
-            right: 30px;
-            top: 30px;
-            font-size: 15px;
-            opacity: 0;
-            transition: all 0.3s;
-            box-shadow: var(--shadow-lg);
-        }
-
-        #toast.show {
-            visibility: visible;
-            opacity: 1;
-            top: 50px;
-        }
-
-        /* Spinner */
-        .spinner {
-            margin: 30px auto;
-            width: 50px;
-            height: 50px;
-            border: 4px solid var(--border);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Info badges */
-        .info-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: var(--bg-light);
-            border-radius: 8px;
-            font-size: 14px;
-            color: var(--text-dark);
-            margin: 4px 0;
-        }
-
-        .auth-status {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        .auth-status.authorized {
-            background: #f0fdf4;
-            color: var(--success);
-        }
-
-        .auth-status.unauthorized {
-            background: #fef2f2;
-            color: var(--danger);
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .left-frame {
-                flex: 0 0 70px;
-            }
-            .menu-bar button span {
-                display: none;
-            }
-            .page-content {
-                padding: 20px;
-            }
-        }
-
-        /* Schedule form improvements */
-        .schedule-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin: 20px 0;
-        }
-
-        .schedule-option {
-            padding: 16px;
-            border: 2px solid var(--border);
-            border-radius: 8px;
-            transition: all 0.2s;
-        }
-
-        .schedule-option:hover {
-            border-color: var(--primary);
-        }
-
-        .schedule-option input[type="radio"] {
-            margin-right: 8px;
-        }
-
-        #weeklyDays {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
-            gap: 8px;
-            margin-top: 12px;
-        }
-
-        #weeklyDays label {
-            display: flex;
-            align-items: center;
-            padding: 6px;
-            background: var(--bg-light);
-            border-radius: 6px;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        #weeklyDays label:hover {
-            background: var(--primary-light);
-            color: white;
-        }
-
-        #weeklyDays input[type="checkbox"] {
-            margin-right: 4px;
-        }
-
-        .menu-item-container {
-            position: relative;
-        }
-
-        .menu-item-with-submenu {
-            position: relative;
-        }
-
-        .menu-arrow {
-            margin-left: auto;
-            transition: transform 0.2s;
-            font-size: 20px;
-            font-weight: bold;
-        }
-
-        .menu-item-with-submenu.expanded .menu-arrow {
-            transform: rotate(90deg);
-        }
-
-        .submenu {
-            display: none;
-            flex-direction: column;
-            padding-left: 52px;
-            gap: 2px;
-            margin-top: 4px;
-            margin-bottom: 4px;
-            overflow: hidden;
-            max-height: 0;
-            transition: max-height 0.3s ease-out;
-        }
-
-        .submenu.show {
-            display: flex;
-            max-height: 200px;
-        }
-
-        .submenu-item {
-            padding: 10px 16px;
-            color: #6b7280;
-            text-decoration: none;
-            font-size: 15px;
-            border-radius: 8px;
-            transition: all 0.2s;
-            display: block;
-        }
-
-        .submenu-item:hover {
-            background: rgba(0, 0, 0, 0.05);
-            color: #4a4a4a;
-            transform: translateX(2px);
-        }
-
-
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.45);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-        }
-
-    /*.modal {
+          padding: 20px;
+        }
+      }
+
+      /* Schedule form improvements */
+      .schedule-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin: 20px 0;
+      }
+
+      .schedule-option {
+        padding: 16px;
+        border: 2px solid var(--border);
+        border-radius: 8px;
+        transition: all 0.2s;
+      }
+
+      .schedule-option:hover {
+        border-color: var(--primary);
+      }
+
+      .schedule-option input[type="radio"] {
+        margin-right: 8px;
+      }
+
+      #weeklyDays {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      #weeklyDays label {
+        display: flex;
+        align-items: center;
+        padding: 6px;
+        background: var(--bg-light);
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      #weeklyDays label:hover {
+        background: var(--primary-light);
+        color: white;
+      }
+
+      #weeklyDays input[type="checkbox"] {
+        margin-right: 4px;
+      }
+
+      .menu-item-container {
+        position: relative;
+      }
+
+      .menu-item-with-submenu {
+        position: relative;
+      }
+
+      .menu-arrow {
+        margin-left: auto;
+        transition: transform 0.2s;
+        font-size: 20px;
+        font-weight: bold;
+      }
+
+      .menu-item-with-submenu.expanded .menu-arrow {
+        transform: rotate(90deg);
+      }
+
+      .submenu {
+        display: none;
+        flex-direction: column;
+        padding-left: 52px;
+        gap: 2px;
+        margin-top: 4px;
+        margin-bottom: 4px;
+        overflow: hidden;
+        max-height: 0;
+        transition: max-height 0.3s ease-out;
+      }
+
+      .submenu.show {
+        display: flex;
+        max-height: 200px;
+      }
+
+      .submenu-item {
+        padding: 10px 16px;
+        color: var(--text-light);
+        text-decoration: none;
+        font-size: 15px;
+        border-radius: 8px;
+        transition: all 0.2s;
+        display: block;
+      }
+
+      .submenu-item:hover {
+        background: rgba(29, 78, 216, 0.06);
+        color: var(--primary);
+        transform: translateX(2px);
+      }
+
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+
+      /*.modal {
         background: #fff;
         padding: 25px 30px;
         border-radius: 14px;
@@ -789,19 +806,19 @@
         animation: fadeInUp 0.25s ease-out;
     }
 */
-    .modal h3 {
+      .modal h3 {
         margin-top: 0;
         margin-bottom: 10px;
         color: var(--text-dark);
         font-size: 20px;
-    }
+      }
 
-    .modal p {
+      .modal p {
         margin: 0 0 20px 0;
         color: var(--text-light);
-    }
+      }
 
-    .modal button {
+      .modal button {
         padding: 8px 20px;
         border: none;
         border-radius: 8px;
@@ -809,543 +826,866 @@
         color: white;
         font-size: 15px;
         cursor: pointer;
-    }
+      }
 
-    .modal button:hover {
+      .modal button:hover {
         opacity: 0.9;
-    }
+      }
 
-    @keyframes fadeInUp {
+      @keyframes fadeInUp {
         from {
-            transform: translateY(15px);
-            opacity: 0;
+          transform: translateY(15px);
+          opacity: 0;
         }
         to {
-            transform: translateY(0);
-            opacity: 1;
+          transform: translateY(0);
+          opacity: 1;
         }
-    }
+      }
 
+      /* Persistent Top Bar */
+      .top-bar-logo {
+        height: 50px;
+        width: auto;
+        flex-shrink: 0;
+        margin-right: 8px;
+      }
+
+      .top-bar {
+        flex-shrink: 0;
+        z-index: 5;
+        background: var(--bg-white);
+        border-bottom: 1px solid var(--border);
+        box-shadow: 0 1px 4px rgb(0 0 0 / 0.06);
+        padding: 10px 32px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+
+      .top-bar-user {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+      }
+
+      .top-bar-user img {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+      }
+
+      .top-bar-username {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text-dark);
+      }
+
+      .top-bar-user img {
+        border: 2px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .top-bar-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-left: auto;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border-radius: 20px;
+        background: var(--bg-light);
+        border: 1px solid var(--border);
+        font-size: 12px;
+        color: var(--text-dark);
+        white-space: nowrap;
+        max-width: 220px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .status-pill img {
+        width: 15px;
+        height: 15px;
+        object-fit: contain;
+        flex-shrink: 0;
+      }
+
+      .status-pill.pill-ok {
+        background: #f0fdf4;
+        border-color: #bbf7d0;
+        color: var(--success);
+      }
+
+      .status-pill.pill-warn {
+        background: var(--bg-light);
+        border-color: var(--border);
+        color: var(--text-light);
+      }
+
+      /* Per-section auth action bar (Login / Revoke) */
+      .section-auth-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 0;
+        margin-bottom: 16px;
+      }
     </style>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-</head>
+  </head>
 
-<body>
+  <body>
     <!-- Loading Modal -->
     <div id="loadingModal" class="modal">
-        <div class="modal-content" style="text-align:center;">
-            <h3>Data scan in progress...</h3>
-            <div class="spinner"></div>
-        </div>
+      <div class="modal-content" style="text-align: center">
+        <h3>Data scan in progress...</h3>
+        <div class="spinner"></div>
+      </div>
     </div>
 
+    <!-- Persistent Top Bar -->
+    <header class="top-bar">
+      <img src="/static/curiologo.png" alt="Curio" class="top-bar-logo" />
+      <div class="top-bar-user">
+        <img src="/static/usericon2.png" alt="" />
+        <span class="top-bar-username">{{username}}</span>
+      </div>
+      <div class="top-bar-status">
+        <span class="status-pill">
+          <img src="/static/jiraicon.png" alt="" />
+          {{ (foo_values.get('jira_url') or 'Jira not configured') |
+          truncate(28, True, '…') }}
+        </span>
+        <span class="status-pill">
+          <img src="/static/llmicon.png" alt="" />
+          {{llm_default}}
+        </span>
+        <span
+          class="status-pill {% if logged_in %}pill-ok{% else %}pill-warn{% endif %}"
+        >
+          <img src="/static/sharepointicontransparent.png" alt="" />
+          {% if logged_in %}SP: {{auth_username}}{% else %}SharePoint: not
+          connected{% endif %}
+        </span>
+        <span
+          class="status-pill {% if google_logged_in %}pill-ok{% else %}pill-warn{% endif %}"
+        >
+          <img src="/static/googlesheetsicon.png" alt="" />
+          {% if google_logged_in %}Drive: {{google_username}}{% else %}Google:
+          not connected{% endif %}
+        </span>
+      </div>
+    </header>
+
     <div class="app-container">
-        <!-- Sidebar -->
-        <aside class="left-frame">
-            <button id="sidebarToggle" class="sidebar-toggle" title="Collapse sidebar">‹</button>
-            <div class="logo-wrapper">
-                <img src="/static/curiologo.png" alt="Logo" class="sidebar-logo" style="width: 150px; margin-left: 15px; margin-right: 0px;">
+      <!-- Sidebar -->
+      <aside class="left-frame">
+        <button
+          id="sidebarToggle"
+          class="sidebar-toggle"
+          title="Collapse sidebar"
+        >
+          ‹
+        </button>
+
+        <div class="menu-bar">
+          <button id="btn-section1" title="Jira">
+            <img
+              src="/static/jiraicon.png"
+              style="width: 32px; height: 30px"
+              alt=""
+            />
+            <span>Jira</span>
+          </button>
+          <button id="btn-section4" title="LLM Model">
+            <img
+              src="/static/llmicon.png"
+              style="width: 24px; height: 24px"
+              alt=""
+            />
+            <span>LLM Model</span>
+          </button>
+          <button id="btn-section10" title="MCP">
+            <img
+              src="/static/mcpicon.png"
+              style="width: 24px; height: 24px"
+              alt=""
+            />
+            <span>MCP</span>
+          </button>
+          <button id="btn-section11" title="Supporting Docs">
+            <img
+              src="/static/url-icon.png"
+              style="width: 24px; height: 24px"
+              alt=""
+            />
+            <span>Supporting Docs</span>
+          </button>
+
+          <div class="menu-divider"></div>
+
+          <button id="btn-section5" title="Local Files">
+            <img src="/static/localfiles.png" alt="" />
+            <span>Local Files</span>
+          </button>
+          <button id="btn-section2" title="Sharepoint">
+            <img
+              src="/static/sharepointicontransparent.png"
+              style="width: 30px; height: 30px"
+              alt=""
+            />
+            <span>Sharepoint</span>
+          </button>
+          <button id="btn-section6" title="Google Drive">
+            <img src="/static/googlesheetsicon.png" alt="" />
+            <span>Google Drive</span>
+          </button>
+          <button id="btn-section12" title="Teams Chat">
+            <img
+              src="/static/teams-icon.png"
+              style="width: 24px; height: 24px"
+              alt=""
+            />
+            <span>Teams Chat</span>
+          </button>
+
+          <div class="menu-divider"></div>
+
+          <div class="menu-item-container">
+            <button
+              id="btn-section7"
+              class="menu-item-with-submenu"
+              title="Info"
+            >
+              <img src="/static/versioninfoicon.png" alt="" />
+              <span>Info</span>
+              <span class="menu-arrow">›</span>
+            </button>
+
+            <div class="submenu" id="submenu-info">
+              <a href="https://www.cloudcurio.com" class="submenu-item"
+                >About</a
+              >
+              <a href="/system-info" class="submenu-item">System Info</a>
+              <a
+                href="#section9"
+                class="submenu-item"
+                onclick="
+                  showSection('section9');
+                  return false;
+                "
+                >Run History</a
+              >
+              <a
+                href="#section3"
+                class="submenu-item"
+                onclick="
+                  showSection('section3');
+                  return false;
+                "
+                >Debug Logs</a
+              >
             </div>
-            <!--img src="/static/sprintsenselogo.png" alt="Logo" class="sidebar-logo" style="width: 250px; margin-right: 0px;" alt="Logo"-->
+          </div>
 
-            <div class="menu-bar">
-                <button id="btn-section1" title="Jira">
-                    <img src="/static/jiraicon.png" style="width: 32px; height: 30px;" alt="">
-                    <span>Jira</span>
-                </button>
-                <button id="btn-section4" title="LLM Model">
-                    <img src="/static/llmicon.png" style="width: 24px; height: 24px;" alt="">
-                    <span>LLM Model</span>
-                </button>
-                <button id="btn-section10" title="MCP">
-                    <img src="/static/mcpicon.png" style="width: 24px; height: 24px;" alt="">
-                    <span>MCP</span>
-                </button>
-                <button id="btn-section11" title="Supporting Docs">
-                    <img src="/static/url-icon.png" style="width: 24px; height: 24px;" alt="">
-                    <span>Supporting Docs</span>
-                </button>
+          <button id="btn-section8" title="Send Feedback">
+            <img
+              src="/static/feedbackicon.png"
+              style="filter: none; width: 22px; height: 22px"
+              alt=""
+            />
+            <span>Send Feedback</span>
+          </button>
+        </div>
 
-                <div class="menu-divider"></div>
+        <div class="left-footer">
+          <button
+            id="btn-exit"
+            class="btn-logout"
+            onclick="window.location.href = '/logout'"
+            title="Logout"
+          >
+            <img
+              src="/static/exiticon.png"
+              alt=""
+              style="filter: none; width: 28px; height: 28px"
+            />
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
 
-                <button id="btn-section5" title="Local Files">
-                    <img src="/static/localfiles.png" alt="">
-                    <span>Local Files</span>
-                </button>
-                <button id="btn-section2" title="Sharepoint">
-                    <img src="/static/sharepointicontransparent.png" style="width: 30px; height: 30px;" alt="">
-                    <span>Sharepoint</span>
-                </button>
-                <button id="btn-section6" title="Google Drive">
-                    <img src="/static/googlesheetsicon.png" alt="">
-                    <span>Google Drive</span>
-                </button>
-                <button id="btn-section12" title="Teams Chat">
-                    <img src="/static/teams-icon.png" style="width: 24px; height: 24px;" alt="">
-                    <span>Teams Chat</span>
-                </button>
+      <!-- Main Content -->
+      <main class="right-frame">
+        <div class="page-content">
+          <!-- Task Queue Status -->
+          <div id="taskQueueStatus" style="display: none">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 16px;
+              "
+            >
+              <h3 style="font-size: 18px; font-weight: 600">📋 Active Tasks</h3>
+              <button
+                onclick="clearAllTasks()"
+                style="padding: 6px 14px; font-size: 13px"
+              >
+                Clear All
+              </button>
+            </div>
+            <div id="taskList"></div>
+          </div>
 
-                <div class="menu-divider"></div>
-
-                <div class="menu-item-container">
-                    <button id="btn-section7" class="menu-item-with-submenu" title="Info">
-                        <img src="/static/versioninfoicon.png" alt="">
-                        <span>Info</span>
-                        <span class="menu-arrow">›</span>
-                    </button>
-
-                    <div class="submenu" id="submenu-info">
-                        <a href="https://www.cloudcurio.com" class="submenu-item">About</a>
-                        <a href="/system-info" class="submenu-item">System Info</a>
-                        <a href="#section9" class="submenu-item" onclick="showSection('section9'); return false;">Run History</a>
-                        <a href="#section3" class="submenu-item" onclick="showSection('section3'); return false;">Debug Logs</a>
-                    </div>
+          <!-- Section 1: Jira -->
+          <div id="section1" class="section-content">
+            <div class="card">
+              <h2>
+                <img src="/static/jiraicon.jpg" alt="Jira" />
+                Jira Connection
+              </h2>
+              <form method="POST" class="left-form">
+                <div class="form-row">
+                  <label>Jira Cloud URL</label>
+                  <input
+                    type="text"
+                    name="jira_url"
+                    value="{{ foo_values.get('jira_url', '') }}"
+                    placeholder="https://your-domain.atlassian.net"
+                  />
                 </div>
-
-                <button id="btn-section8" title="Send Feedback">
-                    <img src="/static/feedbackicon.png" style="filter: none; width: 22px; height: 22px;" alt="">
-                    <span>Send Feedback</span>
+                <div class="form-row">
+                  <label>Jira Email</label>
+                  <input
+                    type="text"
+                    name="jira_user"
+                    value="{{ foo_values.get('jira_user', '') }}"
+                    placeholder="user@example.com"
+                  />
+                </div>
+                <div class="form-row">
+                  <label>Jira API Token</label>
+                  <input
+                    type="text"
+                    name="jira_token"
+                    value="{{ foo_values.get('jira_token', '') }}"
+                    placeholder="Your API token"
+                  />
+                </div>
+                <div class="form-row">
+                  <label>Jira Password (if using basic auth)</label>
+                  <input
+                    type="text"
+                    name="jira_password"
+                    value="{{ foo_values.get('jira_password', '') }}"
+                    placeholder="Optional"
+                  />
+                </div>
+                <button type="submit" name="save_foo">
+                  <!--img src="/static/saveicontransparent.png" alt=""-->
+                  Save Configuration
                 </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Section 2: SharePoint -->
+          <div id="section2" class="section-content">
+            <div class="section-auth-bar">
+              <span
+                class="auth-status {% if logged_in %}authorized{% else %}unauthorized{% endif %}"
+              >
+                {% if logged_in %}✅ SharePoint: {{auth_username}}{% else %}🔒
+                SharePoint Login Required{% endif %}
+              </span>
+              {% if logged_in %}
+              <form method="POST" action="/logout_sharepoint" style="margin: 0">
+                <button
+                  type="submit"
+                  class="btn-danger"
+                  style="padding: 6px 12px; font-size: 13px"
+                >
+                  Revoke
+                </button>
+              </form>
+              {% else %}
+              <button
+                type="button"
+                onclick="openLoginPopup(this)"
+                style="padding: 6px 12px; font-size: 13px"
+              >
+                Login
+              </button>
+              {% endif %}
             </div>
 
-            <div class="left-footer">
-                <button id="btn-exit" class="btn-logout" onclick="window.location.href='/logout'" title="Logout">
-                    <img src="/static/exiticon.png" alt="" style="filter: none; width: 28px; height: 28px;">
-                    <span>Logout</span>
+            <div class="card">
+              <h2>
+                <img
+                  src="/static/sharepointicontransparent.png"
+                  alt="SharePoint"
+                />
+                Share new Excel file with Agent
+              </h2>
+              <form method="POST" class="left-form" action="/add_sharepoint">
+                <div class="form-row">
+                  <label>Web URL to Excel file</label>
+                  <input
+                    type="text"
+                    name="bar_value"
+                    id="bar_value"
+                    placeholder="https://yoursite.sharepoint.com/..."
+                  />
+                </div>
+                <button type="submit" name="add_bar">
+                  <!--img src="/static/shareicon.png" alt=""-->
+                  Share
                 </button>
+              </form>
             </div>
-            </aside>
 
-        <!-- Main Content -->
-        <main class="right-frame">
-            <div class="page-content">
-                <!-- Task Queue Status -->
-                <div id="taskQueueStatus" style="display: none;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <h3 style="font-size: 18px; font-weight: 600;">📋 Active Tasks</h3>
-                        <button onclick="clearAllTasks()" style="padding: 6px 14px; font-size: 13px;">Clear All</button>
-                    </div>
-                    <div id="taskList"></div>
-                </div>
-
-                <!-- Section 1: Jira -->
-                <div id="section1" class="section-content">
-                    <div class="user-header">
-                        <img src="/static/usericon2.png" alt="User" style="width: 50px;" alt="Logo">
-                        <span>{{username}}</span>
-                    </div>
-
-                    <div class="card">
-                        <h2>
-                            <img src="/static/jiraicon.jpg" alt="Jira">
-                            Jira Connection
-                        </h2>
-                        <form method="POST" class="left-form">
-                            <div class="form-row">
-                                <label>Jira Cloud URL</label>
-                                <input type="text" name="jira_url" value="{{ foo_values.get('jira_url', '') }}" placeholder="https://your-domain.atlassian.net">
-                            </div>
-                            <div class="form-row">
-                                <label>Jira Email</label>
-                                <input type="text" name="jira_user" value="{{ foo_values.get('jira_user', '') }}" placeholder="user@example.com">
-                            </div>
-                            <div class="form-row">
-                                <label>Jira API Token</label>
-                                <input type="text" name="jira_token" value="{{ foo_values.get('jira_token', '') }}" placeholder="Your API token">
-                            </div>
-                            <div class="form-row">
-                                <label>Jira Password (if using basic auth)</label>
-                                <input type="text" name="jira_password" value="{{ foo_values.get('jira_password', '') }}" placeholder="Optional">
-                            </div>
-                            <button type="submit" name="save_foo">
-                                <!--img src="/static/saveicontransparent.png" alt=""-->
-                                Save Configuration
-                            </button>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- Section 2: SharePoint -->
-                <div id="section2" class="section-content">
-                    <div class="user-header">
-                        <img src="/static/usericon2.png" alt="User">
-                        <div>
-                            <div style="font-size: 24px; font-weight: 600; margin-bottom: 8px;">{{username}}</div>
-                            <div style="font-size: 14px; color: var(--text-light);">JIRA: {{ foo_values.get('jira_url', 'Not configured')}}</div>
-                            <div style="font-size: 14px; color: var(--text-light);">LLM: {{llm_default}}</div>
-                        </div>
-                        <div style="margin-left: auto; display: flex; gap: 12px; align-items: center;">
-                            <span class="auth-status {% if logged_in %}authorized{% else %}unauthorized{% endif %}" style="font-size: 16px;">
-                                {% if logged_in %}
-                                    ✅ Sharepoint: {{auth_username}}
-                                {% else %}
-                                    🔒 Sharepoint Login Required
-                                {% endif %}
-                            </span>
-                            {% if logged_in %}
-                                <form method="POST" action="/logout_sharepoint" style="margin: 0;">
-                                    <button type="submit" class="btn-danger" style="padding: 6px 12px; font-size: 13px;">Revoke</button>
-                                </form>
-                            {% else %}
-                                <button type="button" onclick="openLoginPopup(this)" style="padding: 6px 12px; font-size: 13px;">Login</button>
-                            {% endif %}
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <h2>
-                            <img src="/static/sharepointicontransparent.png" alt="SharePoint">
-                            Share new Excel file with Agent
-                        </h2>
-                        <form method="POST" class="left-form" action="/add_sharepoint">
-                            <div class="form-row">
-                                <label>Web URL to Excel file</label>
-                                <input type="text" name="bar_value" id="bar_value" placeholder="https://yoursite.sharepoint.com/...">
-                            </div>
-                            <button type="submit" name="add_bar">
-                                <!--img src="/static/shareicon.png" alt=""-->
-                                Share
-                            </button>
-                        </form>
-                    </div>
-
-                    <div class="card">
-                        <h2>Excel files shared with Agent</h2>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="width: 40px;">#</th>
-                                    <th style="width: 40px;"></th>
-                                    <th>Sheet Location</th>
-                                    <th style="width: 100px; text-align: center;">Actions</th>
-                                    <th style="width: 100px;">Schedule</th>
-                                    <th style="width: 100px;">Unshare</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for val in shared_files_sharepoint %}
-                                <tr>
-                                    <td>{{ loop.index }}</td>
-                                    <td><img src="/static/excelicon.jpg" style="height:24px;"></td>
-                                    <td>
-                                        <a href="{{ val.location }}" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 500;">{{ val.location }}</a>
-                                        <br><small style="color: var(--text-light);">Added {{ val.datetime}}</small>
-                                        {% if val.last_resync %}<br><small style="color: var(--text-light);">Updated {{ val.last_resync }}</small>{% endif %}
-                                    </td>
-                                    <td style="text-align: center;">
-                                        <button type="button" onclick="handleResync('{{ val.location }}', event)" title="Resync">
-                                            <img src="/static/refreshicon.png" alt="Resync">
-                                        </button>
-                                        <button type="button" onclick="openSchedule('{{ val.location }}')" title="Schedule">
-                                            <img src="/static/timeicon.png" alt="Schedule">
-                                        </button>
-                                    </td>
-                                    <td>
-                                        {% set sched = schedule_dict.get(val.location) %}
-                                        {% if sched %}
-                                            {% if sched.time %}
-                                                <small>{{sched.mode}} at {{ sched.time }}</small>
-                                            {% elif sched.interval %}
-                                                <small>Every {{ sched.interval }} min</small>
-                                            {% endif %}
-                                        {% else %}
-                                            <small style="color: var(--text-light);">None</small>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <form method="POST" action="/remove_sharepoint">
-                                            <input type="hidden" name="remove_bar" value="{{ val.location }}">
-                                            <!--button type="submit" onclick="return confirm('Remove {{ val.location }}?')" class="btn-danger" style="padding: 4px 8px;">❌</button-->
-                                            <button type="submit" onclick="return confirm('Remove {{ val.location }}?')" style="padding: 4px 8px;">❌</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                
-                <!-- Section 3: Debug Logs -->
-
-                <div id="section3" class="section-content">
-                    <div class="user-header">
-                        <img src="/static/usericon2.png" alt="User">
-                        <span>{{username}}</span>
-                    </div>
-                    <div class="card">
-                        <h2>Debug Logs</h2>
-                        <div style="margin-bottom: 16px;">
-                            <label style="font-weight: 500; margin-bottom: 8px; display: block;">Select Log</label>
-                            <select id="logRunSelect" style="width: 300px; padding: 8px; border-radius: 8px; border: 1px solid var(--border);"></select>
-                        </div>
-                        <pre id="logViewer" class="log-viewer"></pre>
-                    </div>
-                </div>
-
-
-
-                <!-- Section 4: LLM Model -->
-                <div id="section4" class="section-content">
-                    <div class="user-header">
-                        <img src="/static/usericon2.png" alt="User">
-                        <span>{{username}}</span>
-                    </div>
-
-                    <div class="card">
-                        <h2>
-                            <img src="/static/llmicon.png" alt="LLM">
-                            LLM Model Configuration
-                        </h2>
-                        <div style="background: var(--bg-light); padding: 16px; border-radius: 8px; margin-bottom: 20px;">
-                            <strong>Currently using:</strong> {{llm_default}}
-                        </div>
-                        <form id="llmForm" class="left-form">
-                            <div class="form-row">
-                                <label>Select Model</label>
-                                <select id="llmSelect" name="llm_model">
-                                    <option value="Local" {% if llm_default == 'Local' %}selected{% endif %}>Local llama 3.2:1b</option>
-                                    <option value="OpenAI" {% if llm_default == 'OpenAI' %}selected{% endif %}>OpenAI gpt-4o-mini</option>
-                                    <option value="Claude" {% if llm_default == 'Claude' %}selected{% endif %}>Claude sonnet-4-20250514</option>
-                                </select>
-                            </div>
-                            <div class="form-row" id="openaiTokenField" style="display: none;">
-                                <label>OpenAI API Key</label>
-                                <input type="text" name="openai_token" value="{{ foo_values.get('openai_token', '') }}" placeholder="sk-...">
-                            </div>
-                            <button type="submit">
-                                <!--img src="/static/saveicontransparent.png" alt=""-->
-                                Save Model
-                            </button>
-                        </form>
-                    </div>
-                </div>
-
-            <!-- Section 10: MCP section -->
-            <div id="section10" class="section-content">
-                <div class="user-header">
-                    <img src="/static/usericon2.png" alt="User">
-                    <span>{{username}}</span>
-                </div>
-
-                <div class="card">
-                    <h2>
-                        <img src="/static/mcpicon.png" alt="LLM">
-                        Setup API key to secure MCP server connection
-                    </h2>
-                    <br>
- 
-                    <form id="mcpForm" class="left-form" method="POST" action="/get_new_mcp_key">
-
-                        <div class="form-row">
-                            <label>Current User:</label>
-                            <div style="padding: 8px 0; font-weight: bold;">
-                                {{ username }}
-                            </div>
-
-                            <!-- Hidden field to POST userlogin -->
-                            <input type="hidden" name="username" value="{{ username }}">
-                        </div>
-
-                        <div class="form-row" style="margin-top: 15px;">
-                            <label>Current API Key:</label>
-                            <div style="padding: 8px 0; font-weight: bold;">
-                                {{ foo_values.get('mcp_api_key', '') }}
-                            </div>
-
-                            <input type="hidden" name="mcp_api_key"
-                                value="{{ foo_values.get('mcp_api_key', '') }}">
-                        </div>
-
-                        <button type="submit" name="save_foo">
-                            Create New Key 
+            <div class="card">
+              <h2>Excel files shared with Agent</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 40px">#</th>
+                    <th style="width: 40px"></th>
+                    <th>Sheet Location</th>
+                    <th style="width: 100px; text-align: center">Actions</th>
+                    <th style="width: 100px">Schedule</th>
+                    <th style="width: 100px">Unshare</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for val in shared_files_sharepoint %}
+                  <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>
+                      <img src="/static/excelicon.jpg" style="height: 24px" />
+                    </td>
+                    <td>
+                      <a
+                        href="{{ val.location }}"
+                        target="_blank"
+                        style="
+                          color: var(--primary);
+                          text-decoration: none;
+                          font-weight: 500;
+                        "
+                        >{{ val.location }}</a
+                      >
+                      <br /><small style="color: var(--text-light)"
+                        >Added {{ val.datetime}}</small
+                      >
+                      {% if val.last_resync %}<br /><small
+                        style="color: var(--text-light)"
+                        >Updated {{ val.last_resync }}</small
+                      >{% endif %}
+                    </td>
+                    <td style="text-align: center">
+                      <button
+                        type="button"
+                        onclick="handleResync('{{ val.location }}', event)"
+                        title="Resync"
+                      >
+                        <img src="/static/refreshicon.png" alt="Resync" />
+                      </button>
+                      <button
+                        type="button"
+                        onclick="openSchedule('{{ val.location }}')"
+                        title="Schedule"
+                      >
+                        <img src="/static/timeicon.png" alt="Schedule" />
+                      </button>
+                    </td>
+                    <td>
+                      {% set sched = schedule_dict.get(val.location) %} {% if
+                      sched %} {% if sched.time %}
+                      <small>{{sched.mode}} at {{ sched.time }}</small>
+                      {% elif sched.interval %}
+                      <small>Every {{ sched.interval }} min</small>
+                      {% endif %} {% else %}
+                      <small style="color: var(--text-light)">None</small>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <form method="POST" action="/remove_sharepoint">
+                        <input
+                          type="hidden"
+                          name="remove_bar"
+                          value="{{ val.location }}"
+                        />
+                        <!--button type="submit" onclick="return confirm('Remove {{ val.location }}?')" class="btn-danger" style="padding: 4px 8px;">❌</button-->
+                        <button
+                          type="submit"
+                          onclick="return confirm('Remove {{ val.location }}?')"
+                          style="padding: 4px 8px"
+                        >
+                          ❌
                         </button>
+                      </form>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-                    </form>
+          <!-- Section 3: Debug Logs -->
+
+          <div id="section3" class="section-content">
+            <div class="card">
+              <h2>Debug Logs</h2>
+              <div style="margin-bottom: 16px">
+                <label
+                  style="font-weight: 500; margin-bottom: 8px; display: block"
+                  >Select Log</label
+                >
+                <select
+                  id="logRunSelect"
+                  style="
+                    width: 300px;
+                    padding: 8px;
+                    border-radius: 8px;
+                    border: 1px solid var(--border);
+                  "
+                ></select>
+              </div>
+              <pre id="logViewer" class="log-viewer"></pre>
+            </div>
+          </div>
+
+          <!-- Section 4: LLM Model -->
+          <div id="section4" class="section-content">
+            <div class="card">
+              <h2>
+                <img src="/static/llmicon.png" alt="LLM" />
+                LLM Model Configuration
+              </h2>
+              <div
+                style="
+                  background: var(--bg-light);
+                  padding: 16px;
+                  border-radius: 8px;
+                  margin-bottom: 20px;
+                "
+              >
+                <strong>Currently using:</strong> {{llm_default}}
+              </div>
+              <form id="llmForm" class="left-form">
+                <div class="form-row">
+                  <label>Select Model</label>
+                  <select id="llmSelect" name="llm_model">
+                    <option value="Local" {% if llm_default == 'Local' %}selected{% endif %}>Local llama 3.2:1b</option>
+                    <option value="OpenAI" {% if llm_default == 'OpenAI' %}selected{% endif %}>OpenAI gpt-4o-mini</option>
+                    <option value="Claude" {% if llm_default == 'Claude' %}selected{% endif %}>Claude sonnet-4-20250514</option>
+                  </select>
                 </div>
+                <div
+                  class="form-row"
+                  id="openaiTokenField"
+                  style="display: none"
+                >
+                  <label>OpenAI API Key</label>
+                  <input
+                    type="text"
+                    name="openai_token"
+                    value="{{ foo_values.get('openai_token', '') }}"
+                    placeholder="sk-..."
+                  />
+                </div>
+                <button type="submit">
+                  <!--img src="/static/saveicontransparent.png" alt=""-->
+                  Save Model
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Section 10: MCP section -->
+          <div id="section10" class="section-content">
+            <div class="card">
+              <h2>
+                <img src="/static/mcpicon.png" alt="LLM" />
+                Setup API key to secure MCP server connection
+              </h2>
+
+              <form
+                id="mcpForm"
+                class="left-form"
+                method="POST"
+                action="/get_new_mcp_key"
+                style="margin-top: 16px"
+              >
+                <div class="form-row">
+                  <label>Current User:</label>
+                  <div style="padding: 8px 0; font-weight: bold">
+                    {{ username }}
+                  </div>
+
+                  <!-- Hidden field to POST userlogin -->
+                  <input type="hidden" name="username" value="{{ username }}" />
+                </div>
+
+                <div class="form-row" style="margin-top: 15px">
+                  <label>Current API Key:</label>
+                  <div style="padding: 8px 0; font-weight: bold">
+                    {{ foo_values.get('mcp_api_key', '') }}
+                  </div>
+
+                  <input
+                    type="hidden"
+                    name="mcp_api_key"
+                    value="{{ foo_values.get('mcp_api_key', '') }}"
+                  />
+                </div>
+
+                <button type="submit" name="save_foo">Create New Key</button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Section 11: Supporting docs for RAG -->
+          <div id="section11" class="section-content">
+            <div class="card">
+              <h2>Supporting documents available to Agent for Retrieval</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 40px">#</th>
+                    <th style="width: 40px"></th>
+                    <th>File Location</th>
+                    <th style="width: 100px; text-align: center">Actions</th>
+                    <th style="width: 180px">Schedule</th>
+                    <th style="width: 60px"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for val in docs_list %}
+                  <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>
+                      <img src="/static/url-icon.png" style="height: 24px" />
+                    </td>
+                    <td>
+                      <a
+                        href="{{ val.url }}"
+                        target="_blank"
+                        style="
+                          font-weight: 500;
+                          color: var(--primary);
+                          text-decoration: none;
+                        "
+                        >{{ val.url }}</a
+                      >
+                      <br /><small style="color: var(--text-light)"
+                        >Added {{ val.added_at}}</small
+                      >
+                    </td>
+                    <td style="text-align: center">
+                      <button
+                        type="button"
+                        onclick="handleResyncDocs('{{ val.url }}', event)"
+                        title="Resync"
+                      >
+                        <img src="/static/refreshicon.png" alt="Resync" />
+                      </button>
+                      <button
+                        type="button"
+                        onclick="openSchedule('{{ val.location }}')"
+                        title="Schedule"
+                      >
+                        <img src="/static/timeicon.png" alt="Schedule" />
+                      </button>
+                    </td>
+                    <td>
+                      {% set sched = schedule_dict.get(val.url) %} {% if sched
+                      %} {% if sched.time %}
+                      <small>{{sched.mode}} at {{ sched.time }}</small>
+                      {% elif sched.interval %}
+                      <small>Every {{ sched.interval }} min</small>
+                      {% endif %} {% else %}
+                      <small style="color: var(--text-light)">None</small>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <form method="POST" action="/remove_docslist">
+                        <input
+                          type="hidden"
+                          name="remove_docslist"
+                          value="{{ val.url }}"
+                        />
+                        <button
+                          type="submit"
+                          onclick="return confirm('Remove {{ val.url }}?')"
+                          style="padding: 4px 8px"
+                        >
+                          ❌
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Section 5: Local Files -->
+          <div id="section5" class="section-content">
+            <div class="card">
+              <h2>
+                <img
+                  src="/static/localfiles.png"
+                  style="width: 30px; height: 24px"
+                  alt="Local"
+                />
+                Share new local file with Agent
+              </h2>
+              <form method="POST" class="left-form" action="/add_local">
+                <div class="form-row">
+                  <label>File Location</label>
+                  <input
+                    type="text"
+                    name="local_value"
+                    id="local_value"
+                    placeholder="C:\path\to\file.xlsx"
+                  />
+                </div>
+                <button type="submit" name="add_local">
+                  <!--img src="/static/shareicon.png" alt=""-->
+                  Share
+                </button>
+              </form>
             </div>
 
-            <!-- Section 11: Supporting docs for RAG -->
-            <div id="section11" class="section-content">
-                <div class="user-header">
-                    <img src="/static/usericon2.png" alt="User">
-                    <span>{{username}}</span>
-                </div>
+            <div class="card">
+              <h2>Local files shared with Agent</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 40px">#</th>
+                    <th style="width: 40px"></th>
+                    <th>File Location</th>
+                    <th style="width: 100px; text-align: center">Actions</th>
+                    <th style="width: 180px">Schedule</th>
+                    <th style="width: 60px"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for val in shared_files_local %}
+                  <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>
+                      <img src="/static/excelicon.jpg" style="height: 24px" />
+                    </td>
+                    <td>
+                      <span style="font-weight: 500">{{ val.location }}</span>
+                      <br /><small style="color: var(--text-light)"
+                        >Added {{ val.datetime}}</small
+                      >
+                    </td>
+                    <td style="text-align: center">
+                      <button
+                        type="button"
+                        onclick="handleResync('{{ val.location }}', event)"
+                        title="Resync"
+                      >
+                        <img src="/static/refreshicon.png" alt="Resync" />
+                      </button>
+                      <button
+                        type="button"
+                        onclick="openSchedule('{{ val.location }}')"
+                        title="Schedule"
+                      >
+                        <img src="/static/timeicon.png" alt="Schedule" />
+                      </button>
+                    </td>
+                    <td>
+                      {% set sched = schedule_dict.get(val.location) %} {% if
+                      sched %} {% if sched.time %}
+                      <small>{{sched.mode}} at {{ sched.time }}</small>
+                      {% elif sched.interval %}
+                      <small>Every {{ sched.interval }} min</small>
+                      {% endif %} {% else %}
+                      <small style="color: var(--text-light)">None</small>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <form method="POST" action="/remove_local">
+                        <input
+                          type="hidden"
+                          name="remove_local"
+                          value="{{ val.location }}"
+                        />
+                        <button
+                          type="submit"
+                          onclick="return confirm('Remove {{ val.location }}?')"
+                          style="padding: 4px 8px"
+                        >
+                          ❌
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-                <div class="card">
-                    <h2>Supporting documents available to Agent for Retrieval</h2>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="width: 40px;">#</th>
-                                <th style="width: 40px;"></th>
-                                <th>File Location</th>
-                                <th style="width: 100px; text-align: center;">Actions</th>
-                                <th style="width: 180px;">Schedule</th>
-                                <th style="width: 60px;"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for val in docs_list %}
-                            <tr>
-                                <td>{{ loop.index }}</td>
-                                <td><img src="/static/url-icon.png" style="height:24px;"></td>
-                                <td>
-                                    <a href="{{ val.url }}" target="_blank" style="font-weight: 500; color: var(--primary); text-decoration: none;">{{ val.url }}</a>
-                                    <br><small style="color: var(--text-light);">Added {{ val.added_at}}</small>
-                                </td>
-                                <td style="text-align: center;">
-                                    <button type="button" onclick="handleResyncDocs('{{ val.url }}', event)" title="Resync">
-                                        <img src="/static/refreshicon.png" alt="Resync">
-                                    </button>
-                                    <button type="button" onclick="openSchedule('{{ val.location }}')" title="Schedule">
-                                        <img src="/static/timeicon.png" alt="Schedule">
-                                    </button>
-                                </td>
-                                <td>
-                                    {% set sched = schedule_dict.get(val.url) %}
-                                    {% if sched %}
-                                        {% if sched.time %}
-                                            <small>{{sched.mode}} at {{ sched.time }}</small>
-                                        {% elif sched.interval %}
-                                            <small>Every {{ sched.interval }} min</small>
-                                        {% endif %}
-                                    {% else %}
-                                        <small style="color: var(--text-light);">None</small>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <form method="POST" action="/remove_docslist">
-                                        <input type="hidden" name="remove_docslist" value="{{ val.url }}">
-                                        <button type="submit" onclick="return confirm('Remove {{ val.url }}?')"  style="padding: 4px 8px;">❌</button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+          <!-- Section 6: Google Drive -->
+          <div id="section6" class="section-content">
+            <div class="section-auth-bar">
+              <span
+                class="auth-status {% if google_logged_in %}authorized{% else %}unauthorized{% endif %}"
+              >
+                {% if google_logged_in %}✅ Google Drive: {{google_username}}{%
+                else %}🔒 Google Login Required{% endif %}
+              </span>
+              {% if google_logged_in %}
+              <form method="GET" action="/google/logout" style="margin: 0">
+                <button
+                  type="submit"
+                  class="btn-danger"
+                  style="padding: 6px 12px; font-size: 13px"
+                >
+                  Revoke
+                </button>
+              </form>
+              {% else %}
+              <button
+                type="button"
+                onclick="openGoogleLoginPopup(this)"
+                style="padding: 6px 12px; font-size: 13px"
+              >
+                Login
+              </button>
+              {% endif %}
             </div>
 
-                <!-- Section 5: Local Files -->
-                <div id="section5" class="section-content">
-                    <div class="user-header">
-                        <img src="/static/usericon2.png" alt="User">
-                        <div>
-                            <div style="font-size: 24px; font-weight: 600; margin-bottom: 8px;">{{username}}</div>
-                            <div style="font-size: 14px; color: var(--text-light);">JIRA: {{ foo_values.get('jira_url', 'Not configured')}}</div>
-                            <div style="font-size: 14px; color: var(--text-light);">LLM: {{llm_default}}</div>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <h2>
-                            <img src="/static/localfiles.png" style="width: 30px; height: 24px;" alt="Local">
-                            Share new local file with Agent
-                        </h2>
-                        <form method="POST" class="left-form" action="/add_local">
-                            <div class="form-row">
-                                <label>File Location</label>
-                                <input type="text" name="local_value" id="local_value" placeholder="C:\path\to\file.xlsx">
-                            </div>
-                            <button type="submit" name="add_local">
-                                <!--img src="/static/shareicon.png" alt=""-->
-                                Share
-                            </button>
-                        </form>
-                    </div>
-
-                    <div class="card">
-                        <h2>Local files shared with Agent</h2>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="width: 40px;">#</th>
-                                    <th style="width: 40px;"></th>
-                                    <th>File Location</th>
-                                    <th style="width: 100px; text-align: center;">Actions</th>
-                                    <th style="width: 180px;">Schedule</th>
-                                    <th style="width: 60px;"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for val in shared_files_local %}
-                                <tr>
-                                    <td>{{ loop.index }}</td>
-                                    <td><img src="/static/excelicon.jpg" style="height:24px;"></td>
-                                    <td>
-                                        <span style="font-weight: 500;">{{ val.location }}</span>
-                                        <br><small style="color: var(--text-light);">Added {{ val.datetime}}</small>
-                                    </td>
-                                    <td style="text-align: center;">
-                                        <button type="button" onclick="handleResync('{{ val.location }}', event)" title="Resync">
-                                            <img src="/static/refreshicon.png" alt="Resync">
-                                        </button>
-                                        <button type="button" onclick="openSchedule('{{ val.location }}')" title="Schedule">
-                                            <img src="/static/timeicon.png" alt="Schedule">
-                                        </button>
-                                    </td>
-                                    <td>
-                                        {% set sched = schedule_dict.get(val.location) %}
-                                        {% if sched %}
-                                            {% if sched.time %}
-                                                <small>{{sched.mode}} at {{ sched.time }}</small>
-                                            {% elif sched.interval %}
-                                                <small>Every {{ sched.interval }} min</small>
-                                            {% endif %}
-                                        {% else %}
-                                            <small style="color: var(--text-light);">None</small>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <form method="POST" action="/remove_local">
-                                            <input type="hidden" name="remove_local" value="{{ val.location }}">
-                                            <button type="submit" onclick="return confirm('Remove {{ val.location }}?')"  style="padding: 4px 8px;">❌</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Section 6: Google Drive -->
-                <div id="section6" class="section-content">
-                    <div class="user-header">
-                        <img src="/static/usericon2.png" alt="User">
-                        <div>
-                            <div style="font-size: 24px; font-weight: 600; margin-bottom: 8px;">{{username}}</div>
-                            <div style="font-size: 14px; color: var(--text-light);">JIRA: {{ foo_values.get('jira_url', 'Not configured')}}</div>
-                            <div style="font-size: 14px; color: var(--text-light);">LLM: {{llm_default}}</div>
-                        </div>
-                        <div style="margin-left: auto; display: flex; gap: 12px; align-items: center;">
-                            <span class="auth-status {% if google_logged_in %}authorized{% else %}unauthorized{% endif %}" style="font-size: 16px;">
-                                {% if google_logged_in %}
-                                    ✅ Google Drive: {{google_username}}
-                                {% else %}
-                                    🔒 Google Login Required
-                                {% endif %}
-                            </span>
-                            {% if google_logged_in %}
-                                <form method="GET" action="/google/logout" style="margin: 0;">
-                                    <button type="submit" class="btn-danger" style="padding: 6px 12px; font-size: 13px;">Revoke</button>
-                                </form>
-                            {% else %}
-                                <button type="button" onclick="openGoogleLoginPopup(this)" style="padding: 6px 12px; font-size: 13px;">Login</button>
-                            {% endif %}
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <h2>
-                            <img src="/static/googlesheetsicon.png" alt="Google Sheets">
-                            Share new Google Sheet
-                        </h2>
-                        <!--form method="POST" class="left-form" action="/add_google">
+            <div class="card">
+              <h2>
+                <img src="/static/googlesheetsicon.png" alt="Google Sheets" />
+                Share new Google Sheet
+              </h2>
+              <!--form method="POST" class="left-form" action="/add_google">
                             <div class="form-row">
                                 <label>Google Sheet URL</label>
                                 <input type="text" name="google_value" id="google_value" placeholder="https://docs.google.com/spreadsheets/d/...">
@@ -1356,973 +1696,1125 @@
                             </button>
                         </form-->
 
-                        <script src="https://apis.google.com/js/api.js"></script>
-                        <script src="https://accounts.google.com/gsi/client"></script>
-                        <button onclick="onPickFile()">Select file...</button>
-
-                    </div>
-
-                    <div id="sheetDialog" style="display:none; position:fixed; top:30%; left:30%; background:white; padding:20px; border:1px solid #ccc;">
-                    <label>Sheet Tab Name:</label>
-                    <input type="text" id="sheetNameInput" value="Sheet1">
-                    <button onclick="submitSheetTab()">Select</button>
-                    </div>
-
-                    <div class="card">
-                        <h2>Google Sheets shared with AI</h2>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="width: 40px;">#</th>
-                                    <th style="width: 40px;"></th>
-                                    <th>Sheet Location</th>
-                                    <th style="width: 100px; text-align: center;">Actions</th>
-                                    <th style="width: 180px;">Schedule</th>
-                                    <th style="width: 60px;"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for val in shared_files_google %}
-                                <tr>
-                                    <td>{{ loop.index }}</td>
-                                    <td><img src="/static/googlesheetfileicon.png" style="height:24px;"></td>
-                                    <td>
-                                        <a href="{{ val.location }}" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 500;">{{ val.filename }}#{{ val.sheet }}</a>
-                                        <br><small style="color: var(--text-light);"> Added {{ val.datetime}}</small>
-                                        {% if val.last_resync %}<br><small style="color: var(--text-light);">Updated {{ val.last_resync }}</small>{% endif %}
-                                        <!--br><small style="color: var(--text-light);">{{val.location}}</small-->
-                                    </td>
-                                    <td style="text-align: center;">
-                                        <button type="button" onclick="handleResync('{{ val.location }}', '{{ val.filename }}', '{{ val.sheet }}', event)" title="Resync">
-                                            <img src="/static/refreshicon.png" alt="Resync">
-                                        </button>
-                                        <button type="button" onclick="openSchedule('{{ val.location }}')" title="Schedule">
-                                            <img src="/static/timeicon.png" alt="Schedule">
-                                        </button>
-                                    </td>
-                                    <td>
-                                        {% set sched = schedule_dict.get(val.location) %}
-                                        {% if sched %}
-                                            {% if sched.time %}
-                                                <small>{{sched.mode}} at {{ sched.time }}</small>
-                                            {% elif sched.interval %}
-                                                <small>Every {{ sched.interval }} min</small>
-                                            {% endif %}
-                                        {% else %}
-                                            <small style="color: var(--text-light);">None</small>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <form method="POST" action="/remove_google">
-                                            <input type="hidden" name="remove_google" value="{{ val.location }}">
-                                            <button type="submit" onclick="return confirm('Remove {{ val.location }}?')" style="padding: 4px 8px;">❌</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Section 7: Info -->
-                <div id="section7" class="section-content">
-                    <div class="user-header">
-                        <img src="/static/usericon2.png" alt="User">
-                        <span>{{username}}</span>
-                    </div>
-                    <div class="card">
-                        <h2>System Information</h2>
-                        <p style="color: var(--text-light);">Version and system details will appear here.</p>
-                    </div>
-                </div>
-
-                <!-- Section 7: Info >
-                <div id="section7" class="section-content">
-                    <div class="user-header">
-                        <img src="/static/usericon2.png" alt="User">
-                        <span>{{username}}</span>
-                    </div>
-                    <div class="card">
-                        <h2>System Information</h2>
-                        <p style="color: var(--text-light);">Version and system details will appear here.</p>
-                    </div>
-                    <div>
-                        <button id="btn-section3">
-                            <img src="/static/debuglogs.png" alt="">
-                            <span>Debug Logs</span>
-                        </button>
-                    </div>
-
-                </div-->
-
-
-                <!-- Section 9: Run Logs -->
-                <div id="section9" class="section-content">
-                                <div class="user-header">
-                        <img src="/static/usericon2.png" alt="User">
-                        <span>{{username}}</span>
-                    </div>
-        
-                    <div class="card">
-                        <h2>Run History</h2>
-                        <pre id="runLogViewer" class="log-viewer"></pre>
-                    </div>
-                </div>
-
-
-
-                <!-- Section 8: Feedback -->
-                <div id="section8" class="section-content">
-                    <div class="user-header">
-                        <img src="/static/usericon2.png" alt="User">
-                        <span>{{username}}</span>
-                    </div>
-                    <div class="card">
-                        <h2>
-                            <img src="/static/feedbackicon.png" alt="Feedback">
-                            Thank you for sharing your feedback.
-                        </h2>
-                        <p style="color: var(--text-light); margin-bottom: 20px;">The team will review your comments and follow up as needed. </p>
- 
-                        <form id="contactForm" class="left-form" method="POST" action="/contactus">
-                            <div class="form-row">
-                                <label>Your Name</label>
-                                <input type="text" name="contactus" placeholder="Enter your name">
-                            </div>
-                            <div class="form-row">
-                                <label>Email Address</label>
-                                <input type="text" name="feedback_email" placeholder="your@email.com">
-                            </div>
-                            <div class="form-row" style="flex-direction: column; align-items: flex-start;">
-                                <label>Your Comments</label>
-                                <textarea name="feedback_message" rows="6" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical;" placeholder="Tell us what you think..."></textarea>
-                            </div>
-                            <button type="submit">
-                                Send Message
-                            </button>
-                        </form>
-
-                    </div>
-                </div>
-
-                <!-- Section 12: Teams Chat -->
-                <div id="section12" class="section-content">
-                    <div class="user-header">
-                        <img src="/static/usericon2.png" alt="User">
-                        <div>
-                            <div style="font-size: 24px; font-weight: 600; margin-bottom: 8px;">{{username}}</div>
-                            <div style="font-size: 14px; color: var(--text-light);">JIRA: {{ foo_values.get('jira_url', 'Not configured')}}</div>
-                            <div style="font-size: 14px; color: var(--text-light);">LLM: {{llm_default}}</div>
-                        </div>
-                        <div style="margin-left: auto; display: flex; gap: 12px; align-items: center;">
-                            <span class="auth-status {% if logged_in %}authorized{% else %}unauthorized{% endif %}" style="font-size: 16px;">
-                                {% if logged_in %}
-                                    ✅ Sharepoint: {{auth_username}}
-                                {% else %}
-                                    🔒 Sharepoint Login Required
-                                {% endif %}
-                            </span>
-                            {% if logged_in %}
-                                <form method="POST" action="/logout_sharepoint" style="margin: 0;">
-                                    <button type="submit" class="btn-danger" style="padding: 6px 12px; font-size: 13px;">Revoke</button>
-                                </form>
-                            {% else %}
-                                <button type="button" onclick="openLoginPopup(this)" style="padding: 6px 12px; font-size: 13px;">Login</button>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="card">
-                        <h2>
-                            <img src="/static/teams-icon.png" style="height: 24px; vertical-align: middle; margin-right: 8px;" alt="">
-                            Microsoft Teams Chat Sync
-                        </h2>
-                        <p style="color: var(--text-light); margin-bottom: 20px;">
-                            Fetch all Teams chats you are part of and save transcripts locally so they can be searched and summarized.
-                        </p>
-                        <button id="teamsResyncBtn" onclick="handleTeamsResync(event)">
-                            Sync Teams Chats
-                        </button>
-                        <div id="teamsResyncResult" style="margin-top: 16px; font-size: 14px; color: var(--text-light);"></div>
-                    </div>
-                </div>
-
+              <script src="https://apis.google.com/js/api.js"></script>
+              <script src="https://accounts.google.com/gsi/client"></script>
+              <button onclick="onPickFile()">Select file...</button>
             </div>
-        </main>
+
+            <div
+              id="sheetDialog"
+              style="
+                display: none;
+                position: fixed;
+                top: 30%;
+                left: 30%;
+                background: white;
+                padding: 20px;
+                border: 1px solid #ccc;
+              "
+            >
+              <label>Sheet Tab Name:</label>
+              <input type="text" id="sheetNameInput" value="Sheet1" />
+              <button onclick="submitSheetTab()">Select</button>
+            </div>
+
+            <div class="card">
+              <h2>Google Sheets shared with AI</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 40px">#</th>
+                    <th style="width: 40px"></th>
+                    <th>Sheet Location</th>
+                    <th style="width: 100px; text-align: center">Actions</th>
+                    <th style="width: 180px">Schedule</th>
+                    <th style="width: 60px"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for val in shared_files_google %}
+                  <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>
+                      <img
+                        src="/static/googlesheetfileicon.png"
+                        style="height: 24px"
+                      />
+                    </td>
+                    <td>
+                      <a
+                        href="{{ val.location }}"
+                        target="_blank"
+                        style="
+                          color: var(--primary);
+                          text-decoration: none;
+                          font-weight: 500;
+                        "
+                        >{{ val.filename }}#{{ val.sheet }}</a
+                      >
+                      <br /><small style="color: var(--text-light)">
+                        Added {{ val.datetime}}</small
+                      >
+                      {% if val.last_resync %}<br /><small
+                        style="color: var(--text-light)"
+                        >Updated {{ val.last_resync }}</small
+                      >{% endif %}
+                      <!--br><small style="color: var(--text-light);">{{val.location}}</small-->
+                    </td>
+                    <td style="text-align: center">
+                      <button
+                        type="button"
+                        onclick="handleResync('{{ val.location }}', '{{ val.filename }}', '{{ val.sheet }}', event)"
+                        title="Resync"
+                      >
+                        <img src="/static/refreshicon.png" alt="Resync" />
+                      </button>
+                      <button
+                        type="button"
+                        onclick="openSchedule('{{ val.location }}')"
+                        title="Schedule"
+                      >
+                        <img src="/static/timeicon.png" alt="Schedule" />
+                      </button>
+                    </td>
+                    <td>
+                      {% set sched = schedule_dict.get(val.location) %} {% if
+                      sched %} {% if sched.time %}
+                      <small>{{sched.mode}} at {{ sched.time }}</small>
+                      {% elif sched.interval %}
+                      <small>Every {{ sched.interval }} min</small>
+                      {% endif %} {% else %}
+                      <small style="color: var(--text-light)">None</small>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <form method="POST" action="/remove_google">
+                        <input
+                          type="hidden"
+                          name="remove_google"
+                          value="{{ val.location }}"
+                        />
+                        <button
+                          type="submit"
+                          onclick="return confirm('Remove {{ val.location }}?')"
+                          style="padding: 4px 8px"
+                        >
+                          ❌
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Section 7: Info -->
+          <div id="section7" class="section-content">
+            <div class="card">
+              <h2>System Information</h2>
+              <p style="color: var(--text-light)">
+                Version and system details will appear here.
+              </p>
+            </div>
+          </div>
+
+          <!-- Section 9: Run Logs -->
+          <div id="section9" class="section-content">
+            <div class="card">
+              <h2>Run History</h2>
+              <pre id="runLogViewer" class="log-viewer"></pre>
+            </div>
+          </div>
+
+          <!-- Section 8: Feedback -->
+          <div id="section8" class="section-content">
+            <div class="card">
+              <h2>
+                <img src="/static/feedbackicon.png" alt="Feedback" />
+                Thank you for sharing your feedback.
+              </h2>
+              <p style="color: var(--text-light); margin-bottom: 20px">
+                The team will review your comments and follow up as needed.
+              </p>
+
+              <form
+                id="contactForm"
+                class="left-form"
+                method="POST"
+                action="/contactus"
+              >
+                <div class="form-row">
+                  <label>Your Name</label>
+                  <input
+                    type="text"
+                    name="contactus"
+                    placeholder="Enter your name"
+                  />
+                </div>
+                <div class="form-row">
+                  <label>Email Address</label>
+                  <input
+                    type="email"
+                    name="feedback_email"
+                    placeholder="your@email.com"
+                    required
+                  />
+                </div>
+                <div
+                  class="form-row"
+                  style="flex-direction: column; align-items: flex-start"
+                >
+                  <label>Your Comments</label>
+                  <textarea
+                    name="feedback_message"
+                    rows="6"
+                    style="
+                      width: 100%;
+                      padding: 10px 14px;
+                      border: 1px solid var(--border);
+                      border-radius: 8px;
+                      font-size: 14px;
+                      font-family: inherit;
+                      resize: vertical;
+                    "
+                    placeholder="Tell us what you think..."
+                  ></textarea>
+                </div>
+                <button type="submit">Send Message</button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Section 12: Teams Chat -->
+          <div id="section12" class="section-content">
+            <div class="section-auth-bar">
+              <span
+                class="auth-status {% if logged_in %}authorized{% else %}unauthorized{% endif %}"
+              >
+                {% if logged_in %}✅ SharePoint: {{auth_username}}{% else %}🔒
+                SharePoint Login Required{% endif %}
+              </span>
+              {% if logged_in %}
+              <form method="POST" action="/logout_sharepoint" style="margin: 0">
+                <button
+                  type="submit"
+                  class="btn-danger"
+                  style="padding: 6px 12px; font-size: 13px"
+                >
+                  Revoke
+                </button>
+              </form>
+              {% else %}
+              <button
+                type="button"
+                onclick="openLoginPopup(this)"
+                style="padding: 6px 12px; font-size: 13px"
+              >
+                Login
+              </button>
+              {% endif %}
+            </div>
+            <div class="card">
+              <h2>
+                <img
+                  src="/static/teams-icon.png"
+                  style="
+                    height: 24px;
+                    vertical-align: middle;
+                    margin-right: 8px;
+                  "
+                  alt=""
+                />
+                Microsoft Teams Chat Sync
+              </h2>
+              <p style="color: var(--text-light); margin-bottom: 20px">
+                Fetch all Teams chats you are part of and save transcripts
+                locally so they can be searched and summarized.
+              </p>
+              <button id="teamsResyncBtn" onclick="handleTeamsResync(event)">
+                Sync Teams Chats
+              </button>
+              <div
+                id="teamsResyncResult"
+                style="
+                  margin-top: 16px;
+                  font-size: 14px;
+                  color: var(--text-light);
+                "
+              ></div>
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
-
-
 
     <!-- Schedule Modal -->
     <div id="scheduleModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2 style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
-                <img src="/static/timeicon.png" style="height:32px;">
-                Schedule File Sync with AI Agent
-            </h2>
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2
+          style="
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+          "
+        >
+          <img src="/static/timeicon.png" style="height: 32px" />
+          Schedule File Sync with AI Agent
+        </h2>
 
-            <form id="scheduleForm" method="POST" action="/schedule">
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">File</label>
-                    <textarea id="scheduleFilename" name="filename" readonly 
-                        style="width:100%; padding: 12px; border:1px solid var(--border); background-color:var(--bg-light); 
-                        font-size:14px; border-radius: 8px; resize:none; height: 70px; font-family: inherit;"></textarea>
-                </div>
+        <form id="scheduleForm" method="POST" action="/schedule">
+          <div style="margin-bottom: 20px">
+            <label style="display: block; font-weight: 500; margin-bottom: 8px"
+              >File</label
+            >
+            <textarea
+              id="scheduleFilename"
+              name="filename"
+              readonly
+              style="
+                width: 100%;
+                padding: 12px;
+                border: 1px solid var(--border);
+                background-color: var(--bg-light);
+                font-size: 14px;
+                border-radius: 8px;
+                resize: none;
+                height: 70px;
+                font-family: inherit;
+              "
+            ></textarea>
+          </div>
 
-                <div class="schedule-grid">
-                    <div class="schedule-option">
-                        <h4 style="margin-bottom: 12px; color: var(--text-dark);">⏰ Time-based Schedule</h4>
-                        <div style="margin-bottom: 12px;">
-                            <label style="display: block; margin-bottom: 6px; font-size: 14px;">Time (HH:MM)</label>
-                            <input type="text" id="scheduleTime" name="time" placeholder="14:30"
-                                style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px;">
-                        </div>
-                        <div>
-                            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer;">
-                                <input type="radio" class="scheduleMode" name="mode" value="Daily">
-                                <span style="font-weight: 500;">Daily</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="radio" class="scheduleMode" name="mode" value="Weekly">
-                                <span style="font-weight: 500;">Weekly</span>
-                            </label>
-                        </div>
-                        <div id="weeklyDays" style="display: none; margin-top: 12px;">
-                            <label><input type="checkbox" name="days" value="mon"> Mon</label>
-                            <label><input type="checkbox" name="days" value="tue"> Tue</label>
-                            <label><input type="checkbox" name="days" value="wed"> Wed</label>
-                            <label><input type="checkbox" name="days" value="thu"> Thu</label>
-                            <label><input type="checkbox" name="days" value="fri"> Fri</label>
-                            <label><input type="checkbox" name="days" value="sat"> Sat</label>
-                            <label><input type="checkbox" name="days" value="sun"> Sun</label>
-                        </div>
-                    </div>
+          <div class="schedule-grid">
+            <div class="schedule-option">
+              <h4 style="margin-bottom: 12px; color: var(--text-dark)">
+                ⏰ Time-based Schedule
+              </h4>
+              <div style="margin-bottom: 12px">
+                <label
+                  style="display: block; margin-bottom: 6px; font-size: 14px"
+                  >Time (HH:MM)</label
+                >
+                <input
+                  type="text"
+                  id="scheduleTime"
+                  name="time"
+                  placeholder="14:30"
+                  style="
+                    width: 100%;
+                    padding: 8px;
+                    border: 1px solid var(--border);
+                    border-radius: 6px;
+                  "
+                />
+              </div>
+              <div>
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    margin-bottom: 8px;
+                    cursor: pointer;
+                  "
+                >
+                  <input
+                    type="radio"
+                    class="scheduleMode"
+                    name="mode"
+                    value="Daily"
+                  />
+                  <span style="font-weight: 500">Daily</span>
+                </label>
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    cursor: pointer;
+                  "
+                >
+                  <input
+                    type="radio"
+                    class="scheduleMode"
+                    name="mode"
+                    value="Weekly"
+                  />
+                  <span style="font-weight: 500">Weekly</span>
+                </label>
+              </div>
+              <div id="weeklyDays" style="display: none; margin-top: 12px">
+                <label
+                  ><input type="checkbox" name="days" value="mon" /> Mon</label
+                >
+                <label
+                  ><input type="checkbox" name="days" value="tue" /> Tue</label
+                >
+                <label
+                  ><input type="checkbox" name="days" value="wed" /> Wed</label
+                >
+                <label
+                  ><input type="checkbox" name="days" value="thu" /> Thu</label
+                >
+                <label
+                  ><input type="checkbox" name="days" value="fri" /> Fri</label
+                >
+                <label
+                  ><input type="checkbox" name="days" value="sat" /> Sat</label
+                >
+                <label
+                  ><input type="checkbox" name="days" value="sun" /> Sun</label
+                >
+              </div>
+            </div>
 
-                    <div class="schedule-option">
-                        <h4 style="margin-bottom: 12px; color: var(--text-dark);">🔄 Interval-based Schedule</h4>
-                        <label style="display: block; margin-bottom: 6px; font-size: 14px;">Interval (minutes)</label>
-                        <input type="number" id="scheduleInterval" name="interval" min="1" placeholder="30"
-                            style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px;">
-                        <p style="font-size: 12px; color: var(--text-light); margin-top: 8px;">
-                            Runs automatically every X minutes
-                        </p>
-                    </div>
-                </div>
+            <div class="schedule-option">
+              <h4 style="margin-bottom: 12px; color: var(--text-dark)">
+                🔄 Interval-based Schedule
+              </h4>
+              <label style="display: block; margin-bottom: 6px; font-size: 14px"
+                >Interval (minutes)</label
+              >
+              <input
+                type="number"
+                id="scheduleInterval"
+                name="interval"
+                min="1"
+                placeholder="30"
+                style="
+                  width: 100%;
+                  padding: 8px;
+                  border: 1px solid var(--border);
+                  border-radius: 6px;
+                "
+              />
+              <p
+                style="
+                  font-size: 12px;
+                  color: var(--text-light);
+                  margin-top: 8px;
+                "
+              >
+                Runs automatically every X minutes
+              </p>
+            </div>
+          </div>
 
-                <div style="display: flex; gap: 12px; margin-top: 24px;">
-                    <button type="submit" id="scheduleSubmit">
-                        <!--img src="/static/saveicontransparent.png" alt=""-->
-                        Save Schedule
-                    </button>
-                    <button type="button" id="clearScheduleBtn" class="btn-danger">
-                        Clear Schedule
-                    </button>
-                </div>
-            </form>
-        </div>
+          <div style="display: flex; gap: 12px; margin-top: 24px">
+            <button type="submit" id="scheduleSubmit">
+              <!--img src="/static/saveicontransparent.png" alt=""-->
+              Save Schedule
+            </button>
+            <button type="button" id="clearScheduleBtn" class="btn-danger">
+              Clear Schedule
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
 
     <!-- Toast -->
     <div id="toast"></div>
 
-
     <script>
-        // =========================================================
-        // SIDEBAR COLLAPSE
-        // =========================================================
-
-        (function () {
-            const sidebar     = document.querySelector('.left-frame');
-            const toggleBtn   = document.getElementById('sidebarToggle');
-
-            function setCollapsed(collapsed) {
-                sidebar.classList.toggle('collapsed', collapsed);
-                toggleBtn.textContent = collapsed ? '›' : '‹';
-                toggleBtn.title       = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
-                localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
-            }
-
-            toggleBtn.addEventListener('click', () => setCollapsed(!sidebar.classList.contains('collapsed')));
-
-            if (localStorage.getItem('sidebarCollapsed') === '1') setCollapsed(true);
-        })();
-
-        // =========================================================
-        // SECTION MANAGEMENT
-        // =========================================================
-
-        // Auto-discover sections and buttons from the DOM instead of
-        // maintaining two manually-typed lists.
-        const sections = {};
-        const buttons  = {};
-
-        document.querySelectorAll('.section-content').forEach(el => {
-            sections[el.id] = el;
-        });
-        document.querySelectorAll('[id^="btn-section"]').forEach(el => {
-            const key = el.id.replace('btn-', '');
-            buttons[key] = el;
-        });
-
-        // Per-section callbacks fired whenever that section becomes visible.
-        // To add a new hook just drop a key/function here — no other code changes needed.
-        const sectionOnShow = {
-            section3: () => loadRunFolders(),
-            section9: () => loadRunLog(),
-        };
-
-        function showSection(sectionId) {
-            Object.keys(sections).forEach(key => {
-                sections[key]?.classList.remove('active');
-                buttons[key]?.classList.remove('active');
-            });
-            if (sections[sectionId]) {
-                sections[sectionId].classList.add('active');
-                buttons[sectionId]?.classList.add('active');
-                history.replaceState(null, '', '#' + sectionId);
-                sectionOnShow[sectionId]?.();
-            }
-        }
-
-        // Wire nav buttons (skip section7 — it only toggles the submenu)
-        Object.keys(buttons).forEach(key => {
-            const btn = buttons[key];
-            if (btn && key !== 'section7') {
-                btn.addEventListener('click', () => showSection(key));
-            }
-        });
-
-        // Info submenu toggle
-        const infoBtn     = document.getElementById('btn-section7');
-        const infoSubmenu = document.getElementById('submenu-info');
-        if (infoBtn && infoSubmenu) {
-            infoBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                const expanded = infoSubmenu.classList.contains('show');
-                infoSubmenu.classList.toggle('show', !expanded);
-                infoBtn.classList.toggle('expanded', !expanded);
-            });
-        }
-
-        // =========================================================
-        // TOAST UTILITY
-        // =========================================================
-
-        function showToast(message, success = true) {
-            const toast = document.getElementById('toast');
-            toast.textContent = message;
-            toast.style.backgroundColor = success ? 'var(--success)' : 'var(--danger)';
-            toast.className = 'show';
-            setTimeout(() => { toast.className = ''; }, 3000);
-        }
-
-        // =========================================================
-        // GENERIC AJAX FORM HELPER
-        // Eliminates the six nearly-identical fetch/toast/reload blocks.
-        // Usage: apiForm(selector, { redirectSection })
-        // =========================================================
-
-        function apiForm(selector, { redirectSection, onSuccess } = {}) {
-            document.querySelectorAll(selector).forEach(form => {
-                form.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    fetch(this.action, { method: 'POST', body: new FormData(this) })
-                        .then(r => r.json())
-                        .then(data => {
-                            if (data.success) {
-                                showToast(`✅ ${data.message}`);
-                                if (onSuccess) onSuccess(data);
-                                if (redirectSection) {
-                                    setTimeout(() => {
-                                        window.location.hash = redirectSection;
-                                        window.location.reload();
-                                    }, 900);
-                                }
-                            } else {
-                                showToast(`⚠ ${data.message || 'Operation failed'}`, false);
-                            }
-                        })
-                        .catch(() => showToast('⚠ Error connecting to server', false));
-                });
-            });
-        }
-
-        // Wire all standard CRUD forms with one line each
-        apiForm('form[action="/add_sharepoint"]',    { redirectSection: 'section2' });
-        apiForm('form[action="/remove_sharepoint"]', { redirectSection: 'section2' });
-        apiForm('form[action="/add_local"]',         { redirectSection: 'section5' });
-        apiForm('form[action="/remove_local"]',      { redirectSection: 'section5' });
-        apiForm('form[action="/add_google"]',        { redirectSection: 'section6' });
-        apiForm('form[action="/remove_google"]',     { redirectSection: 'section6' });
-
-        // =========================================================
-        // JIRA FORM (JSON body, not FormData)
-        // =========================================================
-
-        const jiraForm = document.querySelector('#section1 form.left-form');
-        if (jiraForm) {
-            jiraForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                fetch('/save_jira', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        jira_url:      this.querySelector('input[name="jira_url"]').value,
-                        jira_user:     this.querySelector('input[name="jira_user"]').value,
-                        jira_token:    this.querySelector('input[name="jira_token"]').value,
-                        jira_password: this.querySelector('input[name="jira_password"]').value,
-                    })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    data.success
-                        ? showToast('✅ Jira settings saved')
-                        : showToast('⚠ Failed to save Jira settings', false);
-                })
-                .catch(() => showToast('⚠ Error connecting to server', false));
-            });
-        }
-
-        // =========================================================
-        // LLM FORM
-        // =========================================================
-
-        const llmSelect        = document.getElementById('llmSelect');
-        const openaiTokenField = document.getElementById('openaiTokenField');
-
-        function toggleTokenField() {
-            if (!llmSelect) return;
-            openaiTokenField.style.display = llmSelect.value === 'OpenAI' ? 'flex' : 'none';
-        }
-
-        if (llmSelect) {
-            toggleTokenField();
-            llmSelect.addEventListener('change', toggleTokenField);
-        }
-
-        const llmForm = document.getElementById('llmForm');
-        if (llmForm) {
-            llmForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                const selectedModel = llmSelect.value;
-                const openaiToken   = document.querySelector('input[name="openai_token"]')?.value || '';
-                fetch('/setmodel', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ llm_model: selectedModel, openai_token: openaiToken })
-                })
-                .then(res => {
-                    if (res.ok) {
-                        showToast(`✅ Saved LLM model: ${selectedModel}`);
-                        setTimeout(() => { window.location.hash = 'section4'; window.location.reload(); }, 900);
-                    } else {
-                        showToast('⚠ Failed to save settings', false);
-                    }
-                })
-                .catch(() => showToast('⚠ Error connecting to server', false));
-            });
-        }
-
-        // =========================================================
-        // LOGIN POPUPS
-        // Both message listeners are merged into one handler.
-        // =========================================================
-
-        let lastLoginBtn       = null;
-        let lastGoogleLoginBtn = null;
-
-        function openLoginPopup(btn) {
-            lastLoginBtn = btn;
-            const popup = window.open('/login', 'LoginWindow', 'width=600,height=700');
-            if (!popup) alert('Please allow popups for this site.');
-        }
-
-        function openGoogleLoginPopup(btn) {
-            lastGoogleLoginBtn = btn;
-            const popup = window.open('/google/login', 'GoogleLoginWindow', 'width=600,height=700');
-            if (!popup) alert('Please allow popups for this site.');
-        }
-
-        window.addEventListener('message', function(e) {
-            if (e.data === 'login-success'        && lastLoginBtn)       location.reload();
-            if (e.data === 'google-login-success' && lastGoogleLoginBtn) location.reload();
-        });
-
-        // =========================================================
-        // SCHEDULE MODAL
-        // =========================================================
-
-        const scheduleModal    = document.getElementById('scheduleModal');
-        const scheduleTime     = document.getElementById('scheduleTime');
-        const scheduleInterval = document.getElementById('scheduleInterval');
-        const modeCheckboxes   = document.querySelectorAll('.scheduleMode');
-        const scheduleData     = {{ schedule_dict | tojson | safe }} || {};
-
-        function enforceMutualExclusivity() {
-            const timeVal     = scheduleTime.value.trim();
-            const intervalVal = scheduleInterval.value.trim();
-            scheduleTime.disabled     = !!intervalVal;
-            scheduleInterval.disabled = !!timeVal;
-            modeCheckboxes.forEach(cb => cb.disabled = !!intervalVal);
-            document.getElementById('scheduleSubmit').disabled = !(timeVal || intervalVal);
-        }
-
-        if (scheduleTime)     scheduleTime.addEventListener('input', enforceMutualExclusivity);
-        if (scheduleInterval) scheduleInterval.addEventListener('input', enforceMutualExclusivity);
-
-        function openSchedule(filename) {
-            const sched = scheduleData[filename];
-            document.getElementById('scheduleFilename').value  = filename;
-            document.getElementById('scheduleTime').value      = sched?.time     || '';
-            document.getElementById('scheduleInterval').value  = sched?.interval || '';
-
-            document.querySelectorAll("input[name='mode']").forEach(r => r.checked = false);
-            if (sched?.mode) {
-                const el = document.querySelector(`input[name='mode'][value='${sched.mode}']`);
-                if (el) el.checked = true;
-            }
-
-            const weeklyDays = document.getElementById('weeklyDays');
-            weeklyDays.style.display = sched?.mode?.toLowerCase() === 'weekly' ? 'grid' : 'none';
-
-            document.querySelectorAll('#weeklyDays input[type=checkbox]').forEach(cb => cb.checked = false);
-            sched?.days?.forEach(day => {
-                const cb = document.querySelector(`#weeklyDays input[value='${day}']`);
-                if (cb) cb.checked = true;
-            });
-
-            scheduleModal.style.display = 'block';
-            enforceMutualExclusivity();
-        }
-
-        // Close modal on X or backdrop click
-        document.querySelector('.close').onclick = () => scheduleModal.style.display = 'none';
-        window.onclick = e => { if (e.target === scheduleModal) scheduleModal.style.display = 'none'; };
-
-        // Schedule form submit
-        document.getElementById('scheduleForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const time     = scheduleTime.value.trim();
-            const interval = scheduleInterval.value.trim();
-            if (!time && !interval) { showToast('⚠ Enter time or interval', false); return; }
-
-            const formData     = new FormData(this);
-            let selectedMode   = '';
-            document.querySelectorAll("input[name='mode']").forEach(r => { if (r.checked) selectedMode = r.value; });
-            formData.append('mode', selectedMode);
-
-            fetch(this.action, { method: 'POST', body: formData })
-                .then(res => {
-                    if (res.ok) {
-                        showToast('✅ Schedule saved successfully');
-                        scheduleModal.style.display = 'none';
-                        setTimeout(() => location.reload(), 800);
-                    } else {
-                        showToast('⚠ Failed to save schedule', false);
-                    }
-                })
-                .catch(() => showToast('⚠ Error connecting to server', false));
-        });
-
-        // Clear schedule button
-        document.getElementById('clearScheduleBtn').addEventListener('click', function() {
-            const filename = document.getElementById('scheduleFilename').value;
-            if (!filename) return;
-            fetch('/schedule/clear', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('✅ Schedule cleared');
-                    scheduleModal.style.display = 'none';
-                    setTimeout(() => location.reload(), 800);
-                } else {
-                    showToast('⚠ Failed to clear schedule', false);
-                }
-            })
-            .catch(() => showToast('⚠ Error connecting to server', false));
-        });
-
-        // Radio mutual exclusivity + weekly days visibility
-        modeCheckboxes.forEach(cb => {
-            cb.addEventListener('change', function() {
-                if (this.checked) modeCheckboxes.forEach(o => { if (o !== this) o.checked = false; });
-            });
-        });
-
-        document.querySelectorAll("input[name='mode']").forEach(radio => {
-            radio.addEventListener('change', function() {
-                document.getElementById('weeklyDays').style.display =
-                    this.value.toLowerCase() === 'weekly' ? 'grid' : 'none';
-            });
-        });
-
-        flatpickr('#scheduleTime', { enableTime: true, noCalendar: true, dateFormat: 'H:i', time_24hr: true });
-
-        // =========================================================
-        // CONTACT FORM (Section 8)
-        // =========================================================
-
-        const contactForm = document.getElementById('contactForm');
-        if (contactForm) {
-            contactForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                const name    = contactForm.querySelector('input[name="contactus"]').value.trim();
-                const email   = contactForm.querySelector('input[name="feedback_email"]').value.trim();
-                const message = contactForm.querySelector('textarea[name="feedback_message"]').value.trim();
-                const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-                if (!name)               { showToast('⚠ Please enter your name.', false);          return; }
-                if (!email)              { showToast('⚠ Please enter your email.', false);         return; }
-                if (!emailRe.test(email)){ showToast('⚠ Please enter a valid email.', false);      return; }
-                if (!message)            { showToast('⚠ Please enter a message.', false);          return; }
-
-                fetch('/contactus', { method: 'POST', body: new FormData(contactForm) })
-                    .then(r => r.json())
-                    .then(() => { showToast('✅ Message sent successfully!'); contactForm.reset(); })
-                    .catch(() => showToast('⚠ Failed to send message', false));
-            });
-        }
-
-        // =========================================================
-        // TASK QUEUE MANAGEMENT
-        // =========================================================
-
-        const activeTasks = new Map();
-        let globalPollInterval = null;
-
-        function formatTime(dateString) {
-            if (!dateString) return '--:--:--';
-            return new Date(dateString).toLocaleTimeString('en-US', { hour12: false });
-        }
-
-        function getShortFilename(url) {
-            const parts = url.split('/');
-            return parts[parts.length - 1] || url.substring(0, 50);
-        }
-
-        function updateTaskDisplay() {
-            const taskQueueDiv = document.getElementById('taskQueueStatus');
-            const taskListDiv  = document.getElementById('taskList');
-            if (activeTasks.size === 0) { taskQueueDiv.style.display = 'none'; return; }
-
-            taskQueueDiv.style.display = 'block';
-            const statusIcons = { pending: '⏳', running: '🔄', completed: '✅', failed: '❌' };
-            let html = '';
-            activeTasks.forEach((task, taskId) => {
-                const shortFilename = task.filename
-                ? (task.sheet ? `${task.filename}#${task.sheet}` : task.filename)
-                : getShortFilename(task.fileUrl);
-                const statusClass   = task.status.toLowerCase();
-                const statusIcon    = statusIcons[statusClass] || '•';
-                html += `
-                    <div class="task-item ${statusClass}" data-task-id="${taskId}">
-                        <div class="task-info">
-                            <div class="task-filename">${statusIcon} ${shortFilename}</div>
-                            <div class="task-times">
-                                Created: ${formatTime(task.created_at)} |
-                                Started: ${formatTime(task.started_at)} |
-                                Completed: ${formatTime(task.completed_at)}
-                            </div>
-                            ${task.error ? `<div style="color:var(--danger);font-size:11px;margin-top:4px;">Error: ${task.error}</div>` : ''}
-                        </div>
-                        <span class="task-status-badge status-${statusClass}">${task.status}</span>
-                    </div>`;
-            });
-            taskListDiv.innerHTML = html;
-        }
-
-        function removeCompletedTask(taskId) {
-            const task = activeTasks.get(taskId);
-            if (task && ['completed', 'failed', 'SUCCESS'].includes(task.status)) {
-                console.log(`Removing completed task ${taskId} from display and tracking`);
-                activeTasks.delete(taskId);
-                updateTaskDisplay();
-            }
-        }
-
-        function clearAllTasks() {
-            activeTasks.clear();
-            updateTaskDisplay();
-        }
-
-        async function pollAllTasks() {
-            try {
-                const data = await fetch('/tasks/status').then(r => r.json());
-                if (!data.success) {
-                    console.error('Error fetching task status:', data.message);
-                    return;
-                }
-                data.tasks.forEach(task => {
-                    if (!activeTasks.has(task.task_id)) {
-                        console.log(`Task ${task.task_id} is not in activeTasks`);
-                        return;
-                    }
-                    console.log(`Updating task ${task.task_id}: status=${task.status}, progress=${task.progress}%`);
-                    const local = activeTasks.get(task.task_id);
-                    Object.assign(local, {
-                        status: task.status, started_at: task.started_at,
-                        completed_at: task.completed_at, progress: task.progress, error: task.error
-                    });
-                    if (['SUCCESS', 'completed', 'failed'].includes(task.status) && !local.removeScheduled) {
-                        local.removeScheduled = true;
-                        setTimeout(() => removeCompletedTask(task.task_id), 60000);
-                        console.log(`Scheduled removal of task ${task.task_id} in 60 seconds`);
-                    }
-                });
-                updateTaskDisplay();
-            } catch (err) { console.error('Error polling tasks:', err); }
-        }
-
-        function startGlobalPolling() {
-            if (globalPollInterval) return;
-            globalPollInterval = setInterval(() => {
-                if (activeTasks.size > 0) {
-                    pollAllTasks();
-                } else {
-                    clearInterval(globalPollInterval);
-                    globalPollInterval = null;
-                }
-            }, 3000);
-        }
-
-        async function handleResync(fileUrl, filename, sheet, event) {
-            if (event) event.preventDefault();
-            try {
-                const formData = new FormData();
-                formData.append('resync_bar', fileUrl);
-                const data = await fetch('/resync_sharepoint', { method: 'POST', body: formData }).then(r => r.json());
-                if (!data.success) { showToast('Failed to start resync: ' + data.message, false); return; }
-
-                activeTasks.set(data.task_id, {
-                    taskId: data.task_id, fileUrl, filename, sheet,
-                    status: 'pending', created_at: new Date().toISOString(),
-                    started_at: null, completed_at: null, progress: 0,
-                    error: null, removeScheduled: false
-                });
-                updateTaskDisplay();
-                startGlobalPolling();
-                showToast(`✅ Resync queued for ${getShortFilename(fileUrl)}`);
-            } catch (err) {
-                console.error('Resync error:', err);
-                showToast('Error starting resync: ' + err.message, false);
-            }
-        }
-
-        async function handleTeamsResync(event) {
-            if (event) event.preventDefault();
-            const btn = document.getElementById('teamsResyncBtn');
-            const resultEl = document.getElementById('teamsResyncResult');
-            btn.disabled = true;
-            btn.textContent = 'Syncing…';
-            resultEl.textContent = '';
-            try {
-                const data = await fetch('/sync_teams', { method: 'POST' }).then(r => r.json());
-                if (!data.success) {
-                    showToast('Teams sync failed: ' + data.message, false);
-                    resultEl.textContent = 'Error: ' + data.message;
-                } else {
-                    showToast('✅ Teams sync complete');
-                    resultEl.textContent = `Done — ${data.new_messages} new message(s) across ${data.partitions_updated} ${data.partition_by} file(s). ${data.skipped_chats} chat(s) skipped (${data.total_chats} total).`;
-                }
-            } catch (err) {
-                showToast('Teams sync error: ' + err.message, false);
-                resultEl.textContent = 'Error: ' + err.message;
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Sync Teams Chats';
-            }
-        }
-
-        async function handleResyncDocs(fileUrl, event) {
-            if (event) event.preventDefault();
-            try {
-                const formData = new FormData();
-                formData.append('resync_bar', fileUrl);
-                const data = await fetch('/resync_docslist', { method: 'POST', body: formData }).then(r => r.json());
-                if (!data.success) { showToast('Failed to start resync: ' + data.message, false); return; }
-
-                activeTasks.set(data.task_id, {
-                    taskId: data.task_id, fileUrl,
-                    status: 'pending', created_at: new Date().toISOString(),
-                    started_at: null, completed_at: null, progress: 0,
-                    error: null, removeScheduled: false
-                });
-                updateTaskDisplay();
-                startGlobalPolling();
-                showToast(`✅ Vectorizing queued for ${getShortFilename(fileUrl)}`);
-            } catch (err) {
-                console.error('Resync docs error:', err);
-                showToast('Error starting resync: ' + err.message, false);
-            }
-        }
-
-        // Persist task queue across page reloads via localStorage
-        window.addEventListener('beforeunload', () => {
-            localStorage.setItem('activeTasks', JSON.stringify([...activeTasks]));
-        });
-
-        // =========================================================
-        // LOG VIEWER UTILITY
-        // Shared render helper used by both debug logs and run logs.
-        // =========================================================
-
-        function renderLog(viewerId, text, formatFn) {
-            const viewer     = document.getElementById(viewerId);
-            viewer.innerHTML = text.trim() ? formatFn(text) : '(empty)';
-            viewer.scrollTop = viewer.scrollHeight;
-        }
-
-        // Debug logs (Section 3)
-        async function loadRunFolders() {
-            try {
-                const runs   = await fetch('/logs').then(r => r.json());
-                const select = document.getElementById('logRunSelect');
-                select.innerHTML = '';
-                runs.forEach(run => {
-                    const opt = document.createElement('option');
-                    opt.value = opt.textContent = run;
-                    select.appendChild(opt);
-                });
-                if (runs.length) { select.value = runs[0]; loadLogFile(runs[0]); }
-                else renderLog('logViewer', '', () => 'No logs found.');
-            } catch (err) {
-                document.getElementById('logViewer').textContent = '⚠ Error loading log folders.';
-                console.error(err);
-            }
-        }
-
-        async function loadLogFile(run) {
-            try {
-                const res = await fetch(`/logs/${run}`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                renderLog('logViewer', await res.text(), raw => raw
-                    .replace(/(ERROR)/g,             '<span class="log-error">$1</span>')
-                    .replace(/(WARNING)/g,            '<span class="log-warning">$1</span>')
-                    .replace(/(--- Running.*?---)/g,  '<span class="log-info">$1</span>')
-                    .replace(/(INFO)/g,               '<span class="log-info">$1</span>')
-                    .replace(/(Traceback \(most recent call last\):[\s\S]*?(?=\n\s*\n|$))/g,
-                              '<span class="traceback-block">$1</span>')
-                );
-            } catch (err) {
-                document.getElementById('logViewer').textContent = '⚠ Failed to load log file.';
-                console.error(err);
-            }
-        }
-
-        document.getElementById('logRunSelect')?.addEventListener('change', e => loadLogFile(e.target.value));
-
-        // Run history logs (Section 9)
-        async function loadRunLog() {
-            try {
-                const username = '{{username}}';
-                const res = await fetch(`/runlog/${username}`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                renderLog('runLogViewer', await res.text(), raw => raw.replace(
-                    /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/g,
-                    '<span style="color:#4dabf7;">$1</span> <span style="color:#51cf66;">$2</span>'
-                ));
-            } catch (err) {
-                document.getElementById('runLogViewer').textContent = '⚠ Failed to load run log file.';
-                console.error(err);
-            }
-        }
-
-        // =========================================================
-        // GOOGLE DRIVE PICKER
-        // =========================================================
-
-        const CLIENT_ID = '349167135617-aagidlgil4i5tftvkga480jks6nksts4.apps.googleusercontent.com';
-        const API_KEY   = 'AIzaSyBUhS45hA4P5l4Yb-4lOKF6preSlzA-2B4';
-        const SCOPES    = 'https://www.googleapis.com/auth/drive.file';
-        let accessToken;
-        let selectedFile;
-
-        const tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: CLIENT_ID,
-            scope: SCOPES,
-            callback: response => { accessToken = response.access_token; createPicker(); }
-        });
-
-        function onPickFile() { tokenClient.requestAccessToken(); }
-
-        function createPicker() {
-            gapi.load('picker', () => {
-                const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
-                    .setIncludeFolders(true)
-                    .setSelectFolderEnabled(false);
-                new google.picker.PickerBuilder()
-                    .addView(view)
-                    .setOAuthToken(accessToken)
-                    .setDeveloperKey(API_KEY)
-                    .setCallback(pickerCallback)
-                    .build()
-                    .setVisible(true);
-            });
-        }
-
-        function pickerCallback(data) {
-            if (data.action === google.picker.Action.PICKED) {
-                selectedFile = data.docs[0];
-                document.getElementById('sheetDialog').style.display = 'block';
-            }
-        }
-
-        function submitSheetTab() {
-            const sheetTab = document.getElementById('sheetNameInput').value;
-            if (!sheetTab) { showToast('⚠ Sheet tab name is required!', false); return; }
-            fetch('/register_drive_file', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    fileId: selectedFile.id, name: selectedFile.name,
-                    url: selectedFile.url, sheetTab
-                })
-            })
-            .then(r => r.json())
-            .then(res => {
-                if (res.success) {
-                    showToast(`✅ ${res.message || 'File registered successfully'}`);
-                    document.getElementById('sheetDialog').style.display = 'none';
-                    setTimeout(() => { window.location.hash = 'section6'; window.location.reload(); }, 900);
-                } else {
-                    showToast(`⚠ ${res.message || 'Failed to register file'}`, false);
-                }
-            })
-            .catch(err => { console.error('Error:', err); showToast('⚠ Error connecting to server', false); });
-        }
-
-        // =========================================================
-        // SINGLE DOMContentLoaded — all initialisation in one place
-        // =========================================================
-
-        window.addEventListener('DOMContentLoaded', () => {
-            // Restore persisted task queue
-            const saved = JSON.parse(localStorage.getItem('activeTasks') || '[]');
-            saved.forEach(([id, task]) => activeTasks.set(id, task));
-            updateTaskDisplay();
-            startGlobalPolling();
-
-            // Fetch and apply the current LLM model selection
-            fetch('/getmodel')
-                .then(r => r.json())
-                .then(data => {
-                    if (data.default_model) {
-                        const s = document.getElementById('llmSelect');
-                        if (s) s.value = data.default_model;
-                    }
-                })
-                .catch(err => console.error('Failed to fetch default model:', err));
-
-            // Navigate to the section in the URL hash, or default to section2
-            const hash = window.location.hash.substring(1);
-            showSection(hash && sections[hash] ? hash : 'section2');
-        });
-
+      // =========================================================
+      // SIDEBAR COLLAPSE
+      // =========================================================
+
+      (function () {
+          const sidebar     = document.querySelector('.left-frame');
+          const toggleBtn   = document.getElementById('sidebarToggle');
+
+          function setCollapsed(collapsed) {
+              sidebar.classList.toggle('collapsed', collapsed);
+              toggleBtn.textContent = collapsed ? '›' : '‹';
+              toggleBtn.title       = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+              localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+          }
+
+          toggleBtn.addEventListener('click', () => setCollapsed(!sidebar.classList.contains('collapsed')));
+
+          if (localStorage.getItem('sidebarCollapsed') === '1') setCollapsed(true);
+      })();
+
+      // =========================================================
+      // SECTION MANAGEMENT
+      // =========================================================
+
+      // Auto-discover sections and buttons from the DOM instead of
+      // maintaining two manually-typed lists.
+      const sections = {};
+      const buttons  = {};
+
+      document.querySelectorAll('.section-content').forEach(el => {
+          sections[el.id] = el;
+      });
+      document.querySelectorAll('[id^="btn-section"]').forEach(el => {
+          const key = el.id.replace('btn-', '');
+          buttons[key] = el;
+      });
+
+      // Per-section callbacks fired whenever that section becomes visible.
+      // To add a new hook just drop a key/function here — no other code changes needed.
+      const sectionOnShow = {
+          section3: () => loadRunFolders(),
+          section9: () => loadRunLog(),
+      };
+
+      function showSection(sectionId) {
+          Object.keys(sections).forEach(key => {
+              sections[key]?.classList.remove('active');
+              buttons[key]?.classList.remove('active');
+          });
+          if (sections[sectionId]) {
+              sections[sectionId].classList.add('active');
+              buttons[sectionId]?.classList.add('active');
+              history.replaceState(null, '', '#' + sectionId);
+              sectionOnShow[sectionId]?.();
+          }
+      }
+
+      // Wire nav buttons (skip section7 — it only toggles the submenu)
+      Object.keys(buttons).forEach(key => {
+          const btn = buttons[key];
+          if (btn && key !== 'section7') {
+              btn.addEventListener('click', () => showSection(key));
+          }
+      });
+
+      // Info submenu toggle
+      const infoBtn     = document.getElementById('btn-section7');
+      const infoSubmenu = document.getElementById('submenu-info');
+      if (infoBtn && infoSubmenu) {
+          infoBtn.addEventListener('click', function(e) {
+              e.stopPropagation();
+              const expanded = infoSubmenu.classList.contains('show');
+              infoSubmenu.classList.toggle('show', !expanded);
+              infoBtn.classList.toggle('expanded', !expanded);
+          });
+      }
+
+      // =========================================================
+      // TOAST UTILITY
+      // =========================================================
+
+      function showToast(message, success = true) {
+          const toast = document.getElementById('toast');
+          toast.textContent = message;
+          toast.style.backgroundColor = success ? 'var(--success)' : 'var(--danger)';
+          toast.className = 'show';
+          setTimeout(() => { toast.className = ''; }, 3000);
+      }
+
+      // =========================================================
+      // GENERIC AJAX FORM HELPER
+      // Eliminates the six nearly-identical fetch/toast/reload blocks.
+      // Usage: apiForm(selector, { redirectSection })
+      // =========================================================
+
+      function apiForm(selector, { redirectSection, onSuccess } = {}) {
+          document.querySelectorAll(selector).forEach(form => {
+              form.addEventListener('submit', function(e) {
+                  e.preventDefault();
+                  fetch(this.action, { method: 'POST', body: new FormData(this) })
+                      .then(r => r.json())
+                      .then(data => {
+                          if (data.success) {
+                              showToast(`✅ ${data.message}`);
+                              if (onSuccess) onSuccess(data);
+                              if (redirectSection) {
+                                  setTimeout(() => {
+                                      window.location.hash = redirectSection;
+                                      window.location.reload();
+                                  }, 900);
+                              }
+                          } else {
+                              showToast(`⚠ ${data.message || 'Operation failed'}`, false);
+                          }
+                      })
+                      .catch(() => showToast('⚠ Error connecting to server', false));
+              });
+          });
+      }
+
+      // Wire all standard CRUD forms with one line each
+      apiForm('form[action="/add_sharepoint"]',    { redirectSection: 'section2' });
+      apiForm('form[action="/remove_sharepoint"]', { redirectSection: 'section2' });
+      apiForm('form[action="/add_local"]',         { redirectSection: 'section5' });
+      apiForm('form[action="/remove_local"]',      { redirectSection: 'section5' });
+      apiForm('form[action="/add_google"]',        { redirectSection: 'section6' });
+      apiForm('form[action="/remove_google"]',     { redirectSection: 'section6' });
+
+      // =========================================================
+      // JIRA FORM (JSON body, not FormData)
+      // =========================================================
+
+      const jiraForm = document.querySelector('#section1 form.left-form');
+      if (jiraForm) {
+          jiraForm.addEventListener('submit', function(e) {
+              e.preventDefault();
+              fetch('/save_jira', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                      jira_url:      this.querySelector('input[name="jira_url"]').value,
+                      jira_user:     this.querySelector('input[name="jira_user"]').value,
+                      jira_token:    this.querySelector('input[name="jira_token"]').value,
+                      jira_password: this.querySelector('input[name="jira_password"]').value,
+                  })
+              })
+              .then(r => r.json())
+              .then(data => {
+                  data.success
+                      ? showToast('✅ Jira settings saved')
+                      : showToast('⚠ Failed to save Jira settings', false);
+              })
+              .catch(() => showToast('⚠ Error connecting to server', false));
+          });
+      }
+
+      // =========================================================
+      // LLM FORM
+      // =========================================================
+
+      const llmSelect        = document.getElementById('llmSelect');
+      const openaiTokenField = document.getElementById('openaiTokenField');
+
+      function toggleTokenField() {
+          if (!llmSelect) return;
+          openaiTokenField.style.display = llmSelect.value === 'OpenAI' ? 'flex' : 'none';
+      }
+
+      if (llmSelect) {
+          toggleTokenField();
+          llmSelect.addEventListener('change', toggleTokenField);
+      }
+
+      const llmForm = document.getElementById('llmForm');
+      if (llmForm) {
+          llmForm.addEventListener('submit', function(e) {
+              e.preventDefault();
+              const selectedModel = llmSelect.value;
+              const openaiToken   = document.querySelector('input[name="openai_token"]')?.value || '';
+              fetch('/setmodel', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ llm_model: selectedModel, openai_token: openaiToken })
+              })
+              .then(res => {
+                  if (res.ok) {
+                      showToast(`✅ Saved LLM model: ${selectedModel}`);
+                      setTimeout(() => { window.location.hash = 'section4'; window.location.reload(); }, 900);
+                  } else {
+                      showToast('⚠ Failed to save settings', false);
+                  }
+              })
+              .catch(() => showToast('⚠ Error connecting to server', false));
+          });
+      }
+
+      // =========================================================
+      // LOGIN POPUPS
+      // Both message listeners are merged into one handler.
+      // =========================================================
+
+      let lastLoginBtn       = null;
+      let lastGoogleLoginBtn = null;
+
+      function openLoginPopup(btn) {
+          lastLoginBtn = btn;
+          const popup = window.open('/login', 'LoginWindow', 'width=600,height=700');
+          if (!popup) alert('Please allow popups for this site.');
+      }
+
+      function openGoogleLoginPopup(btn) {
+          lastGoogleLoginBtn = btn;
+          const popup = window.open('/google/login', 'GoogleLoginWindow', 'width=600,height=700');
+          if (!popup) alert('Please allow popups for this site.');
+      }
+
+      window.addEventListener('message', function(e) {
+          if (e.data === 'login-success'        && lastLoginBtn)       location.reload();
+          if (e.data === 'google-login-success' && lastGoogleLoginBtn) location.reload();
+      });
+
+      // =========================================================
+      // SCHEDULE MODAL
+      // =========================================================
+
+      const scheduleModal    = document.getElementById('scheduleModal');
+      const scheduleTime     = document.getElementById('scheduleTime');
+      const scheduleInterval = document.getElementById('scheduleInterval');
+      const modeCheckboxes   = document.querySelectorAll('.scheduleMode');
+      const scheduleData     = {{ schedule_dict | tojson | safe }} || {};
+
+      function enforceMutualExclusivity() {
+          const timeVal     = scheduleTime.value.trim();
+          const intervalVal = scheduleInterval.value.trim();
+          scheduleTime.disabled     = !!intervalVal;
+          scheduleInterval.disabled = !!timeVal;
+          modeCheckboxes.forEach(cb => cb.disabled = !!intervalVal);
+          document.getElementById('scheduleSubmit').disabled = !(timeVal || intervalVal);
+      }
+
+      if (scheduleTime)     scheduleTime.addEventListener('input', enforceMutualExclusivity);
+      if (scheduleInterval) scheduleInterval.addEventListener('input', enforceMutualExclusivity);
+
+      function openSchedule(filename) {
+          const sched = scheduleData[filename];
+          document.getElementById('scheduleFilename').value  = filename;
+          document.getElementById('scheduleTime').value      = sched?.time     || '';
+          document.getElementById('scheduleInterval').value  = sched?.interval || '';
+
+          document.querySelectorAll("input[name='mode']").forEach(r => r.checked = false);
+          if (sched?.mode) {
+              const el = document.querySelector(`input[name='mode'][value='${sched.mode}']`);
+              if (el) el.checked = true;
+          }
+
+          const weeklyDays = document.getElementById('weeklyDays');
+          weeklyDays.style.display = sched?.mode?.toLowerCase() === 'weekly' ? 'grid' : 'none';
+
+          document.querySelectorAll('#weeklyDays input[type=checkbox]').forEach(cb => cb.checked = false);
+          sched?.days?.forEach(day => {
+              const cb = document.querySelector(`#weeklyDays input[value='${day}']`);
+              if (cb) cb.checked = true;
+          });
+
+          scheduleModal.style.display = 'block';
+          enforceMutualExclusivity();
+      }
+
+      // Close modal on X or backdrop click
+      document.querySelector('.close').onclick = () => scheduleModal.style.display = 'none';
+      window.onclick = e => { if (e.target === scheduleModal) scheduleModal.style.display = 'none'; };
+
+      // Schedule form submit
+      document.getElementById('scheduleForm').addEventListener('submit', function(e) {
+          e.preventDefault();
+          const time     = scheduleTime.value.trim();
+          const interval = scheduleInterval.value.trim();
+          if (!time && !interval) { showToast('⚠ Enter time or interval', false); return; }
+
+          const formData     = new FormData(this);
+          let selectedMode   = '';
+          document.querySelectorAll("input[name='mode']").forEach(r => { if (r.checked) selectedMode = r.value; });
+          formData.append('mode', selectedMode);
+
+          fetch(this.action, { method: 'POST', body: formData })
+              .then(res => {
+                  if (res.ok) {
+                      showToast('✅ Schedule saved successfully');
+                      scheduleModal.style.display = 'none';
+                      setTimeout(() => location.reload(), 800);
+                  } else {
+                      showToast('⚠ Failed to save schedule', false);
+                  }
+              })
+              .catch(() => showToast('⚠ Error connecting to server', false));
+      });
+
+      // Clear schedule button
+      document.getElementById('clearScheduleBtn').addEventListener('click', function() {
+          const filename = document.getElementById('scheduleFilename').value;
+          if (!filename) return;
+          fetch('/schedule/clear', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filename })
+          })
+          .then(r => r.json())
+          .then(data => {
+              if (data.success) {
+                  showToast('✅ Schedule cleared');
+                  scheduleModal.style.display = 'none';
+                  setTimeout(() => location.reload(), 800);
+              } else {
+                  showToast('⚠ Failed to clear schedule', false);
+              }
+          })
+          .catch(() => showToast('⚠ Error connecting to server', false));
+      });
+
+      // Radio mutual exclusivity + weekly days visibility
+      modeCheckboxes.forEach(cb => {
+          cb.addEventListener('change', function() {
+              if (this.checked) modeCheckboxes.forEach(o => { if (o !== this) o.checked = false; });
+          });
+      });
+
+      document.querySelectorAll("input[name='mode']").forEach(radio => {
+          radio.addEventListener('change', function() {
+              document.getElementById('weeklyDays').style.display =
+                  this.value.toLowerCase() === 'weekly' ? 'grid' : 'none';
+          });
+      });
+
+      flatpickr('#scheduleTime', { enableTime: true, noCalendar: true, dateFormat: 'H:i', time_24hr: true });
+
+      // =========================================================
+      // CONTACT FORM (Section 8)
+      // =========================================================
+
+      const contactForm = document.getElementById('contactForm');
+      if (contactForm) {
+          contactForm.addEventListener('submit', function(e) {
+              e.preventDefault();
+              const name    = contactForm.querySelector('input[name="contactus"]').value.trim();
+              const email   = contactForm.querySelector('input[name="feedback_email"]').value.trim();
+              const message = contactForm.querySelector('textarea[name="feedback_message"]').value.trim();
+              const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+              if (!name)               { showToast('⚠ Please enter your name.', false);          return; }
+              if (!email)              { showToast('⚠ Please enter your email.', false);         return; }
+              if (!emailRe.test(email)){ showToast('⚠ Please enter a valid email.', false);      return; }
+              if (!message)            { showToast('⚠ Please enter a message.', false);          return; }
+
+              fetch('/contactus', { method: 'POST', body: new FormData(contactForm) })
+                  .then(r => r.json())
+                  .then(() => { showToast('✅ Message sent successfully!'); contactForm.reset(); })
+                  .catch(() => showToast('⚠ Failed to send message', false));
+          });
+      }
+
+      // =========================================================
+      // TASK QUEUE MANAGEMENT
+      // =========================================================
+
+      const activeTasks = new Map();
+      let globalPollInterval = null;
+
+      function formatTime(dateString) {
+          if (!dateString) return '--:--:--';
+          return new Date(dateString).toLocaleTimeString('en-US', { hour12: false });
+      }
+
+      function getShortFilename(url) {
+          const parts = url.split('/');
+          return parts[parts.length - 1] || url.substring(0, 50);
+      }
+
+      function updateTaskDisplay() {
+          const taskQueueDiv = document.getElementById('taskQueueStatus');
+          const taskListDiv  = document.getElementById('taskList');
+          if (activeTasks.size === 0) { taskQueueDiv.style.display = 'none'; return; }
+
+          taskQueueDiv.style.display = 'block';
+          const statusIcons = { pending: '⏳', running: '🔄', completed: '✅', failed: '❌' };
+          let html = '';
+          activeTasks.forEach((task, taskId) => {
+              const shortFilename = task.filename
+              ? (task.sheet ? `${task.filename}#${task.sheet}` : task.filename)
+              : getShortFilename(task.fileUrl);
+              const statusClass   = task.status.toLowerCase();
+              const statusIcon    = statusIcons[statusClass] || '•';
+              html += `
+                  <div class="task-item ${statusClass}" data-task-id="${taskId}">
+                      <div class="task-info">
+                          <div class="task-filename">${statusIcon} ${shortFilename}</div>
+                          <div class="task-times">
+                              Created: ${formatTime(task.created_at)} |
+                              Started: ${formatTime(task.started_at)} |
+                              Completed: ${formatTime(task.completed_at)}
+                          </div>
+                          ${task.error ? `<div style="color:var(--danger);font-size:11px;margin-top:4px;">Error: ${task.error}</div>` : ''}
+                      </div>
+                      <span class="task-status-badge status-${statusClass}">${task.status}</span>
+                  </div>`;
+          });
+          taskListDiv.innerHTML = html;
+      }
+
+      function removeCompletedTask(taskId) {
+          const task = activeTasks.get(taskId);
+          if (task && ['completed', 'failed', 'SUCCESS'].includes(task.status)) {
+              console.log(`Removing completed task ${taskId} from display and tracking`);
+              activeTasks.delete(taskId);
+              updateTaskDisplay();
+          }
+      }
+
+      function clearAllTasks() {
+          activeTasks.clear();
+          updateTaskDisplay();
+      }
+
+      async function pollAllTasks() {
+          try {
+              const data = await fetch('/tasks/status').then(r => r.json());
+              if (!data.success) {
+                  console.error('Error fetching task status:', data.message);
+                  return;
+              }
+              data.tasks.forEach(task => {
+                  if (!activeTasks.has(task.task_id)) {
+                      console.log(`Task ${task.task_id} is not in activeTasks`);
+                      return;
+                  }
+                  console.log(`Updating task ${task.task_id}: status=${task.status}, progress=${task.progress}%`);
+                  const local = activeTasks.get(task.task_id);
+                  Object.assign(local, {
+                      status: task.status, started_at: task.started_at,
+                      completed_at: task.completed_at, progress: task.progress, error: task.error
+                  });
+                  if (['SUCCESS', 'completed', 'failed'].includes(task.status) && !local.removeScheduled) {
+                      local.removeScheduled = true;
+                      setTimeout(() => removeCompletedTask(task.task_id), 60000);
+                      console.log(`Scheduled removal of task ${task.task_id} in 60 seconds`);
+                  }
+              });
+              updateTaskDisplay();
+          } catch (err) { console.error('Error polling tasks:', err); }
+      }
+
+      function startGlobalPolling() {
+          if (globalPollInterval) return;
+          globalPollInterval = setInterval(() => {
+              if (activeTasks.size > 0) {
+                  pollAllTasks();
+              } else {
+                  clearInterval(globalPollInterval);
+                  globalPollInterval = null;
+              }
+          }, 3000);
+      }
+
+      async function handleResync(fileUrl, filename, sheet, event) {
+          if (event) event.preventDefault();
+          try {
+              const formData = new FormData();
+              formData.append('resync_bar', fileUrl);
+              const data = await fetch('/resync_sharepoint', { method: 'POST', body: formData }).then(r => r.json());
+              if (!data.success) { showToast('Failed to start resync: ' + data.message, false); return; }
+
+              activeTasks.set(data.task_id, {
+                  taskId: data.task_id, fileUrl, filename, sheet,
+                  status: 'pending', created_at: new Date().toISOString(),
+                  started_at: null, completed_at: null, progress: 0,
+                  error: null, removeScheduled: false
+              });
+              updateTaskDisplay();
+              startGlobalPolling();
+              showToast(`✅ Resync queued for ${getShortFilename(fileUrl)}`);
+          } catch (err) {
+              console.error('Resync error:', err);
+              showToast('Error starting resync: ' + err.message, false);
+          }
+      }
+
+      async function handleTeamsResync(event) {
+          if (event) event.preventDefault();
+          const btn = document.getElementById('teamsResyncBtn');
+          const resultEl = document.getElementById('teamsResyncResult');
+          btn.disabled = true;
+          btn.textContent = 'Syncing…';
+          resultEl.textContent = '';
+          try {
+              const data = await fetch('/sync_teams', { method: 'POST' }).then(r => r.json());
+              if (!data.success) {
+                  showToast('Teams sync failed: ' + data.message, false);
+                  resultEl.textContent = 'Error: ' + data.message;
+              } else {
+                  showToast('✅ Teams sync complete');
+                  resultEl.textContent = `Done — ${data.new_messages} new message(s) across ${data.partitions_updated} ${data.partition_by} file(s). ${data.skipped_chats} chat(s) skipped (${data.total_chats} total).`;
+              }
+          } catch (err) {
+              showToast('Teams sync error: ' + err.message, false);
+              resultEl.textContent = 'Error: ' + err.message;
+          } finally {
+              btn.disabled = false;
+              btn.textContent = 'Sync Teams Chats';
+          }
+      }
+
+      async function handleResyncDocs(fileUrl, event) {
+          if (event) event.preventDefault();
+          try {
+              const formData = new FormData();
+              formData.append('resync_bar', fileUrl);
+              const data = await fetch('/resync_docslist', { method: 'POST', body: formData }).then(r => r.json());
+              if (!data.success) { showToast('Failed to start resync: ' + data.message, false); return; }
+
+              activeTasks.set(data.task_id, {
+                  taskId: data.task_id, fileUrl,
+                  status: 'pending', created_at: new Date().toISOString(),
+                  started_at: null, completed_at: null, progress: 0,
+                  error: null, removeScheduled: false
+              });
+              updateTaskDisplay();
+              startGlobalPolling();
+              showToast(`✅ Vectorizing queued for ${getShortFilename(fileUrl)}`);
+          } catch (err) {
+              console.error('Resync docs error:', err);
+              showToast('Error starting resync: ' + err.message, false);
+          }
+      }
+
+      // Persist task queue across page reloads via localStorage
+      window.addEventListener('beforeunload', () => {
+          localStorage.setItem('activeTasks', JSON.stringify([...activeTasks]));
+      });
+
+      // =========================================================
+      // LOG VIEWER UTILITY
+      // Shared render helper used by both debug logs and run logs.
+      // =========================================================
+
+      function renderLog(viewerId, text, formatFn) {
+          const viewer     = document.getElementById(viewerId);
+          viewer.innerHTML = text.trim() ? formatFn(text) : '(empty)';
+          viewer.scrollTop = viewer.scrollHeight;
+      }
+
+      // Debug logs (Section 3)
+      async function loadRunFolders() {
+          try {
+              const runs   = await fetch('/logs').then(r => r.json());
+              const select = document.getElementById('logRunSelect');
+              select.innerHTML = '';
+              runs.forEach(run => {
+                  const opt = document.createElement('option');
+                  opt.value = opt.textContent = run;
+                  select.appendChild(opt);
+              });
+              if (runs.length) { select.value = runs[0]; loadLogFile(runs[0]); }
+              else renderLog('logViewer', '', () => 'No logs found.');
+          } catch (err) {
+              document.getElementById('logViewer').textContent = '⚠ Error loading log folders.';
+              console.error(err);
+          }
+      }
+
+      async function loadLogFile(run) {
+          try {
+              const res = await fetch(`/logs/${run}`);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              renderLog('logViewer', await res.text(), raw => raw
+                  .replace(/(ERROR)/g,             '<span class="log-error">$1</span>')
+                  .replace(/(WARNING)/g,            '<span class="log-warning">$1</span>')
+                  .replace(/(--- Running.*?---)/g,  '<span class="log-info">$1</span>')
+                  .replace(/(INFO)/g,               '<span class="log-info">$1</span>')
+                  .replace(/(Traceback \(most recent call last\):[\s\S]*?(?=\n\s*\n|$))/g,
+                            '<span class="traceback-block">$1</span>')
+              );
+          } catch (err) {
+              document.getElementById('logViewer').textContent = '⚠ Failed to load log file.';
+              console.error(err);
+          }
+      }
+
+      document.getElementById('logRunSelect')?.addEventListener('change', e => loadLogFile(e.target.value));
+
+      // Run history logs (Section 9)
+      async function loadRunLog() {
+          try {
+              const username = '{{username}}';
+              const res = await fetch(`/runlog/${username}`);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              renderLog('runLogViewer', await res.text(), raw => raw.replace(
+                  /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/g,
+                  '<span style="color:#4dabf7;">$1</span> <span style="color:#51cf66;">$2</span>'
+              ));
+          } catch (err) {
+              document.getElementById('runLogViewer').textContent = '⚠ Failed to load run log file.';
+              console.error(err);
+          }
+      }
+
+      // =========================================================
+      // GOOGLE DRIVE PICKER
+      // =========================================================
+
+      const CLIENT_ID = '349167135617-aagidlgil4i5tftvkga480jks6nksts4.apps.googleusercontent.com';
+      const API_KEY   = 'AIzaSyBUhS45hA4P5l4Yb-4lOKF6preSlzA-2B4';
+      const SCOPES    = 'https://www.googleapis.com/auth/drive.file';
+      let accessToken;
+      let selectedFile;
+
+      const tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: CLIENT_ID,
+          scope: SCOPES,
+          callback: response => { accessToken = response.access_token; createPicker(); }
+      });
+
+      function onPickFile() { tokenClient.requestAccessToken(); }
+
+      function createPicker() {
+          gapi.load('picker', () => {
+              const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
+                  .setIncludeFolders(true)
+                  .setSelectFolderEnabled(false);
+              new google.picker.PickerBuilder()
+                  .addView(view)
+                  .setOAuthToken(accessToken)
+                  .setDeveloperKey(API_KEY)
+                  .setCallback(pickerCallback)
+                  .build()
+                  .setVisible(true);
+          });
+      }
+
+      function pickerCallback(data) {
+          if (data.action === google.picker.Action.PICKED) {
+              selectedFile = data.docs[0];
+              document.getElementById('sheetDialog').style.display = 'block';
+          }
+      }
+
+      function submitSheetTab() {
+          const sheetTab = document.getElementById('sheetNameInput').value;
+          if (!sheetTab) { showToast('⚠ Sheet tab name is required!', false); return; }
+          fetch('/register_drive_file', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  fileId: selectedFile.id, name: selectedFile.name,
+                  url: selectedFile.url, sheetTab
+              })
+          })
+          .then(r => r.json())
+          .then(res => {
+              if (res.success) {
+                  showToast(`✅ ${res.message || 'File registered successfully'}`);
+                  document.getElementById('sheetDialog').style.display = 'none';
+                  setTimeout(() => { window.location.hash = 'section6'; window.location.reload(); }, 900);
+              } else {
+                  showToast(`⚠ ${res.message || 'Failed to register file'}`, false);
+              }
+          })
+          .catch(err => { console.error('Error:', err); showToast('⚠ Error connecting to server', false); });
+      }
+
+      // =========================================================
+      // SINGLE DOMContentLoaded — all initialisation in one place
+      // =========================================================
+
+      window.addEventListener('DOMContentLoaded', () => {
+          // Restore persisted task queue
+          const saved = JSON.parse(localStorage.getItem('activeTasks') || '[]');
+          saved.forEach(([id, task]) => activeTasks.set(id, task));
+          updateTaskDisplay();
+          startGlobalPolling();
+
+          // Fetch and apply the current LLM model selection
+          fetch('/getmodel')
+              .then(r => r.json())
+              .then(data => {
+                  if (data.default_model) {
+                      const s = document.getElementById('llmSelect');
+                      if (s) s.value = data.default_model;
+                  }
+              })
+              .catch(err => console.error('Failed to fetch default model:', err));
+
+          // Navigate to the section in the URL hash, or default to section2
+          const hash = window.location.hash.substring(1);
+          showSection(hash && sections[hash] ? hash : 'section1');
+      });
     </script>
-</body>
+  </body>
 </html>
