@@ -603,7 +603,7 @@ def checksum_sha256(content):
 
 #from celery import shared_task
 from refresh import resync
-from my_utils import user_config_file
+from my_utils import user_config_file, clean_sharepoint_url
 
 
 def _update_last_resync(file_url, userlogin):
@@ -618,7 +618,8 @@ def _update_last_resync(file_url, userlogin):
                 entries = json.load(f)
             updated = False
             for entry in entries:
-                if entry.get("location") == file_url:
+                stored = entry.get("location", "")
+                if stored == file_url or clean_sharepoint_url(stored) == file_url:
                     entry["last_resync"] = now
                     updated = True
             if updated:
