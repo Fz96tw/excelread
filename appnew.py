@@ -21,6 +21,7 @@ from flask import Flask, request, g
 from datetime import datetime
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Allow HTTP for local dev
+os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'  # Allow Google to return a superset of requested scopes
 
 from flask_cors import CORS
 
@@ -692,7 +693,6 @@ def google_login():
     flow = get_google_flow(userlogin, redirectpath)
     auth_url, state = flow.authorization_url(
         access_type="offline",
-        include_granted_scopes="true",
         prompt="consent"
     )
     session["google_oauth_state"] = state
@@ -925,7 +925,7 @@ if "user_auth" in AUTH:
     CLIENT_SECRET = os.environ["CLIENT_SECRET2"] # only needed for app-only auth. Not used for delegated user auth.
     TENANT_ID = os.environ["TENANT_ID"]
     # Do NOT include reserved scopes here — MSAL adds them automatically
-    SCOPES = ["User.Read","Files.ReadWrite.All", "Sites.ReadWrite.All", "Chat.Read"]
+    SCOPES = ["User.Read", "Files.ReadWrite.All", "Sites.Read.All", "Chat.Read"]
     #AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
     AUTHORITY = "https://login.microsoftonline.com/common"   # to allow users from any tenant to authorize my app
     print (f"Tenant id: {TENANT_ID}")
@@ -1312,7 +1312,7 @@ def index():
         _token_cache_path = user_config_file(userlogin, "token_cache.json")
         if not os.path.exists(_token_cache_path):
             print(f"No Azure token cache found for {userlogin}, skipping MSAL token refresh")
-            session.setdefault("is_logged_in", False)
+            session["is_logged_in"] = False
         else:
             print(f"Attempting to acquire token silently for {userlogin}...")
             cache = load_cache(userlogin)
@@ -1601,10 +1601,9 @@ def logout_sharepoint():
     if os.path.exists(token_file):
         os.remove(token_file)
         print(f"Deleted token file: {token_file}")
-        #logged_in = False
-        session["is_logged_in"] = False
     else:
         print(f"No token file {token_file} found for user={userlogin}")
+    session["is_logged_in"] = False
   
     # Microsoft logout endpoint (kills AAD session cookies)
     ms_logout_url = "https://login.microsoftonline.com/common/oauth2/v2.0/logout"
@@ -1968,15 +1967,22 @@ def get_task_status():
 
         task_info = {
             "task_id": task_id,
-            "status": state
+            "status": state,
+            "started_at": None,
+            "completed_at": None,
         }
 
         if state == "SUCCESS":
-            task_info["result"] = result.result
+            task_result = result.result or {}
+            task_info["result"] = task_result
+            task_info["started_at"] = task_result.get("started_at") if isinstance(task_result, dict) else None
+            task_info["completed_at"] = task_result.get("completed_at") if isinstance(task_result, dict) else None
             status["success"] += 1
 
         elif state == "FAILURE":
             task_info["error"] = str(result.info)
+            if result.date_done:
+                task_info["completed_at"] = result.date_done.isoformat()
             status["failure"] += 1
             metrics_resync_errors += 1    # ← add this here to increment error counter for metrics
 
@@ -1984,6 +1990,8 @@ def get_task_status():
             status["pending"] += 1
 
         elif state == "STARTED":
+            if isinstance(result.info, dict):
+                task_info["started_at"] = result.info.get("started_at")
             status["running"] += 1
             state = "RUNNING"  # normalize state name for frontend
             task_info["status"] = state

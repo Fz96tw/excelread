@@ -111,7 +111,7 @@ if auth_user and userlogin:
     delegated_auth = True
     CLIENT_ID = os.environ["CLIENT_ID2"]
     CLIENT_SECRET = os.environ["CLIENT_SECRET2"]
-    SCOPES = ["User.Read", "Files.ReadWrite.All", "Sites.ReadWrite.All"]
+    SCOPES = ["User.Read", "Files.ReadWrite.All", "Sites.Read.All"]
     AUTHORITY = "https://login.microsoftonline.com/common"
 else:
     print("Using application authorization")

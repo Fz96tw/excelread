@@ -12,9 +12,8 @@ GOOGLE_CLIENT_SECRETS_FILE = os.path.join(_CONFIG_DIR, "google_credentials.json"
 #CREDENTIALS_FILE = './config/google_credentials.json'
 
 SCOPES = [
-    'https://www.googleapis.com/auth/spreadsheets',           # Full Sheets access
-    'https://www.googleapis.com/auth/drive.metadata.readonly', # Can read file metadata
-    'https://www.googleapis.com/auth/drive.file',                  # file only access
+    'https://www.googleapis.com/auth/drive.file',             # files opened/created by this app
+    'https://www.googleapis.com/auth/drive.metadata.readonly', # read file metadata
     'https://www.googleapis.com/auth/userinfo.email',
     'openid'
 ]
