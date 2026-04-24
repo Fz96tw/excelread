@@ -857,7 +857,7 @@
         background: var(--bg-white);
         border-bottom: 1px solid var(--border);
         box-shadow: 0 1px 4px rgb(0 0 0 / 0.06);
-        padding: 10px 32px;
+        padding: 15px 32px;
         display: flex;
         align-items: center;
         gap: 20px;
@@ -1287,7 +1287,7 @@
                           text-decoration: none;
                           font-weight: 500;
                         "
-                        >{{ val.location.split('/')|last|replace('%20', ' ') }}</a
+                        >{% set _raw = val.location.split('/')|last|replace('%20', ' ') %}{% if '#' in _raw %}{{ _raw.split('#')[0] }} [{{ _raw.split('#')[1] }}]{% else %}{{ _raw }}{% endif %}</a
                       >
                       <br /><small style="color: var(--text-light); word-break: break-all;"
                         >{{ val.location }}</small
@@ -1756,7 +1756,7 @@
                           text-decoration: none;
                           font-weight: 500;
                         "
-                        >{{ val.filename }} [{{ val.sheet }}]</
+                        >{{ val.filename }} [{{ val.sheet }}]</a
                       >
                       <br /><small style="color: var(--text-light); word-break: break-all;"
                         >{{ val.location }}</small
@@ -2503,7 +2503,9 @@
 
       function getShortFilename(url) {
           const parts = url.split('/');
-          return parts[parts.length - 1] || url.substring(0, 50);
+          const raw = (parts[parts.length - 1] || url.substring(0, 50)).replace(/%20/g, ' ');
+          const hash = raw.indexOf('#');
+          return hash >= 0 ? `${raw.slice(0, hash)} [${raw.slice(hash + 1)}]` : raw;
       }
 
       function updateTaskDisplay() {
@@ -2524,8 +2526,9 @@
                   <div class="task-item ${statusClass}" data-task-id="${taskId}">
                       <div class="task-info">
                           <div class="task-filename">${statusIcon} ${shortFilename}</div>
+                          ${task.fileUrl ? `<div style="font-size:11px;color:var(--text-light);word-break:break-all;margin-top:2px;">${task.fileUrl}</div>` : ''}
                           <div class="task-times">
-                              Created: ${formatTime(task.created_at)} |
+                              Queued: ${formatTime(task.created_at)} |
                               Started: ${formatTime(task.started_at)} |
                               Completed: ${formatTime(task.completed_at)}
                           </div>
