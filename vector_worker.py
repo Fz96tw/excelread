@@ -633,6 +633,8 @@ def _update_last_resync(file_url, userlogin):
 @app.task(bind=True, queue="resync_queue")
 def resync_task_worker(self, file_url, userlogin, delegated_auth):
     print(f"[Task Worker] Starting resync for {file_url}, user: {userlogin}")
+    started_at = datetime.now().isoformat()
+    self.update_state(state="STARTED", meta={"started_at": started_at})
 
     try:
         result = resync(file_url, userlogin, delegated_auth)
@@ -642,6 +644,8 @@ def resync_task_worker(self, file_url, userlogin, delegated_auth):
         return {
             "status": "success",
             "file": file_url,
+            "started_at": started_at,
+            "completed_at": datetime.now().isoformat(),
             "result": result
         }
 
@@ -650,10 +654,12 @@ def resync_task_worker(self, file_url, userlogin, delegated_auth):
         raise
 
 
-@app.task(queue="url_processing_queue")
-def process_url(user_id, url, force=False):
+@app.task(bind=True, queue="url_processing_queue")
+def process_url(self, user_id, url, force=False):
     """Process a URL for a specific user: fetch, check changes, and vectorize."""
     logger.info(f"[{user_id}] Processing URL: {url}")
+    started_at = datetime.now().isoformat()
+    self.update_state(state="STARTED", meta={"started_at": started_at})
     update_url_state(user_id, url, status="DOWNLOADING")
 
     try:
@@ -705,7 +711,7 @@ def process_url(user_id, url, force=False):
             ):
                 logger.info(f"[{user_id}] Content unchanged, skipping vectorization: {url}")
                 update_url_state(user_id, url, status="UNCHANGED")
-                return
+                return {"started_at": started_at, "completed_at": datetime.now().isoformat(), "status": "unchanged"}
         else:
             logger.info(f"[{user_id}] No previous state found, proceeding with vectorization")
         
@@ -741,6 +747,7 @@ def process_url(user_id, url, force=False):
             last_checksum=checksum,
             num_chunks=num_chunks,
         )
+        return {"started_at": started_at, "completed_at": datetime.now().isoformat(), "status": "done", "num_chunks": num_chunks}
 
     except Exception as e:
         logger.error(f"[{user_id}] Error processing {url}: {str(e)}")

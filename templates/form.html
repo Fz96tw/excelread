@@ -2501,6 +2501,14 @@
           return new Date(dateString).toLocaleTimeString('en-US', { hour12: false });
       }
 
+      function formatElapsed(startStr, endStr) {
+          if (!startStr || !endStr) return null;
+          const secs = Math.round((new Date(endStr) - new Date(startStr)) / 1000);
+          if (secs < 60) return `${secs}s`;
+          const m = Math.floor(secs / 60), s = secs % 60;
+          return s > 0 ? `${m}m ${s}s` : `${m}m`;
+      }
+
       function getShortFilename(url) {
           const parts = url.split('/');
           const raw = (parts[parts.length - 1] || url.substring(0, 50)).replace(/%20/g, ' ');
@@ -2531,6 +2539,7 @@
                               Queued: ${formatTime(task.created_at)} |
                               Started: ${formatTime(task.started_at)} |
                               Completed: ${formatTime(task.completed_at)}
+                              ${formatElapsed(task.started_at, task.completed_at) ? `| Elapsed: ${formatElapsed(task.started_at, task.completed_at)}` : ''}
                           </div>
                           ${task.error ? `<div style="color:var(--danger);font-size:11px;margin-top:4px;">Error: ${task.error}</div>` : ''}
                       </div>
