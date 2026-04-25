@@ -411,7 +411,7 @@ def save_users(users):
 
 
 class User(UserMixin):
-    def __init__(self, id, username, password, first_name, last_name, date_registered, email=None):
+    def __init__(self, id, username, password, first_name, last_name, date_registered, email=None, auth_provider=None, **kwargs):
         self.id = id
         self.username = username
         self.password = password  # NOTE: hash in real life
@@ -419,6 +419,7 @@ class User(UserMixin):
         self.last_name = last_name
         self.date_registered = date_registered
         self.email = email
+        self.auth_provider = auth_provider
     
 @login_manager.user_loader
 def load_user(user_id):
@@ -672,9 +673,26 @@ from google_oauth_appnew import (
     save_google_token,
     logout_google,
     is_google_logged_in,
+    SCOPES_DRIVE_CONNECT,
 )
 
 from googleapiclient.discovery import build
+
+@app.route("/auth/google")
+def auth_google():
+    """Google Sign-In as the primary app login — no prior login required."""
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
+
+    global callback_host
+    redirectpath = callback_host or "https://trinket.cloudcurio.com"
+
+    flow = get_google_flow("__login__", redirectpath)
+    auth_url, state = flow.authorization_url(access_type="offline", prompt="consent")
+    session["google_oauth_state"] = state
+    session["google_auth_flow"] = "login"
+    return redirect(auth_url)
+
 
 @app.route("/google/login")
 def google_login():
@@ -689,48 +707,105 @@ def google_login():
 
     userlogin = current_user.username
 
-    print(f"/google/login about to call get_googe_flow({userlogin},{redirectpath})")
-    flow = get_google_flow(userlogin, redirectpath)
+    print(f"/google/login about to call get_google_flow({userlogin},{redirectpath})")
+    flow = get_google_flow(userlogin, redirectpath, scopes=SCOPES_DRIVE_CONNECT)
     auth_url, state = flow.authorization_url(
         access_type="offline",
         prompt="consent"
     )
     session["google_oauth_state"] = state
     session["google_user"] = userlogin
+    session["google_auth_flow"] = "drive"   # prevent stale "login" flag from /auth/google
     print(f"🌐 Redirecting {userlogin} to Google OAuth...")
     return redirect(auth_url)
 
 
 @app.route("/google/callback")
 def google_callback():
-    userlogin = session.get("google_user")
-    if not userlogin:
-        return "Missing session user", 400
-    
     global callback_host
-    if callback_host:
-        redirectpath = f"{callback_host}"
+    redirectpath = callback_host or "https://trinket.cloudcurio.com"
+
+    auth_flow = session.pop("google_auth_flow", "drive")
+
+    if auth_flow == "login":
+        # ── App sign-in via Google ──────────────────────────────────────────
+        flow = get_google_flow("__login__", redirectpath)
+        flow.fetch_token(authorization_response=request.url)
+        creds = flow.credentials
+
+        svc = build("oauth2", "v2", credentials=creds)
+        info = svc.userinfo().get().execute()
+        email = info.get("email", "")
+        name = info.get("name", email)
+
+        if not email:
+            return "Could not retrieve email from Google", 400
+
+        users = load_users()
+        existing = next(
+            (u for u in users if u.get("email") == email or u.get("username") == email),
+            None
+        )
+        if not existing:
+            parts = name.split(" ", 1)
+            existing = {
+                "id": str(len(users) + 1),
+                "username": email,
+                "password": None,
+                "first_name": parts[0],
+                "last_name": parts[1] if len(parts) > 1 else "",
+                "email": email,
+                "date_registered": datetime.utcnow().isoformat(),
+                "auth_provider": "google",
+            }
+            users.append(existing)
+            save_users(users)
+            print(f"✅ Auto-created Google-auth user: {email}")
+        elif not existing.get("email"):
+            existing["email"] = email
+            save_users(users)
+            print(f"✅ Backfilled email for existing user: {existing['username']}")
+
+        login_user(User(**existing))
+        print(f"✅ Google sign-in: logged in as {email}")
+        return redirect(url_for("index"))
+
     else:
-        redirectpath = "https://trinket.cloudcurio.com"
+        # ── Drive connection for already-logged-in user ─────────────────────
+        userlogin = session.get("google_user")
+        if not userlogin:
+            return "Missing session user", 400
 
-    print(f"/google/callback called.  userlogin ={userlogin}")
-    flow = get_google_flow(userlogin, redirectpath)
-    flow.fetch_token(authorization_response=request.url)
-    print(f"proceeding after flow.fetch_token()")
+        print(f"/google/callback (drive-connect) userlogin={userlogin}")
+        flow = get_google_flow(userlogin, redirectpath)
+        flow.fetch_token(authorization_response=request.url)
+        save_google_token(flow.credentials, userlogin)
 
-    creds = flow.credentials
-    save_google_token(creds, userlogin)
+        return """
+            <html><body style='font-family:sans-serif;text-align:center;padding:40px;'>
+            <h2>✅ Google Login Successful</h2>
+            <p>You may close this window.</p>
+            <script>
+                try { window.opener && window.opener.postMessage('google-login-success', '*'); } catch(e) {}
+                setTimeout(() => window.close(), 1000);
+            </script>
+            </body></html>
+        """
 
-    return """
-        <html><body style='font-family:sans-serif;text-align:center;padding:40px;'>
-        <h2>✅ Google Login Successful</h2>
-        <p>You may close this window.</p>
-        <script>
-            try { window.opener && window.opener.postMessage('google-login-success', '*'); } catch(e) {}
-            setTimeout(() => window.close(), 1000);
-        </script>
-        </body></html>
-    """
+
+@app.route("/google/access_token")
+@login_required
+def google_access_token():
+    userlogin = current_user.username
+    creds = load_google_token(userlogin)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            from google.auth.transport.requests import Request
+            creds.refresh(Request())
+            save_google_token(creds, userlogin)
+        else:
+            return jsonify({"error": "Not authenticated with Google"}), 401
+    return jsonify({"access_token": creds.token})
 
 
 @app.route("/google/logout")
@@ -2650,6 +2725,8 @@ def sync_teams():
 #--- Google Sheet routes ---
 @app.route("/add_google", methods=["POST"])
 def add_google():
+    # URL-paste disabled: use the Google Drive picker so drive.file scope applies
+    return jsonify({"success": False, "message": "Please use the Google Drive picker to add sheets"}), 400
     new_val = request.form.get('google_value', '').strip()
     userlogin = current_user.username
     print(f"/add_google endpoint called with new_val = {new_val} by {userlogin}")

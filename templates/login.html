@@ -62,13 +62,28 @@
     <!--img src="{{ url_for('static', filename='sprintsenselogo.png') }}" style="width: 200px; margin-right: 20px;" alt="Logo"-->
     
     <!-- Login form -->
-     
+
     <form method="POST" action="{{ url_for('home') }}" style="display: flex; flex-direction: column;">
       <input type="text" name="username" placeholder="Username" required style="padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ccc;">
       <input type="password" name="password" placeholder="Password" required style="padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ccc;">
       <button type="submit" style="padding: 10px; border: none; border-radius: 5px; background-color: #0078d4; color: white; cursor: pointer;">Login</button>
       <p style="text-align: center; margin-top: 15px;">First Time User? <a href="{{ url_for('register') }}">Register</a></p>
     </form>
+
+    <div style="display: flex; align-items: center; margin: 18px 0 6px; width: 100%;">
+      <hr style="flex:1; border:none; border-top:1px solid #ddd;">
+      <span style="margin: 0 10px; color: #999; font-size: 13px;">or</span>
+      <hr style="flex:1; border:none; border-top:1px solid #ddd;">
+    </div>
+
+    <a href="{{ url_for('auth_google') }}" style="
+        display: flex; align-items: center; justify-content: center; gap: 10px;
+        padding: 10px 16px; border: 1px solid #ddd; border-radius: 5px;
+        background: #fff; color: #444; text-decoration: none; font-size: 15px;
+        font-family: Arial, sans-serif; cursor: pointer; width: 100%; box-sizing: border-box;">
+      <img src="{{ url_for('static', filename='googlesheetsicon.png') }}" style="width:20px;height:20px;" alt="Google">
+      Sign in with Google
+    </a>
     
   </div>
 </div>

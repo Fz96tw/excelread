@@ -924,9 +924,9 @@
       }
 
       .status-pill.pill-warn {
-        background: var(--bg-light);
-        border-color: var(--border);
-        color: var(--text-light);
+        background: #fff1f2;
+        border-color: #fecdd3;
+        color: #be123c;
       }
 
       /* Per-section auth action bar (Login / Revoke) */
@@ -960,7 +960,7 @@
       <img src="/static/curiologo.png" alt="Curio" class="top-bar-logo" />
       <div class="top-bar-user">
         <img src="/static/usericon2.png" alt="" />
-        <span class="top-bar-username">{{username}}</span>
+        <span class="top-bar-username">{{current_user.email or username}}</span>
       </div>
       <div class="top-bar-status">
         <span class="status-pill">
@@ -1210,7 +1210,7 @@
                 class="auth-status {% if logged_in %}authorized{% else %}unauthorized{% endif %}"
               >
                 {% if logged_in %}✅ SharePoint: {{auth_username}}{% else %}🔒
-                SharePoint Login Required{% endif %}
+                Not connected to Microsoft 365{% endif %}
               </span>
               {% if logged_in %}
               <form method="POST" action="/logout_sharepoint" style="margin: 0">
@@ -1219,7 +1219,7 @@
                   class="btn-danger"
                   style="padding: 6px 12px; font-size: 13px"
                 >
-                  Revoke
+                  Disconnect
                 </button>
               </form>
               {% else %}
@@ -1228,7 +1228,7 @@
                 onclick="openLoginPopup(this)"
                 style="padding: 6px 12px; font-size: 13px"
               >
-                Login
+                Connect
               </button>
               {% endif %}
             </div>
@@ -1663,7 +1663,7 @@
                 class="auth-status {% if google_logged_in %}authorized{% else %}unauthorized{% endif %}"
               >
                 {% if google_logged_in %}✅ Google Drive: {{google_username}}{%
-                else %}🔒 Google Login Required{% endif %}
+                else %}🔒 No Google Drive Connected{% endif %}
               </span>
               {% if google_logged_in %}
               <form method="GET" action="/google/logout" style="margin: 0">
@@ -1672,7 +1672,7 @@
                   class="btn-danger"
                   style="padding: 6px 12px; font-size: 13px"
                 >
-                  Revoke
+                  Disconnect
                 </button>
               </form>
               {% else %}
@@ -1681,7 +1681,7 @@
                 onclick="openGoogleLoginPopup(this)"
                 style="padding: 6px 12px; font-size: 13px"
               >
-                Login
+                Connect
               </button>
               {% endif %}
             </div>
@@ -1703,7 +1703,6 @@
                         </form-->
 
               <script src="https://apis.google.com/js/api.js"></script>
-              <script src="https://accounts.google.com/gsi/client"></script>
               <button onclick="onPickFile()">Select file...</button>
             </div>
 
@@ -1902,7 +1901,7 @@
                 class="auth-status {% if logged_in %}authorized{% else %}unauthorized{% endif %}"
               >
                 {% if logged_in %}✅ SharePoint: {{auth_username}}{% else %}🔒
-                SharePoint Login Required{% endif %}
+                Not connected to Microsoft 365{% endif %}
               </span>
               {% if logged_in %}
               <form method="POST" action="/logout_sharepoint" style="margin: 0">
@@ -1911,7 +1910,7 @@
                   class="btn-danger"
                   style="padding: 6px 12px; font-size: 13px"
                 >
-                  Revoke
+                  Disconnect
                 </button>
               </form>
               {% else %}
@@ -1920,7 +1919,7 @@
                 onclick="openLoginPopup(this)"
                 style="padding: 6px 12px; font-size: 13px"
               >
-                Login
+                Connect
               </button>
               {% endif %}
             </div>
@@ -2749,19 +2748,20 @@
       // GOOGLE DRIVE PICKER
       // =========================================================
 
-      const CLIENT_ID = '349167135617-aagidlgil4i5tftvkga480jks6nksts4.apps.googleusercontent.com';
-      const API_KEY   = 'AIzaSyBUhS45hA4P5l4Yb-4lOKF6preSlzA-2B4';
-      const SCOPES    = 'https://www.googleapis.com/auth/drive.file';
+      const API_KEY = 'AIzaSyBUhS45hA4P5l4Yb-4lOKF6preSlzA-2B4';
       let accessToken;
       let selectedFile;
 
-      const tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: CLIENT_ID,
-          scope: SCOPES,
-          callback: response => { accessToken = response.access_token; createPicker(); }
-      });
-
-      function onPickFile() { tokenClient.requestAccessToken(); }
+      async function onPickFile() {
+          const resp = await fetch('/google/access_token');
+          if (!resp.ok) {
+              showToast('Please connect to Google Drive before selecting a file', false);
+              return;
+          }
+          const data = await resp.json();
+          accessToken = data.access_token;
+          createPicker();
+      }
 
       function createPicker() {
           gapi.load('picker', () => {
