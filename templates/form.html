@@ -1187,12 +1187,12 @@
                   />
                 </div>
                 <div class="form-row">
-                  <label>Jira Password (if using basic auth)</label>
+                  <label>Wiki Cloud URL</label>
                   <input
                     type="text"
-                    name="jira_password"
-                    value="{{ foo_values.get('jira_password', '') }}"
-                    placeholder="Optional"
+                    name="confluence_url"
+                    value="{{ foo_values.get('confluence_url', '') }}"
+                    placeholder="Same as Jira Cloud URL or specify different URL"
                   />
                 </div>
                 <button type="submit" name="save_foo">
@@ -2268,10 +2268,10 @@
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                      jira_url:      this.querySelector('input[name="jira_url"]').value,
-                      jira_user:     this.querySelector('input[name="jira_user"]').value,
-                      jira_token:    this.querySelector('input[name="jira_token"]').value,
-                      jira_password: this.querySelector('input[name="jira_password"]').value,
+                      jira_url:       this.querySelector('input[name="jira_url"]').value,
+                      jira_user:      this.querySelector('input[name="jira_user"]').value,
+                      jira_token:     this.querySelector('input[name="jira_token"]').value,
+                      confluence_url: this.querySelector('input[name="confluence_url"]').value,
                   })
               })
               .then(r => r.json())

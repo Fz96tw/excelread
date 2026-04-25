@@ -1458,6 +1458,7 @@ def index():
     foo_values["jira_url"] = read_env("JIRA_URL", ENV_PATH_USER)
     foo_values["jira_user"] = read_env("JIRA_EMAIL", ENV_PATH_USER)
     foo_values["jira_token"] = read_env("JIRA_API_TOKEN", ENV_PATH_USER)
+    foo_values["confluence_url"] = read_env("CONFLUENCE_URL", ENV_PATH_USER)
     foo_values["openai_token"] = read_env("OPENAI_API_KEY", ENV_PATH)       # for now keep openai token in system environment. move to user specific later
 
     print(f"Loaded following foo_values from {ENV_PATH}")
@@ -1698,15 +1699,15 @@ def save_jira():
     jira_url = data.get("jira_url", "")
     jira_user = data.get("jira_user", "")
     jira_token = data.get("jira_token", "")
-    jira_password = data.get("jira_password")
+    confluence_url = data.get("confluence_url", "")
 
     userlogin = current_user.username
     ENV_PATH_USER = user_config_file(userlogin, "env")
-    print(f"Saving new .env values {jira_url}, {jira_user}, {jira_token}, {jira_password}")
+    print(f"Saving new .env values jira_url={jira_url}, jira_user={jira_user}, confluence_url={confluence_url}")
     write_env("JIRA_URL", jira_url, ENV_PATH_USER)
     write_env("JIRA_EMAIL", jira_user, ENV_PATH_USER)
     write_env("JIRA_API_TOKEN", jira_token, ENV_PATH_USER)
-    write_env("JIRA_PASSWORD", jira_password, ENV_PATH_USER)
+    write_env("CONFLUENCE_URL", confluence_url, ENV_PATH_USER)
 
     return jsonify({"success": True, "message": "Jira settings updated successfully"})
 
