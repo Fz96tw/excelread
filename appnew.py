@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for,session, se
 import os
 import re
 import json
+import shutil
 import requests
 import msal
 import uuid
@@ -2623,6 +2624,7 @@ def get_google_sheet_filename(creds, url_or_id):
             raise
 
 @app.route("/remove_docslist", methods=["POST"])
+@login_required
 def remove_docslist():
     to_remove = request.form.get('remove_docslist')
     userlogin = current_user.username
@@ -2643,15 +2645,33 @@ def remove_docslist():
         
         # Check if anything was removed
         if len(docslist["docs"]) < original_length:
-            # Save updated list back to disk
-            save_shared_files(json_filename, docslist)
-            print(f"Removed from docslst the entry with new_val={to_remove}")
-            #return jsonify({"success": True, "message": "Google Sheet removed successfully"})
+            try:
+                with open(json_filename, 'w') as f:
+                    json.dump(docslist, f, indent=2)
+                print(f"Removed from docslist the entry with url={to_remove}")
+            except Exception as e:
+                print(f"Error writing {json_filename}: {e}")
+                return jsonify({"success": False, "message": f"Save error: {e}"})
+
+            # Delete the vector directory for this URL
+            safe_url = to_remove.replace("/", "_").replace(":", "_")
+            vector_dir = f"./config/{userlogin}/vectors/{safe_url}"
+            if os.path.exists(vector_dir):
+                shutil.rmtree(vector_dir)
+                print(f"Deleted vector directory: {vector_dir}")
+            else:
+                print(f"No vector directory found at {vector_dir}, skipping")
+
+            # Delete the Redis state record for this URL (DB 2)
+            redis_key = f"user:{userlogin}:url:{to_remove}"
+            deleted = redis_client.delete(redis_key)
+            print(f"Deleted Redis key {redis_key}: {deleted} key(s) removed")
+
             return jsonify({"success": True, "message": "RAG Document removed successfully"})
         else:
-            print(f"{to_remove} not found in docslist, no action taken")
-    
-    return jsonify({"success": False, "message": "RAG Document collection is empty"})
+            print(f"{to_remove} not found in docslist (had {original_length} entries), no action taken")
+
+    return jsonify({"success": False, "message": "RAG Document not found"})
 
 
 @app.route("/resync_docslist", methods=["POST"])

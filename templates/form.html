@@ -1508,9 +1508,9 @@
                       <button
                         type="button"
                         onclick="handleResyncDocs('{{ val.url }}', event)"
-                        title="Resync"
+                        title="Force Vectorization"
                       >
-                        <img src="/static/refreshicon.png" alt="Resync" />
+                        <img src="/static/refreshicon.png" alt="Force Vectorization" />
                       </button>
                       <button
                         type="button"
@@ -1531,20 +1531,12 @@
                       {% endif %}
                     </td>
                     <td>
-                      <form method="POST" action="/remove_docslist">
-                        <input
-                          type="hidden"
-                          name="remove_docslist"
-                          value="{{ val.url }}"
-                        />
-                        <button
-                          type="submit"
-                          onclick="return confirm('Remove {{ val.url }}?')"
-                          style="padding: 4px 8px"
-                        >
-                          ❌
-                        </button>
-                      </form>
+                      <button
+                        onclick="handleRemoveDocs('{{ val.url }}', event)"
+                        style="padding: 4px 8px"
+                      >
+                        ❌
+                      </button>
                     </td>
                   </tr>
                   {% endfor %}
@@ -2670,6 +2662,22 @@
           } catch (err) {
               console.error('Resync docs error:', err);
               showToast('Error starting resync: ' + err.message, false);
+          }
+      }
+
+      async function handleRemoveDocs(fileUrl, event) {
+          if (event) event.preventDefault();
+          if (!confirm(`Remove ${fileUrl}?`)) return;
+          try {
+              const formData = new FormData();
+              formData.append('remove_docslist', fileUrl);
+              const data = await fetch('/remove_docslist', { method: 'POST', body: formData }).then(r => r.json());
+              if (!data.success) { showToast('Failed to remove: ' + data.message, false); return; }
+              showToast(`Removed ${getShortFilename(fileUrl)}`);
+              setTimeout(() => { location.href = '/?_=' + Date.now() + '#section11'; }, 1200);
+          } catch (err) {
+              console.error('Remove docs error:', err);
+              showToast('Error removing document: ' + err.message, false);
           }
       }
 
