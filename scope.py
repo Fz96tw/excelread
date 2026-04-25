@@ -2,6 +2,7 @@
 import pandas as pd
 import sys
 import os
+import shutil
 import yaml
 import re
 import httplib2
@@ -973,42 +974,99 @@ if __name__ == "__main__":
     docs_json_file = f"{CONFIG_DIR}/{userlogin}/docs.json"
     has_new_urls = False  # Track if we added any new URLs
 
+    source_url = file_info['source']
+    source_file = f"{file_info['basename']}.{sheet}"
+
     if os.path.exists(docs_json_file):
         with open(docs_json_file, 'r') as f:
             existing_docs_data = json.load(f)
             existing_docs_list = existing_docs_data.get("docs", []) if existing_docs_data else []
             print(f"Existing docs.json content: {existing_docs_list}")
-        
-        # Extract just the URLs from existing entries for comparison
-        existing_urls = {entry["url"] for entry in existing_docs_list}
-        
+
+        # Migrate any entries that still use the old flat referrer fields
+        for entry in existing_docs_list:
+            if "referrer_url" in entry and "referrers" not in entry:
+                entry["referrers"] = [{
+                    "source_url": entry.pop("referrer_url"),
+                    "source_file": entry.pop("referrer_file", ""),
+                    "added_at": entry.get("added_at", datetime.now().isoformat())
+                }]
+                has_new_urls = True  # mark dirty so migrated data gets written back
+
+        existing_url_map = {entry["url"]: entry for entry in existing_docs_list}
+
         for doc_url in docs_list:
-            if doc_url not in existing_urls:
-                # Create new entry with key-value pairs
+            if doc_url in existing_url_map:
+                entry = existing_url_map[doc_url]
+                referrers = entry.setdefault("referrers", [])
+                # Use (source_url, source_file) as the unique key — different tabs of
+                # the same spreadsheet share the same source_url but differ in source_file.
+                existing_sources = {(r["source_url"], r.get("source_file", "")) for r in referrers}
+                if (source_url, source_file) not in existing_sources:
+                    referrers.append({
+                        "source_url": source_url,
+                        "source_file": source_file,
+                        "added_at": datetime.now().isoformat()
+                    })
+                    has_new_urls = True
+                    print(f"Added new referrer {source_file} to existing doc: {doc_url}")
+                else:
+                    print(f"Doc already exists in docs.json with this referrer, skipping: {doc_url}")
+            else:
                 new_entry = {
                     "url": doc_url,
-                    "added_at": datetime.now().isoformat(),
-                    "referrer_url": f"{file_info['source']}",
-                    "referrer_file": f"{file_info['basename']}.{sheet}",
-                    "embedding_updated_at": None        # will set by vector_worker
+                    "referrers": [{
+                        "source_url": source_url,
+                        "source_file": source_file,
+                        "added_at": datetime.now().isoformat()
+                    }],
+                    "embedding_updated_at": None
                 }
                 existing_docs_list.append(new_entry)
-                has_new_urls = True  # Mark that we added a new URL
+                has_new_urls = True
                 print(f"Adding new doc to docs.json: {doc_url}")
+
+        # Remove this source as a referrer from any URL that is no longer in
+        # the current sheet's <docs> block (i.e. was removed since the last run).
+        current_docs_set = set(docs_list)  # still holds the current run's URLs here
+        for entry in list(existing_docs_list):
+            if entry["url"] in current_docs_set:
+                continue  # still referenced by current sheet, nothing to do
+            referrers = entry.get("referrers", [])
+            # Match by (source_url, source_file) so that removing one tab doesn't
+            # accidentally drop referrers from other tabs of the same spreadsheet.
+            new_referrers = [r for r in referrers
+                             if not (r.get("source_url") == source_url
+                                     and r.get("source_file") == source_file)]
+            if len(new_referrers) == len(referrers):
+                continue  # this sheet wasn't a referrer for this URL, nothing to do
+            has_new_urls = True
+            if new_referrers:
+                entry["referrers"] = new_referrers
+                print(f"Removed stale referrer {source_file} from doc: {entry['url']}")
             else:
-                print(f"Doc already exists in docs.json, skipping: {doc_url}")
-        
+                # Last referrer removed — delete entry and its FAISS index
+                existing_docs_list.remove(entry)
+                safe_url = entry["url"].replace("/", "_").replace(":", "_")
+                vector_dir = os.path.join(CONFIG_DIR, userlogin, "vectors", safe_url)
+                if os.path.exists(vector_dir):
+                    shutil.rmtree(vector_dir)
+                    print(f"Deleted orphaned vector dir: {vector_dir}")
+                print(f"Removed orphaned doc from docs.json: {entry['url']}")
+
         docs_list = existing_docs_list  # update docs_list to include existing + new
     else:
-        # If file doesn't exist, create initial structure with key-value pairs
-        has_new_urls = True  # New file means we have new URLs
+        # If file doesn't exist, create initial structure
+        has_new_urls = True
         docs_list = [
             {
                 "url": url,
-                "added_at": datetime.now().isoformat(),
-                "referrer_url": f"{file_info['source']}",
-                "referrer_file": f"{file_info['basename']}.{sheet}",
-                "embedding_updated_at": None        # will set by vector_worker
+                "referrers": [{
+                    "source_url": source_url,
+                    "source_file": source_file,
+                    "added_at": datetime.now().isoformat()
+                }],
+                "embedding_updated_at": None
             }
             for url in docs_list
         ]
