@@ -895,17 +895,10 @@ if aibrief_cells:
         load_dotenv(dotenv_path=ENV_PATH_USER)
 
         JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
-        JIRA_URL = os.environ.get("JIRA_URL")
-        #JIRA_URL = JIRA_URL.replace("fz96tw","fz96tw1")  # temporary hotfix to switch to new jira site since old one is on free plan and has very limited API rate limits. will remove this hotfix after we switch the site permanently and update the env files.
         JIRA_EMAIL = os.environ.get("JIRA_EMAIL")
-        JIRA_PASSWORD = os.environ.get("JIRA_PASSWORD")
+        # Prefer CONFLUENCE_URL for wiki API calls; fall back to JIRA_URL (same Atlassian base)
+        JIRA_URL = os.environ.get("CONFLUENCE_URL") or os.environ.get("JIRA_URL")
         print(f"load_dotenv({ENV_PATH_USER}) has read JIRA_URL={JIRA_URL} JIRA_EMAIL={JIRA_EMAIL} JIRA_API_TOKEN={JIRA_API_TOKEN}")
-
-        if ("fz96tw" in wiki_link):
-            print("Using hardcoded JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN for fz96tw wiki link")
-            JIRA_URL='https://fz96tw1.atlassian.net'
-            JIRA_EMAIL='fz96tw@gmail.com'
-            #print(f"override to JIRA_URL={JIRA_URL} JIRA_EMAIL={JIRA_EMAIL} JIRA_API_TOKEN={JIRA_API_TOKEN}")
 
         print(f"Ready to Post to wiki page {wiki_link}")
 

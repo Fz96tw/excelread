@@ -125,27 +125,33 @@ def save_metadata(user_id, url, data):
 
 
 def load_user_env(user_id: str) -> Dict[str, str]:
-    """Load environment variables from user's config file."""
-    env_path = os.path.join(CONFIG_DIR, f"env.{user_id}")
+    """Load environment variables from user's per-user config file."""
+    # Primary path: config/<user_id>/env  (written by appnew.py)
+    env_path = os.path.join(CONFIG_DIR, user_id, "env")
+    if not os.path.exists(env_path):
+        # Legacy fallback: config/env.<user_id>
+        env_path = os.path.join(CONFIG_DIR, f"env.{user_id}")
+
     env_vars = {}
-    
     if not os.path.exists(env_path):
         return env_vars
-    
+
     try:
         with open(env_path, 'r') as f:
             for line in f:
                 line = line.strip()
-                # Skip comments and empty lines
                 if not line or line.startswith('#'):
                     continue
-                # Parse KEY=VALUE format
                 if '=' in line:
                     key, value = line.split('=', 1)
                     env_vars[key.strip()] = value.strip().strip('"').strip("'")
     except Exception as e:
         logger.warning(f"Error loading env file for {user_id}: {e}")
-    
+
+    # Confluence shares Atlassian credentials with Jira unless explicitly overridden
+    env_vars.setdefault('CONFLUENCE_EMAIL', env_vars.get('JIRA_EMAIL', ''))
+    env_vars.setdefault('CONFLUENCE_API_TOKEN', env_vars.get('JIRA_API_TOKEN', ''))
+
     return env_vars
 
 

@@ -584,10 +584,11 @@ def process_jira_table_blocks(filename, worksheet, userlogin):
                         change_list.append(f"{target_cell_coordinate}= INSERT {cv}||{old_value}")
                         #change_list.append(f"{target_cell_coordinate}={cell_value.replace('\n',';')}||{old_value}")
 
-    # write the "updated on.." in sheet
-    table_coord = get_column_letter(table_col + 1) + str(table_row)
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    change_list.append(f"{table_coord}= {total_jira} rows updated on {now_str} by Trinket||{old_value}")
+    # write the "updated on.." in sheet — only if Jira data was actually loaded
+    if total_jira > 0:
+        table_coord = get_column_letter(table_col + 1) + str(table_row)
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        change_list.append(f"{table_coord}= {total_jira} rows updated on {now_str} by Trinket||")
 
 
     # Save updates to the same file

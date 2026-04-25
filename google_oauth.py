@@ -12,8 +12,9 @@ GOOGLE_CLIENT_SECRETS_FILE = os.path.join(_CONFIG_DIR, "google_credentials.json"
 #CREDENTIALS_FILE = './config/google_credentials.json'
 
 SCOPES = [
-    'https://www.googleapis.com/auth/drive.file',             # files opened/created by this app
-    'https://www.googleapis.com/auth/drive.metadata.readonly', # read file metadata
+    'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/drive.metadata.readonly',
+    'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/userinfo.email',
     'openid'
 ]
@@ -79,7 +80,7 @@ def load_google_token(userlogin):
         print(f"🔑 Loading Google token for user={userlogin} from {token_file}")
         creds_data = json.load(f)
 
-    creds = Credentials.from_authorized_user_info(creds_data, SCOPES)
+    creds = Credentials.from_authorized_user_info(creds_data)  # use token's own granted scopes
 
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())

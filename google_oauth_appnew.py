@@ -39,27 +39,38 @@ GOOGLE_CLIENT_SECRETS_FILE = os.path.join(_CONFIG_DIR, "google_credentials.json"
 #REDIRECT_URI = 'http://localhost:5000/google/callback'
 #CREDENTIALS_FILE = './config/google_credentials.json'
 
-SCOPES = [
-    'https://www.googleapis.com/auth/drive.file',             # files opened/created by this app
-    'https://www.googleapis.com/auth/drive.metadata.readonly', # read file metadata
+# App sign-in only needs identity — no Drive permissions shown at login time
+SCOPES_SIGNIN = [
     'https://www.googleapis.com/auth/userinfo.email',
     'openid'
 ]
+
+# Drive-connect flow: full set needed to pick files and read/write spreadsheet data
+SCOPES_DRIVE_CONNECT = [
+    'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/drive.metadata.readonly',
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'openid'
+]
+
+# Kept for backward compatibility with any import of SCOPES
+SCOPES = SCOPES_DRIVE_CONNECT
 
 def get_token_file(userlogin):
     """Return per-user token file path"""
     return user_config_file(userlogin, "google_token.json")
 
 
-def get_google_flow(userlogin, redirectpath):
+def get_google_flow(userlogin, redirectpath, scopes=None):
     """Initialize Google OAuth flow for this user"""
-    print(f"inside get_google_flow params userlogin={userlogin} redirectpath={redirectpath}")
+    if scopes is None:
+        scopes = SCOPES_SIGNIN
+    print(f"inside get_google_flow params userlogin={userlogin} redirectpath={redirectpath} scopes={scopes}")
     return Flow.from_client_secrets_file(
         GOOGLE_CLIENT_SECRETS_FILE,
-        scopes=SCOPES,
+        scopes=scopes,
         redirect_uri = f"{redirectpath}/google/callback"
-        #redirect_uri="http://localhost:7000/google/callback"
-        #redirect_uri="https://demo.cloudcurio.com/google/callback"
     )
 
 
@@ -83,7 +94,7 @@ def load_google_token(userlogin):
         print(f"🔑 Loading Google token for user={userlogin} from {token_file}")
         creds_data = json.load(f)
 
-    creds = Credentials.from_authorized_user_info(creds_data, SCOPES)
+    creds = Credentials.from_authorized_user_info(creds_data)  # use token's own granted scopes
 
     if creds and creds.expired and creds.refresh_token:
         try:

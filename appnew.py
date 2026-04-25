@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for,session, se
 import os
 import re
 import json
+import shutil
 import requests
 import msal
 import uuid
@@ -411,7 +412,7 @@ def save_users(users):
 
 
 class User(UserMixin):
-    def __init__(self, id, username, password, first_name, last_name, date_registered, email=None):
+    def __init__(self, id, username, password, first_name, last_name, date_registered, email=None, auth_provider=None, **kwargs):
         self.id = id
         self.username = username
         self.password = password  # NOTE: hash in real life
@@ -419,6 +420,7 @@ class User(UserMixin):
         self.last_name = last_name
         self.date_registered = date_registered
         self.email = email
+        self.auth_provider = auth_provider
     
 @login_manager.user_loader
 def load_user(user_id):
@@ -540,6 +542,68 @@ def save_shared_files(filename, shared_files):
     except Exception as e:
         print(f"Error saving to {filename}: {e}")
         return False
+
+
+def prune_orphaned_docs(userlogin, removed_source_url):
+    """Remove docs whose last referrer was removed_source_url.
+
+    Called when a source sheet/Excel is removed from the sync list. URLs still
+    referenced by at least one other source are kept (referrer entry removed but
+    doc entry stays). Only when referrers becomes empty is the doc fully deleted.
+    Also handles migration of old flat referrer_url/referrer_file fields.
+    """
+    json_filename = f"./config/{userlogin}/docs.json"
+    docslist = load_shared_files(json_filename)
+    if not docslist:
+        return
+
+    entries = docslist.get("docs", [])
+    updated = []
+    orphaned_urls = []
+
+    for entry in entries:
+        referrers = entry.get("referrers")
+
+        # Migrate old-style flat fields on the fly
+        if referrers is None and "referrer_url" in entry:
+            referrers = [{"source_url": entry.pop("referrer_url"),
+                          "source_file": entry.pop("referrer_file", "")}]
+
+        if referrers is None:
+            referrers = []
+
+        new_referrers = [r for r in referrers if r.get("source_url") != removed_source_url]
+
+        if new_referrers:
+            entry["referrers"] = new_referrers
+            entry.pop("referrer_url", None)
+            entry.pop("referrer_file", None)
+            updated.append(entry)
+        else:
+            orphaned_urls.append(entry["url"])
+            print(f"prune_orphaned_docs: {entry['url']} is now orphaned, will be removed")
+
+    if len(updated) == len(entries) and not orphaned_urls:
+        return  # nothing changed
+
+    docslist["docs"] = updated
+    try:
+        with open(json_filename, 'w') as f:
+            json.dump(docslist, f, indent=2)
+        print(f"prune_orphaned_docs: pruned {len(orphaned_urls)} orphaned URLs for source {removed_source_url}")
+    except Exception as e:
+        print(f"prune_orphaned_docs: error writing {json_filename}: {e}")
+        return
+
+    for url in orphaned_urls:
+        safe_url = url.replace("/", "_").replace(":", "_")
+        vector_dir = f"./config/{userlogin}/vectors/{safe_url}"
+        if os.path.exists(vector_dir):
+            shutil.rmtree(vector_dir)
+            print(f"prune_orphaned_docs: deleted vector dir {vector_dir}")
+        redis_key = f"user:{userlogin}:url:{url}"
+        redis_client.delete(redis_key)
+        print(f"prune_orphaned_docs: deleted Redis key {redis_key}")
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -672,9 +736,26 @@ from google_oauth_appnew import (
     save_google_token,
     logout_google,
     is_google_logged_in,
+    SCOPES_DRIVE_CONNECT,
 )
 
 from googleapiclient.discovery import build
+
+@app.route("/auth/google")
+def auth_google():
+    """Google Sign-In as the primary app login — no prior login required."""
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
+
+    global callback_host
+    redirectpath = callback_host or "https://trinket.cloudcurio.com"
+
+    flow = get_google_flow("__login__", redirectpath)
+    auth_url, state = flow.authorization_url(access_type="offline", prompt="consent")
+    session["google_oauth_state"] = state
+    session["google_auth_flow"] = "login"
+    return redirect(auth_url)
+
 
 @app.route("/google/login")
 def google_login():
@@ -689,48 +770,105 @@ def google_login():
 
     userlogin = current_user.username
 
-    print(f"/google/login about to call get_googe_flow({userlogin},{redirectpath})")
-    flow = get_google_flow(userlogin, redirectpath)
+    print(f"/google/login about to call get_google_flow({userlogin},{redirectpath})")
+    flow = get_google_flow(userlogin, redirectpath, scopes=SCOPES_DRIVE_CONNECT)
     auth_url, state = flow.authorization_url(
         access_type="offline",
         prompt="consent"
     )
     session["google_oauth_state"] = state
     session["google_user"] = userlogin
+    session["google_auth_flow"] = "drive"   # prevent stale "login" flag from /auth/google
     print(f"🌐 Redirecting {userlogin} to Google OAuth...")
     return redirect(auth_url)
 
 
 @app.route("/google/callback")
 def google_callback():
-    userlogin = session.get("google_user")
-    if not userlogin:
-        return "Missing session user", 400
-    
     global callback_host
-    if callback_host:
-        redirectpath = f"{callback_host}"
+    redirectpath = callback_host or "https://trinket.cloudcurio.com"
+
+    auth_flow = session.pop("google_auth_flow", "drive")
+
+    if auth_flow == "login":
+        # ── App sign-in via Google ──────────────────────────────────────────
+        flow = get_google_flow("__login__", redirectpath)
+        flow.fetch_token(authorization_response=request.url)
+        creds = flow.credentials
+
+        svc = build("oauth2", "v2", credentials=creds)
+        info = svc.userinfo().get().execute()
+        email = info.get("email", "")
+        name = info.get("name", email)
+
+        if not email:
+            return "Could not retrieve email from Google", 400
+
+        users = load_users()
+        existing = next(
+            (u for u in users if u.get("email") == email or u.get("username") == email),
+            None
+        )
+        if not existing:
+            parts = name.split(" ", 1)
+            existing = {
+                "id": str(len(users) + 1),
+                "username": email,
+                "password": None,
+                "first_name": parts[0],
+                "last_name": parts[1] if len(parts) > 1 else "",
+                "email": email,
+                "date_registered": datetime.utcnow().isoformat(),
+                "auth_provider": "google",
+            }
+            users.append(existing)
+            save_users(users)
+            print(f"✅ Auto-created Google-auth user: {email}")
+        elif not existing.get("email"):
+            existing["email"] = email
+            save_users(users)
+            print(f"✅ Backfilled email for existing user: {existing['username']}")
+
+        login_user(User(**existing))
+        print(f"✅ Google sign-in: logged in as {email}")
+        return redirect(url_for("index"))
+
     else:
-        redirectpath = "https://trinket.cloudcurio.com"
+        # ── Drive connection for already-logged-in user ─────────────────────
+        userlogin = session.get("google_user")
+        if not userlogin:
+            return "Missing session user", 400
 
-    print(f"/google/callback called.  userlogin ={userlogin}")
-    flow = get_google_flow(userlogin, redirectpath)
-    flow.fetch_token(authorization_response=request.url)
-    print(f"proceeding after flow.fetch_token()")
+        print(f"/google/callback (drive-connect) userlogin={userlogin}")
+        flow = get_google_flow(userlogin, redirectpath, scopes=SCOPES_DRIVE_CONNECT)
+        flow.fetch_token(authorization_response=request.url)
+        save_google_token(flow.credentials, userlogin)
 
-    creds = flow.credentials
-    save_google_token(creds, userlogin)
+        return """
+            <html><body style='font-family:sans-serif;text-align:center;padding:40px;'>
+            <h2>✅ Google Login Successful</h2>
+            <p>You may close this window.</p>
+            <script>
+                try { window.opener && window.opener.postMessage('google-login-success', '*'); } catch(e) {}
+                setTimeout(() => window.close(), 1000);
+            </script>
+            </body></html>
+        """
 
-    return """
-        <html><body style='font-family:sans-serif;text-align:center;padding:40px;'>
-        <h2>✅ Google Login Successful</h2>
-        <p>You may close this window.</p>
-        <script>
-            try { window.opener && window.opener.postMessage('google-login-success', '*'); } catch(e) {}
-            setTimeout(() => window.close(), 1000);
-        </script>
-        </body></html>
-    """
+
+@app.route("/google/access_token")
+@login_required
+def google_access_token():
+    userlogin = current_user.username
+    creds = load_google_token(userlogin)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            from google.auth.transport.requests import Request
+            creds.refresh(Request())
+            save_google_token(creds, userlogin)
+        else:
+            return jsonify({"error": "Not authenticated with Google"}), 401
+    return jsonify({"access_token": creds.token})
 
 
 @app.route("/google/logout")
@@ -1383,6 +1521,7 @@ def index():
     foo_values["jira_url"] = read_env("JIRA_URL", ENV_PATH_USER)
     foo_values["jira_user"] = read_env("JIRA_EMAIL", ENV_PATH_USER)
     foo_values["jira_token"] = read_env("JIRA_API_TOKEN", ENV_PATH_USER)
+    foo_values["confluence_url"] = read_env("CONFLUENCE_URL", ENV_PATH_USER)
     foo_values["openai_token"] = read_env("OPENAI_API_KEY", ENV_PATH)       # for now keep openai token in system environment. move to user specific later
 
     print(f"Loaded following foo_values from {ENV_PATH}")
@@ -1623,15 +1762,15 @@ def save_jira():
     jira_url = data.get("jira_url", "")
     jira_user = data.get("jira_user", "")
     jira_token = data.get("jira_token", "")
-    jira_password = data.get("jira_password")
+    confluence_url = data.get("confluence_url", "")
 
     userlogin = current_user.username
     ENV_PATH_USER = user_config_file(userlogin, "env")
-    print(f"Saving new .env values {jira_url}, {jira_user}, {jira_token}, {jira_password}")
+    print(f"Saving new .env values jira_url={jira_url}, jira_user={jira_user}, confluence_url={confluence_url}")
     write_env("JIRA_URL", jira_url, ENV_PATH_USER)
     write_env("JIRA_EMAIL", jira_user, ENV_PATH_USER)
     write_env("JIRA_API_TOKEN", jira_token, ENV_PATH_USER)
-    write_env("JIRA_PASSWORD", jira_password, ENV_PATH_USER)
+    write_env("CONFLUENCE_URL", confluence_url, ENV_PATH_USER)
 
     return jsonify({"success": True, "message": "Jira settings updated successfully"})
 
@@ -1720,11 +1859,13 @@ def remove_sharepoint():
             # Save updated list back to disk
             save_shared_files(json_filename, shared_files_sharepoint)
             print(f"Removed from shared_files_sharepoint the entry with new_val={to_remove}")
-            #return jsonify({"success": True, "message": "Google Sheet removed successfully"})
 
-            # if file was scheduled for resync then remove from schedule.json 
-            clear_schedule_file(user_sched_file, to_remove, userlogin) 
-            #schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+            # Remove any docs whose only referrer was this source file
+            prune_orphaned_docs(userlogin, to_remove)
+
+            # if file was scheduled for resync then remove from schedule.json
+            clear_schedule_file(user_sched_file, to_remove, userlogin)
+            #schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)
             return jsonify({"success": True, "message": "Sharepoint file removed successfully"})
         else:
                 # this shoudl never happen because only way to trigger remove is from a listed file on gui
@@ -2547,6 +2688,7 @@ def get_google_sheet_filename(creds, url_or_id):
             raise
 
 @app.route("/remove_docslist", methods=["POST"])
+@login_required
 def remove_docslist():
     to_remove = request.form.get('remove_docslist')
     userlogin = current_user.username
@@ -2567,15 +2709,33 @@ def remove_docslist():
         
         # Check if anything was removed
         if len(docslist["docs"]) < original_length:
-            # Save updated list back to disk
-            save_shared_files(json_filename, docslist)
-            print(f"Removed from docslst the entry with new_val={to_remove}")
-            #return jsonify({"success": True, "message": "Google Sheet removed successfully"})
+            try:
+                with open(json_filename, 'w') as f:
+                    json.dump(docslist, f, indent=2)
+                print(f"Removed from docslist the entry with url={to_remove}")
+            except Exception as e:
+                print(f"Error writing {json_filename}: {e}")
+                return jsonify({"success": False, "message": f"Save error: {e}"})
+
+            # Delete the vector directory for this URL
+            safe_url = to_remove.replace("/", "_").replace(":", "_")
+            vector_dir = f"./config/{userlogin}/vectors/{safe_url}"
+            if os.path.exists(vector_dir):
+                shutil.rmtree(vector_dir)
+                print(f"Deleted vector directory: {vector_dir}")
+            else:
+                print(f"No vector directory found at {vector_dir}, skipping")
+
+            # Delete the Redis state record for this URL (DB 2)
+            redis_key = f"user:{userlogin}:url:{to_remove}"
+            deleted = redis_client.delete(redis_key)
+            print(f"Deleted Redis key {redis_key}: {deleted} key(s) removed")
+
             return jsonify({"success": True, "message": "RAG Document removed successfully"})
         else:
-            print(f"{to_remove} not found in docslist, no action taken")
-    
-    return jsonify({"success": False, "message": "RAG Document collection is empty"})
+            print(f"{to_remove} not found in docslist (had {original_length} entries), no action taken")
+
+    return jsonify({"success": False, "message": "RAG Document not found"})
 
 
 @app.route("/resync_docslist", methods=["POST"])
@@ -2650,6 +2810,8 @@ def sync_teams():
 #--- Google Sheet routes ---
 @app.route("/add_google", methods=["POST"])
 def add_google():
+    # URL-paste disabled: use the Google Drive picker so drive.file scope applies
+    return jsonify({"success": False, "message": "Please use the Google Drive picker to add sheets"}), 400
     new_val = request.form.get('google_value', '').strip()
     userlogin = current_user.username
     print(f"/add_google endpoint called with new_val = {new_val} by {userlogin}")
@@ -2712,11 +2874,13 @@ def remove_google():
             # Save updated list back to disk
             save_shared_files(json_filename, shared_files_google)
             print(f"Removed from shared_files_google the entry with new_val={to_remove}")
-            #return jsonify({"success": True, "message": "Google Sheet removed successfully"})
 
-            # if file was scheduled for resync then remove from schedule.json 
-            clear_schedule_file(user_sched_file, to_remove, userlogin) 
-            #schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)           
+            # Remove any docs whose only referrer was this source file
+            prune_orphaned_docs(userlogin, to_remove)
+
+            # if file was scheduled for resync then remove from schedule.json
+            clear_schedule_file(user_sched_file, to_remove, userlogin)
+            #schedule_job_clear(scheduler, user_sched_file, to_remove, userlogin)
             return jsonify({"success": True, "message": "Google Sheet removed successfully"})
         else:
             print(f"{to_remove} not found in google_values, no action taken")
