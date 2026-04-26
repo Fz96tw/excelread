@@ -54,6 +54,7 @@
         flex-direction: column;
         box-shadow: none;
         z-index: 10;
+        overflow-y: auto;
       }
 
       .menu-bar {
@@ -72,7 +73,7 @@
         border: none;
         background: transparent;
         color: var(--text-light);
-        font-size: 12px;
+        font-size: 14px;
         cursor: pointer;
         border-radius: 8px;
         transition: all 0.2s;
@@ -773,7 +774,7 @@
         padding: 10px 16px;
         color: var(--text-light);
         text-decoration: none;
-        font-size: 15px;
+        font-size: 14px;
         border-radius: 8px;
         transition: all 0.2s;
         display: block;
@@ -1001,43 +1002,31 @@
         </button>
 
         <div class="menu-bar">
-          <button id="btn-section1" title="Jira">
+          <button id="btn-section-settings" title="Settings">
             <img
-              src="/static/jiraicon.png"
-              style="width: 32px; height: 30px"
-              alt=""
-            />
-            <span>Jira</span>
-          </button>
-          <button id="btn-section4" title="LLM Model">
-            <img
-              src="/static/llmicon.png"
+              src="/static/settings-icon.png"
               style="width: 24px; height: 24px"
               alt=""
             />
-            <span>LLM Model</span>
-          </button>
-          <button id="btn-section10" title="MCP">
-            <img
-              src="/static/mcpicon.png"
-              style="width: 24px; height: 24px"
-              alt=""
-            />
-            <span>MCP</span>
+            <span>Settings</span>
           </button>
           <button id="btn-section11" title="Supporting Docs">
             <img
-              src="/static/url-icon.png"
+              src="/static/supportingdocs-icon.png"
               style="width: 24px; height: 24px"
               alt=""
             />
-            <span>Supporting Docs</span>
+            <span>Misc Docs</span>
           </button>
 
           <div class="menu-divider"></div>
 
           <button id="btn-section5" title="Local Files">
-            <img src="/static/localfiles.png" alt="" />
+            <img 
+              src="/static/localfiles.png" 
+              style="width: 26px; height: 26px"
+              alt=""
+            />
             <span>Local Files</span>
           </button>
           <button id="btn-section2" title="SharePoint">
@@ -1049,13 +1038,16 @@
             <span>SharePoint</span>
           </button>
           <button id="btn-section6" title="Google Drive">
-            <img src="/static/googlesheetsicon.png" alt="" />
+            <img 
+              src="/static/googlesheetsicon.png" 
+              style="width: 27px; height: 27px"
+              alt="" />
             <span>Google Drive</span>
           </button>
           <button id="btn-section12" title="Teams Chat">
             <img
-              src="/static/teams-icon.png"
-              style="width: 24px; height: 24px"
+              src="/static/teams-icon.webp"
+              style="width: 29px; height: 29px"
               alt=""
             />
             <span>Teams Chat</span>
@@ -1100,14 +1092,14 @@
             </div>
           </div>
 
-          <button id="btn-section8" title="Send Feedback">
+          <!--button id="btn-section8" title="Send Feedback">
             <img
               src="/static/feedbackicon.png"
               style="filter: none; width: 22px; height: 22px"
               alt=""
             />
             <span>Send Feedback</span>
-          </button>
+          </button-->
         </div>
 
         <div class="left-footer">
@@ -1151,14 +1143,16 @@
             <div id="taskList"></div>
           </div>
 
-          <!-- Section 1: Jira -->
-          <div id="section1" class="section-content">
-            <div class="card">
+          <!-- Section: Settings (Jira + LLM + MCP) -->
+          <div id="section-settings" class="section-content">
+
+          <!-- Jira Card -->
+          <div class="card">
               <h2>
                 <img src="/static/jiraicon.jpg" alt="Jira" />
-                Jira Connection
+                Jira and Confluence Configuration
               </h2>
-              <form method="POST" class="left-form">
+              <form id="jiraForm" method="POST" class="left-form">
                 <div class="form-row">
                   <label>Jira Cloud URL</label>
                   <input
@@ -1195,13 +1189,90 @@
                     placeholder="Same as Jira Cloud URL or specify different URL"
                   />
                 </div>
-                <button type="submit" name="save_foo">
-                  <!--img src="/static/saveicontransparent.png" alt=""-->
-                  Save Configuration
-                </button>
               </form>
             </div>
+
+          <!-- LLM Card -->
+          <div class="card">
+              <h2>
+                <img src="/static/llmicon.png" alt="LLM" />
+                LLM Model Configuration
+              </h2>
+              <div
+                style="
+                  background: var(--bg-light);
+                  padding: 16px;
+                  border-radius: 8px;
+                  margin-bottom: 20px;
+                "
+              >
+                <strong>Currently using:</strong> {{llm_default}}
+              </div>
+              <form id="llmForm" class="left-form">
+                <div class="form-row">
+                  <label>Select Model</label>
+                  <select id="llmSelect" name="llm_model">
+                    <option value="Local" {% if llm_default == 'Local' %}selected{% endif %}>Local llama 3.2:1b</option>
+                    <option value="OpenAI" {% if llm_default == 'OpenAI' %}selected{% endif %}>OpenAI gpt-4o-mini</option>
+                    <option value="Claude" {% if llm_default == 'Claude' %}selected{% endif %}>Claude sonnet-4-20250514</option>
+                  </select>
+                </div>
+                <div
+                  class="form-row"
+                  id="openaiTokenField"
+                  style="display: none"
+                >
+                  <label>OpenAI API Key</label>
+                  <input
+                    type="text"
+                    name="openai_token"
+                    value="{{ foo_values.get('openai_token', '') }}"
+                    placeholder="sk-..."
+                  />
+                </div>
+              </form>
+            </div>
+
+          <!-- MCP Card -->
+          <div class="card">
+              <h2>
+                <img src="/static/mcpicon.png" alt="MCP" />
+                Curio MCP Server API key
+              </h2>
+              <form
+                id="mcpForm"
+                class="left-form"
+                method="POST"
+                action="/get_new_mcp_key"
+                style="margin-top: 16px"
+              >
+                <div class="form-row">
+                  <label>Current User:</label>
+                  <div style="padding: 8px 0; font-weight: bold">
+                    {{ username }}
+                  </div>
+                  <input type="hidden" name="username" value="{{ username }}" />
+                </div>
+                <div class="form-row" style="margin-top: 15px">
+                  <label>Current API Key:</label>
+                  <div style="padding: 8px 0; font-weight: bold">
+                    {{ foo_values.get('mcp_api_key', '') }}
+                  </div>
+                  <input
+                    type="hidden"
+                    name="mcp_api_key"
+                    value="{{ foo_values.get('mcp_api_key', '') }}"
+                  />
+                </div>
+                <button type="submit" name="save_foo">Create New Key</button>
+              </form>
+            </div>
+
+          <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
+            <button id="btn-save-settings" type="button">Save Configuration</button>
           </div>
+
+          </div><!-- end section-settings -->
 
           <!-- Section 2: SharePoint -->
           <div id="section2" class="section-content">
@@ -1371,96 +1442,6 @@
                 ></select>
               </div>
               <pre id="logViewer" class="log-viewer"></pre>
-            </div>
-          </div>
-
-          <!-- Section 4: LLM Model -->
-          <div id="section4" class="section-content">
-            <div class="card">
-              <h2>
-                <img src="/static/llmicon.png" alt="LLM" />
-                LLM Model Configuration
-              </h2>
-              <div
-                style="
-                  background: var(--bg-light);
-                  padding: 16px;
-                  border-radius: 8px;
-                  margin-bottom: 20px;
-                "
-              >
-                <strong>Currently using:</strong> {{llm_default}}
-              </div>
-              <form id="llmForm" class="left-form">
-                <div class="form-row">
-                  <label>Select Model</label>
-                  <select id="llmSelect" name="llm_model">
-                    <option value="Local" {% if llm_default == 'Local' %}selected{% endif %}>Local llama 3.2:1b</option>
-                    <option value="OpenAI" {% if llm_default == 'OpenAI' %}selected{% endif %}>OpenAI gpt-4o-mini</option>
-                    <option value="Claude" {% if llm_default == 'Claude' %}selected{% endif %}>Claude sonnet-4-20250514</option>
-                  </select>
-                </div>
-                <div
-                  class="form-row"
-                  id="openaiTokenField"
-                  style="display: none"
-                >
-                  <label>OpenAI API Key</label>
-                  <input
-                    type="text"
-                    name="openai_token"
-                    value="{{ foo_values.get('openai_token', '') }}"
-                    placeholder="sk-..."
-                  />
-                </div>
-                <button type="submit">
-                  <!--img src="/static/saveicontransparent.png" alt=""-->
-                  Save Model
-                </button>
-              </form>
-            </div>
-          </div>
-
-          <!-- Section 10: MCP section -->
-          <div id="section10" class="section-content">
-            <div class="card">
-              <h2>
-                <img src="/static/mcpicon.png" alt="LLM" />
-                Setup API key to secure MCP server connection
-              </h2>
-
-              <form
-                id="mcpForm"
-                class="left-form"
-                method="POST"
-                action="/get_new_mcp_key"
-                style="margin-top: 16px"
-              >
-                <div class="form-row">
-                  <label>Current User:</label>
-                  <div style="padding: 8px 0; font-weight: bold">
-                    {{ username }}
-                  </div>
-
-                  <!-- Hidden field to POST userlogin -->
-                  <input type="hidden" name="username" value="{{ username }}" />
-                </div>
-
-                <div class="form-row" style="margin-top: 15px">
-                  <label>Current API Key:</label>
-                  <div style="padding: 8px 0; font-weight: bold">
-                    {{ foo_values.get('mcp_api_key', '') }}
-                  </div>
-
-                  <input
-                    type="hidden"
-                    name="mcp_api_key"
-                    value="{{ foo_values.get('mcp_api_key', '') }}"
-                  />
-                </div>
-
-                <button type="submit" name="save_foo">Create New Key</button>
-              </form>
             </div>
           </div>
 
@@ -2249,35 +2230,7 @@
       apiForm('form[action="/remove_google"]',     { redirectSection: 'section6' });
 
       // =========================================================
-      // JIRA FORM (JSON body, not FormData)
-      // =========================================================
-
-      const jiraForm = document.querySelector('#section1 form.left-form');
-      if (jiraForm) {
-          jiraForm.addEventListener('submit', function(e) {
-              e.preventDefault();
-              fetch('/save_jira', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                      jira_url:       this.querySelector('input[name="jira_url"]').value,
-                      jira_user:      this.querySelector('input[name="jira_user"]').value,
-                      jira_token:     this.querySelector('input[name="jira_token"]').value,
-                      confluence_url: this.querySelector('input[name="confluence_url"]').value,
-                  })
-              })
-              .then(r => r.json())
-              .then(data => {
-                  data.success
-                      ? showToast('✅ Jira settings saved')
-                      : showToast('⚠ Failed to save Jira settings', false);
-              })
-              .catch(() => showToast('⚠ Error connecting to server', false));
-          });
-      }
-
-      // =========================================================
-      // LLM FORM
+      // SETTINGS FORMS (Jira + LLM) — shared save functions
       // =========================================================
 
       const llmSelect        = document.getElementById('llmSelect');
@@ -2293,28 +2246,51 @@
           llmSelect.addEventListener('change', toggleTokenField);
       }
 
-      const llmForm = document.getElementById('llmForm');
-      if (llmForm) {
-          llmForm.addEventListener('submit', function(e) {
-              e.preventDefault();
-              const selectedModel = llmSelect.value;
-              const openaiToken   = document.querySelector('input[name="openai_token"]')?.value || '';
-              fetch('/setmodel', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ llm_model: selectedModel, openai_token: openaiToken })
+      function saveJiraSettings() {
+          const form = document.getElementById('jiraForm');
+          return fetch('/save_jira', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  jira_url:       form.querySelector('input[name="jira_url"]').value,
+                  jira_user:      form.querySelector('input[name="jira_user"]').value,
+                  jira_token:     form.querySelector('input[name="jira_token"]').value,
+                  confluence_url: form.querySelector('input[name="confluence_url"]').value,
               })
-              .then(res => {
-                  if (res.ok) {
-                      showToast(`✅ Saved LLM model: ${selectedModel}`);
-                      setTimeout(() => { window.location.hash = 'section4'; window.location.reload(); }, 900);
-                  } else {
-                      showToast('⚠ Failed to save settings', false);
-                  }
-              })
-              .catch(() => showToast('⚠ Error connecting to server', false));
+          }).then(r => r.json());
+      }
+
+      function saveLLMSettings() {
+          const selectedModel = llmSelect.value;
+          const openaiToken   = document.querySelector('input[name="openai_token"]')?.value || '';
+          return fetch('/setmodel', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ llm_model: selectedModel, openai_token: openaiToken })
           });
       }
+
+      function saveAllSettings() {
+          Promise.all([saveJiraSettings(), saveLLMSettings()])
+              .then(([jiraData, llmRes]) => {
+                  const jiraOk = jiraData.success;
+                  const llmOk  = llmRes.ok;
+                  if (jiraOk && llmOk)  showToast('✅ Settings saved');
+                  else if (!jiraOk)     showToast('⚠ Failed to save Jira settings', false);
+                  else                  showToast('⚠ Failed to save LLM settings', false);
+                  if (jiraOk || llmOk) setTimeout(() => { window.location.hash = 'section-settings'; window.location.reload(); }, 900);
+              })
+              .catch(() => showToast('⚠ Error connecting to server', false));
+      }
+
+      const jiraForm = document.getElementById('jiraForm');
+      if (jiraForm) jiraForm.addEventListener('submit', e => { e.preventDefault(); saveAllSettings(); });
+
+      const llmForm = document.getElementById('llmForm');
+      if (llmForm) llmForm.addEventListener('submit', e => { e.preventDefault(); saveAllSettings(); });
+
+      const btnSaveSettings = document.getElementById('btn-save-settings');
+      if (btnSaveSettings) btnSaveSettings.addEventListener('click', saveAllSettings);
 
       // =========================================================
       // LOGIN POPUPS
@@ -2841,7 +2817,7 @@
 
           // Navigate to the section in the URL hash, or default to section2
           const hash = window.location.hash.substring(1);
-          showSection(hash && sections[hash] ? hash : 'section1');
+          showSection(hash && sections[hash] ? hash : 'section-settings');
       });
     </script>
   </body>
