@@ -387,7 +387,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = "login"
+login_manager.login_view = "home"
 
 from filelock import FileLock
 import json
@@ -664,6 +664,8 @@ def login():
     #global logged_in
 
     if delegated_auth:
+        if not current_user.is_authenticated:
+            return redirect(url_for("home"))
         print (f"/login endpoint using delegated_auth flow for {current_user.username}")
         cache = load_cache(current_user.username)
         cca = _build_msal_app(cache)
@@ -2808,7 +2810,7 @@ def sync_teams():
     try:
         token = get_app_token_delegated()
     except Exception as e:
-        return jsonify({"success": False, "message": f"No valid token: {e}"}), 401
+        return jsonify({"success": False, "message": f"Sync Failed. Please connect to your Microsoft account"}), 401
 
     try:
         cfg = load_teams_config()

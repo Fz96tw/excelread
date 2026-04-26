@@ -64,6 +64,7 @@
     <!-- Login form -->
 
     <form method="POST" action="{{ url_for('home') }}" style="display: flex; flex-direction: column;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="text" name="username" placeholder="Username" required style="padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ccc;">
       <input type="password" name="password" placeholder="Password" required style="padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ccc;">
       <button type="submit" style="padding: 10px; border: none; border-radius: 5px; background-color: #0078d4; color: white; cursor: pointer;">Login</button>

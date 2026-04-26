@@ -114,6 +114,7 @@
     <img src="{{ url_for('static', filename='curiologo.png') }}" style="width: 140px; margin-right: 20px;" alt="Logo">
   <h2>Create Account</h2>
   <form method="POST" action="/register">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label for="first_name">First Name</label>
       <input type="text" id="first_name" name="first_name" placeholder="Enter your first name" required>
 
