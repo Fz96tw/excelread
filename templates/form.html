@@ -1482,7 +1482,10 @@
                         >{{ val.url }}</small
                       >
                       <br /><small style="color: var(--text-light)"
-                        >Added {{ val.added_at}}</small
+                        >Added: {{ val.referrers[0].added_at[:16] | replace('T', ' ') if val.referrers else 'Unknown' }}</small
+                      >
+                      <br /><small style="color: var(--text-light)"
+                        >Embedding: {{ val.embedding_updated_at[:16] | replace('T', ' ') if val.embedding_updated_at else 'Never' }}</small
                       >
                     </td>
                     <td style="text-align: center">
