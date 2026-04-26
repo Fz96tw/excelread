@@ -32,6 +32,9 @@ app = Flask(__name__)
 # Allow requests from your frontend domain
 CORS(app, origins=["https://www.cloudcurio.com"])
 
+from flask_wtf.csrf import CSRFProtect
+csrf = CSRFProtect(app)
+
 
 
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key")  # Use a real secret in production
@@ -1419,6 +1422,7 @@ auth_user_name = ""
 google_user_email = ""
 
 @app.route('/', methods=['GET', 'POST'])
+@login_required
 def index():
 
     # Make sure user is logged into AI Connector before showing main page
@@ -1733,6 +1737,7 @@ def index():
 
 
 @app.route("/logout_sharepoint", methods=["POST"])
+@login_required
 def logout_sharepoint():
     #global logged_in
     userlogin = current_user.username
@@ -1761,6 +1766,7 @@ def logout_sharepoint():
 from flask import Flask, request, jsonify
 
 @app.route("/save_jira", methods=["POST"])
+@login_required
 def save_jira():
     data = request.get_json()
     jira_url = data.get("jira_url", "")
@@ -1780,6 +1786,7 @@ def save_jira():
 
 
 @app.route("/setmodel", methods=["POST"])
+@login_required
 def setmodel():
     print("/setmodel endpoint called")
     data = request.get_json()
@@ -1809,6 +1816,7 @@ def setmodel():
 
 
 @app.route("/getmodel", methods=["GET"])
+@login_required
 def getmodel():
     LLMCONFIG_FILE = user_config_file(current_user.username, "llmconfig.json")
     config = load_llm_config(LLMCONFIG_FILE)
@@ -1817,6 +1825,7 @@ def getmodel():
 
 
 @app.route("/add_sharepoint", methods=["POST"])
+@login_required
 def add_sharepoint():
     new_val = request.form.get('bar_value', '').strip()
     new_val = unquote(new_val);      # remove %20, etc
@@ -1848,6 +1857,7 @@ def add_sharepoint():
     return jsonify({"success": False, "message": "No file URL provided"})
 
 @app.route("/remove_sharepoint", methods=["POST"])
+@login_required
 def remove_sharepoint():
     to_remove = request.form.get('remove_bar')
     userlogin = current_user.username
@@ -1887,6 +1897,7 @@ def remove_sharepoint():
 
 
 @app.route("/add_local", methods=["POST"])
+@login_required
 def add_local():
     new_val = request.form.get('local_value', '').strip()
     userlogin = current_user.username
@@ -1920,6 +1931,7 @@ def add_local():
 
 
 @app.route("/remove_local", methods=["POST"])
+@login_required
 def remove_local():
     to_remove = request.form.get('remove_local')
     userlogin = current_user.username
@@ -1956,6 +1968,7 @@ def remove_local():
 
 
 @app.route("/schedule", methods=["POST"])
+@login_required
 def schedule_file():
     filename = request.form.get("filename")
     time = request.form.get("time")
@@ -2031,6 +2044,7 @@ def schedule_file():
 
 
 @app.route("/schedule/clear", methods=["POST"])
+@login_required
 def clear_schedule():
     data = request.get_json()
     filename = data.get("filename")
@@ -2063,6 +2077,7 @@ from task_queue import task_queue
 # ============================================================================
 
 '''@app.route("/tasks/status", methods=["GET"])
+@login_required
 def get_task_status():
     #print("/tasks/status endpoint called")
     """Get status of all tasks or a specific task"""
@@ -2169,6 +2184,7 @@ def get_task_status():
 
 
 '''@app.route("/tasks/cancel/<task_id>", methods=["POST"])
+@login_required
 def cancel_task_route(task_id):
     """Cancel a pending task"""
     success = task_queue.cancel_task(task_id)
@@ -2187,6 +2203,7 @@ def cancel_task_route(task_id):
 
 
 @app.route("/tasks/clear", methods=["POST"])
+@login_required
 def clear_old_tasks():
     """Clear completed tasks older than 1 hour"""
     cleared = task_queue.clear_completed_tasks(older_than_minutes=60)
@@ -2196,6 +2213,7 @@ def clear_old_tasks():
 
 # ADD THIS NEW ROUTE INSTEAD:
 '''@app.route("/resync_sharepoint", methods=["POST"])
+@login_required
 def resync_sharepoint():
     """Queue a resync task (async)"""
     val = request.form.get('resync_bar')
@@ -2260,6 +2278,7 @@ def metrics_foo():
     return "OK", 200
 
 @app.route("/metrics")
+@csrf.exempt
 def metrics():
     """
     Service observability endpoint.
@@ -2515,6 +2534,7 @@ def resync_sharepoint():
 
 
 @app.route("/resync_sharepoint_userlogin", methods=["POST"])
+@login_required
 def resync_sharepoint_userlogin():
     """
     Queue a resync with explicit userlogin.
@@ -2821,6 +2841,7 @@ def sync_teams():
 
 #--- Google Sheet routes ---
 @app.route("/add_google", methods=["POST"])
+@login_required
 def add_google():
     # URL-paste disabled: use the Google Drive picker so drive.file scope applies
     return jsonify({"success": False, "message": "Please use the Google Drive picker to add sheets"}), 400
@@ -2863,6 +2884,7 @@ def add_google():
 
 
 @app.route("/remove_google", methods=["POST"])
+@login_required
 def remove_google():
     to_remove = request.form.get('remove_google')
     userlogin = current_user.username
@@ -2936,6 +2958,7 @@ from datetime import datetime, timezone
 from flask import jsonify
 
 @app.route("/logs")
+@login_required
 def list_logs():
     user_dir = os.path.join(LOG_BASE_DIR, current_user.username)
     if not os.path.isdir(user_dir):
@@ -2959,6 +2982,7 @@ def list_logs():
 
 
 @app.route("/logs/<run>")
+@login_required
 def get_latest_log(run):
     """
     Automatically find and serve the first .log file inside the run folder.
@@ -2983,19 +3007,21 @@ def get_latest_log(run):
 
 # Python Flask Route
 @app.route("/runlog/<userlogin>")
+@login_required
 def get_run_log(userlogin):
     """
-    Return the run log file for the specified user.
+    Return the run log file for the logged-in user (URL param is ignored).
     Reads from ./logs/resync.{userlogin}
     """
+    userlogin = current_user.username
     print (f"/get_run_log called for userlogin={userlogin}")
     try:
         # Construct log file path with username prefix
         log_file_path = f"./logs/{userlogin}/resync.{userlogin}"
-        
+
         with open(log_file_path, 'r') as f:
             log_content = f.read()
-        
+
         print(f"Returning log content for userlogin={userlogin}")
         #print("log_content = " + log_content)
         return log_content, 200, {'Content-Type': 'text/plain'}
@@ -3070,6 +3096,7 @@ def oauth2callback():
 
 # --- Step 3: When user picks file, frontend sends fileId ---
 @app.route("/register_drive_file", methods=["POST"])
+@login_required
 def register_drive_file():
     data = request.get_json()
     file_id = data["fileId"]
@@ -3336,6 +3363,7 @@ def create_mcp_key(username):
     return new_key
 
 @app.route("/get_new_mcp_key", methods=["POST"])
+@login_required
 def get_new_mcp_key():
     username = request.form.get("username")
     curr_key = request.form.get("mcp_api_key")

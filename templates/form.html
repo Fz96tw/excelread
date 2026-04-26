@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Curio Console</title>
     <style>
       * {
@@ -63,6 +64,7 @@
         padding: 2px 12px;
         gap: 4px;
         flex: 1;
+        font-weight: 400;
       }
 
       .menu-bar button {
@@ -78,6 +80,8 @@
         border-radius: 8px;
         transition: all 0.2s;
         text-align: left;
+        font-weight: 700;
+
       }
 
       .menu-bar button:hover {
@@ -960,7 +964,10 @@
     <header class="top-bar">
       <img src="/static/curiologo.png" alt="Curio" class="top-bar-logo" />
       <div class="top-bar-user">
-        <img src="/static/usericon2.png" alt="" />
+        <img src="/static/usericon.png" 
+              style="width: 30px; height: 30px"
+              alt="" 
+        />
         <span class="top-bar-username">{{current_user.email or username}}{% if is_admin %} [Admin]{% endif %}</span>
       </div>
       <div class="top-bar-status">
@@ -1080,7 +1087,7 @@
                 "
                 >History</a
               >
-              {% if is_admin %}
+              <!--{% if is_admin %} -->
               <a
                 href="#section3"
                 class="submenu-item"
@@ -1088,9 +1095,9 @@
                   showSection('section3');
                   return false;
                 "
-                >Debug Logs</a
+                >Logs</a
               >
-              {% endif %}
+              <!--{% endif %} -->
             </div>
           </div>
 
@@ -1287,6 +1294,7 @@
               </span>
               {% if logged_in %}
               <form method="POST" action="/logout_sharepoint" style="margin: 0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button
                   type="submit"
                   class="btn-danger"
@@ -1315,6 +1323,7 @@
                 Share new Excel file with Agent
               </h2>
               <form method="POST" class="left-form" action="/add_sharepoint">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-row">
                   <label>Web URL to Excel file</label>
                   <input
@@ -1401,6 +1410,7 @@
                     </td>
                     <td>
                       <form method="POST" action="/remove_sharepoint">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input
                           type="hidden"
                           name="remove_bar"
@@ -1543,6 +1553,7 @@
                 Share new local file with Agent
               </h2>
               <form method="POST" class="left-form" action="/add_local">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-row">
                   <label>File Location</label>
                   <input
@@ -1613,6 +1624,7 @@
                     </td>
                     <td>
                       <form method="POST" action="/remove_local">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input
                           type="hidden"
                           name="remove_local"
@@ -1774,6 +1786,7 @@
                     </td>
                     <td>
                       <form method="POST" action="/remove_google">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input
                           type="hidden"
                           name="remove_google"
@@ -1883,6 +1896,7 @@
               </span>
               {% if logged_in %}
               <form method="POST" action="/logout_sharepoint" style="margin: 0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button
                   type="submit"
                   class="btn-danger"
@@ -2106,6 +2120,27 @@
     <div id="toast"></div>
 
     <script>
+      // =========================================================
+      // CSRF PROTECTION — attach X-CSRFToken to every mutating fetch
+      // =========================================================
+      (function () {
+        const _fetch = window.fetch;
+        window.fetch = function (url, options = {}) {
+          const method = (options.method || 'GET').toUpperCase();
+          if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+            const token = document.querySelector('meta[name="csrf-token"]')?.content;
+            if (token) {
+              if (options.headers instanceof Headers) {
+                options.headers.set('X-CSRFToken', token);
+              } else {
+                options.headers = Object.assign({}, options.headers, { 'X-CSRFToken': token });
+              }
+            }
+          }
+          return _fetch.call(this, url, options);
+        };
+      })();
+
       // =========================================================
       // SIDEBAR COLLAPSE
       // =========================================================
