@@ -1836,8 +1836,15 @@ def add_sharepoint():
     shared_files_sharepoint= load_shared_files(user_config_file(current_user.username, "shared_files_sharepoint.json"))
 
     if new_val:
+        # Normalize: ensure file extension sits before # (e.g. "file#Sheet.xlsx" → "file.xlsx#Sheet")
+        if '#' in new_val:
+            _before, _after = new_val.split('#', 1)
+            _basename = _before.split('/')[-1].split('\\')[-1]
+            if '.' not in _basename and '.' in _after:
+                _ext_idx = _after.rfind('.')
+                new_val = _before + _after[_ext_idx:] + '#' + _after[:_ext_idx]
+                print(f"Normalized SharePoint URL to: {new_val}")
         print(f"add_sharepoint with shared_files_sharepoint={new_val}")
-       # if new_val not in shared_files_google and new_val not in bar_values and new_val not in local_file_values:
         if not is_location_in_shared_files(new_val, shared_files_sharepoint):
             # Add to shared_files_google list
             from datetime import date
@@ -2536,7 +2543,7 @@ def resync_sharepoint():
 
 
 @app.route("/resync_sharepoint_userlogin", methods=["POST"])
-@login_required
+@csrf.exempt
 def resync_sharepoint_userlogin():
     """
     Queue a resync with explicit userlogin.

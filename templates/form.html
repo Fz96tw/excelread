@@ -48,20 +48,20 @@
 
       /* Sidebar */
       .left-frame {
-        flex: 0 0 190px;
+        flex: 0 0 170px;
         background: var(--bg-sidebar);
         border-right: 1px solid var(--border);
         display: flex;
         flex-direction: column;
         box-shadow: none;
         z-index: 10;
-        overflow-y: auto;
+        overflow-y: overlay;
       }
 
       .menu-bar {
         display: flex;
         flex-direction: column;
-        padding: 2px 12px;
+        padding: 2px 0;
         gap: 4px;
         flex: 1;
         font-weight: 400;
@@ -71,17 +71,18 @@
         display: flex;
         align-items: center;
         gap: 12px;
-        padding: 12px 16px;
+        padding: 12px 12px;
         border: none;
         background: transparent;
         color: var(--text-light);
         font-size: 14px;
         cursor: pointer;
-        border-radius: 8px;
+        border-radius: 0;
         transition: all 0.2s;
         text-align: left;
-        font-weight: 700;
-
+        font-weight: 400;
+        width: 100%;
+        box-sizing: border-box;
       }
 
       .menu-bar button:hover {
@@ -449,16 +450,16 @@
       #taskQueueStatus {
         background: var(--bg-white);
         border-radius: 12px;
-        padding: 24px;
+        padding: 12px 16px;
         box-shadow: var(--shadow);
-        margin-bottom: 24px;
+        margin-bottom: 16px;
       }
 
       .task-item {
-        padding: 16px;
-        margin: 12px 0;
-        border-radius: 8px;
-        border-left: 4px solid var(--border);
+        padding: 6px 10px;
+        margin: 4px 0;
+        border-radius: 6px;
+        border-left: 3px solid var(--border);
         background: var(--bg-light);
         display: flex;
         justify-content: space-between;
@@ -492,13 +493,14 @@
       }
 
       .task-filename {
+        font-size: 12px;
         font-weight: 600;
         color: var(--text-dark);
         margin-bottom: 6px;
       }
 
       .task-times {
-        font-size: 12px;
+        font-size: 10px;
         color: var(--text-light);
       }
 
@@ -1136,13 +1138,13 @@
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-bottom: 16px;
+                margin-bottom: 8px;
               "
             >
-              <h3 style="font-size: 18px; font-weight: 600">📋 Active Tasks</h3>
+              <h3 style="font-size: 14px; font-weight: 600">📋 Active Tasks</h3>
               <button
                 onclick="clearAllTasks()"
-                style="padding: 6px 14px; font-size: 13px"
+                style="padding: 3px 10px; font-size: 12px"
               >
                 Clear All
               </button>
@@ -1346,7 +1348,7 @@
                     <th style="width: 40px">#</th>
                     <th style="width: 40px"></th>
                     <th>Sheet Location</th>
-                    <th style="width: 100px; text-align: center">Actions</th>
+                    <th style="width: 100px; text-align: center">UPDATE</th>
                     <th style="width: 100px">Schedule</th>
                     <th style="width: 100px">Unshare</th>
                   </tr>
@@ -1359,25 +1361,39 @@
                       <img src="/static/excelicon.jpg" style="height: 24px" />
                     </td>
                     <td>
+                      {% set _loc = val.location %}
+                      {% if '#' in _loc %}
+                        {% set _bh = _loc.split('#', 1)[0] %}
+                        {% set _ah = _loc.split('#', 1)[1] %}
+                        {% if '.' not in _bh.split('/')|last and '.' in _ah %}
+                          {% set _norm_loc = _bh + '.' + _ah.rsplit('.', 1)|last + '#' + _ah.rsplit('.', 1)|first %}
+                        {% else %}
+                          {% set _norm_loc = _loc %}
+                        {% endif %}
+                      {% else %}
+                        {% set _norm_loc = _loc %}
+                      {% endif %}
+                      {% set _raw = _norm_loc.split('/')|last|replace('%20', ' ') %}
+                      {% set _display = (_raw.split('#')[0] + ' [' + _raw.split('#')[1] + ']') if '#' in _raw else _raw %}
                       <a
-                        href="{{ val.location }}"
+                        href="{{ _norm_loc }}"
                         target="_blank"
                         style="
                           color: var(--primary);
                           text-decoration: none;
                           font-weight: 500;
                         "
-                        >{% set _raw = val.location.split('/')|last|replace('%20', ' ') %}{% if '#' in _raw %}{{ _raw.split('#')[0] }} [{{ _raw.split('#')[1] }}]{% else %}{{ _raw }}{% endif %}</a
+                        >{{ _display }}</a
                       >
                       <br /><small style="color: var(--text-light); word-break: break-all;"
                         >{{ val.location }}</small
                       >
                       <br /><small style="color: var(--text-light)"
-                        >Added {{ val.datetime}}</small
+                        >Added {{ val.datetime[:16] | replace('T', ' ') if val.datetime else 'Unknown' }}</small
                       >
                       {% if val.last_resync %}<br /><small
                         style="color: var(--text-light)"
-                        >Updated {{ val.last_resync }}</small
+                        >Updated {{ val.last_resync[:16] | replace('T', ' ') if val.last_resync else 'Unknown' }}</small
                       >{% endif %}
                     </td>
                     <td style="text-align: center">
@@ -1388,15 +1404,15 @@
                       >
                         <img src="/static/refreshicon.png" alt="Resync" />
                       </button>
+                    </td>
+                    <td>
                       <button
                         type="button"
                         onclick="openSchedule('{{ val.location }}')"
                         title="Schedule"
                       >
                         <img src="/static/timeicon.png" alt="Schedule" />
-                      </button>
-                    </td>
-                    <td>
+                      </button> <br>
                       {% set sched = schedule_dict.get(val.location) %} {% if
                       sched %} {% if sched.time %}
                       <small>{{sched.mode}} at {{ sched.time }}</small>
@@ -1465,7 +1481,7 @@
                     <th style="width: 40px">#</th>
                     <th style="width: 40px"></th>
                     <th>File Location</th>
-                    <th style="width: 100px; text-align: center">Actions</th>
+                    <th style="width: 100px; text-align: center">Update</th>
                     <th style="width: 180px">Schedule</th>
                     <th style="width: 60px"></th>
                   </tr>
@@ -1506,15 +1522,15 @@
                       >
                         <img src="/static/refreshicon.png" alt="Force Vectorization" />
                       </button>
+                    </td>
+                    <td>
                       <button
                         type="button"
                         onclick="openSchedule('{{ val.location }}')"
                         title="Schedule"
                       >
                         <img src="/static/timeicon.png" alt="Schedule" />
-                      </button>
-                    </td>
-                    <td>
+                      </button> <br>
                       {% set sched = schedule_dict.get(val.url) %} {% if sched
                       %} {% if sched.time %}
                       <small>{{sched.mode}} at {{ sched.time }}</small>
@@ -1576,9 +1592,9 @@
                     <th style="width: 40px">#</th>
                     <th style="width: 40px"></th>
                     <th>File Location</th>
-                    <th style="width: 100px; text-align: center">Actions</th>
+                    <th style="width: 100px; text-align: center">Update</th>
                     <th style="width: 180px">Schedule</th>
-                    <th style="width: 60px"></th>
+                    <th style="width: 60px">Unshare</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1591,7 +1607,7 @@
                     <td>
                       <span style="font-weight: 500">{{ val.location }}</span>
                       <br /><small style="color: var(--text-light)"
-                        >Added {{ val.datetime}}</small
+                        >Added {{ val.datetime[:16] | replace('T', ' ') if val.datetime else 'Unknown' }}</small
                       >
                     </td>
                     <td style="text-align: center">
@@ -1602,15 +1618,15 @@
                       >
                         <img src="/static/refreshicon.png" alt="Resync" />
                       </button>
+                    </td>
+                    <td>
                       <button
                         type="button"
                         onclick="openSchedule('{{ val.location }}')"
                         title="Schedule"
                       >
                         <img src="/static/timeicon.png" alt="Schedule" />
-                      </button>
-                    </td>
-                    <td>
+                      </button><br>
                       {% set sched = schedule_dict.get(val.location) %} {% if
                       sched %} {% if sched.time %}
                       <small>{{sched.mode}} at {{ sched.time }}</small>
@@ -1719,9 +1735,9 @@
                     <th style="width: 40px">#</th>
                     <th style="width: 40px"></th>
                     <th>Sheet Location</th>
-                    <th style="width: 100px; text-align: center">Actions</th>
+                    <th style="width: 100px; text-align: center">Update</th>
                     <th style="width: 180px">Schedule</th>
-                    <th style="width: 60px"></th>
+                    <th style="width: 60px">Unshare</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1749,11 +1765,13 @@
                         >{{ val.location }}</small
                       >
                       <br /><small style="color: var(--text-light)">
-                        Added {{ val.datetime}}</small
+                        Added {{ val.datetime[:16] | replace('T', ' ') if val.datetime else 'Unknown'}}</small
                       >
+
+              
                       {% if val.last_resync %}<br /><small
                         style="color: var(--text-light)"
-                        >Updated {{ val.last_resync }}</small
+                        >Updated {{ val.last_resync[:16] | replace('T', ' ') if val.last_resync else 'Unknown' }}</small
                       >{% endif %}
                     </td>
                     <td style="text-align: center">
@@ -1764,15 +1782,16 @@
                       >
                         <img src="/static/refreshicon.png" alt="Resync" />
                       </button>
+                    </td>
+                    <td>
                       <button
                         type="button"
                         onclick="openSchedule('{{ val.location }}')"
                         title="Schedule"
                       >
                         <img src="/static/timeicon.png" alt="Schedule" />
-                      </button>
-                    </td>
-                    <td>
+                      </button><br>
+
                       {% set sched = schedule_dict.get(val.location) %} {% if
                       sched %} {% if sched.time %}
                       <small>{{sched.mode}} at {{ sched.time }}</small>
@@ -2535,20 +2554,18 @@
               : getShortFilename(task.fileUrl);
               const statusClass   = task.status.toLowerCase();
               const statusIcon    = statusIcons[statusClass] || '•';
+              const elapsed = formatElapsed(task.started_at, task.completed_at);
               html += `
                   <div class="task-item ${statusClass}" data-task-id="${taskId}">
-                      <div class="task-info">
-                          <div class="task-filename">${statusIcon} ${shortFilename}</div>
-                          ${task.fileUrl ? `<div style="font-size:11px;color:var(--text-light);word-break:break-all;margin-top:2px;">${task.fileUrl}</div>` : ''}
-                          <div class="task-times">
-                              Queued: ${formatTime(task.created_at)} |
-                              Started: ${formatTime(task.started_at)} |
-                              Completed: ${formatTime(task.completed_at)}
-                              ${formatElapsed(task.started_at, task.completed_at) ? `| Elapsed: ${formatElapsed(task.started_at, task.completed_at)}` : ''}
+                      <div class="task-info" style="min-width:0;flex:1;">
+                          <div class="task-filename" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${statusIcon} ${shortFilename}</div>
+                          ${task.fileUrl ? `<div style="font-size:10px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${task.fileUrl}">${task.fileUrl}</div>` : ''}
+                          <div class="task-times" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                              Queued:${formatTime(task.created_at)} Started:${formatTime(task.started_at)} Completed:${formatTime(task.completed_at)}${elapsed ? ` (${elapsed})` : ''}
                           </div>
-                          ${task.error ? `<div style="color:var(--danger);font-size:11px;margin-top:4px;">Error: ${task.error}</div>` : ''}
+                          ${task.error ? `<div style="color:var(--danger);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">⚠ ${task.error}</div>` : ''}
                       </div>
-                      <span class="task-status-badge status-${statusClass}">${task.status}</span>
+                      <span class="task-status-badge status-${statusClass}" style="margin-left:8px;flex-shrink:0;">${task.status}</span>
                   </div>`;
           });
           taskListDiv.innerHTML = html;
