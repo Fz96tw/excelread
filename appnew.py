@@ -1804,6 +1804,14 @@ def setmodel():
     return jsonify({"success": True, "message": "LLM Model updated successfully"})
 
 
+@app.route("/getmodel", methods=["GET"])
+def getmodel():
+    LLMCONFIG_FILE = user_config_file(current_user.username, "llmconfig.json")
+    config = load_llm_config(LLMCONFIG_FILE)
+    model = config.get("model", "Local") if config else "Local"
+    return jsonify({"default_model": model})
+
+
 @app.route("/add_sharepoint", methods=["POST"])
 def add_sharepoint():
     new_val = request.form.get('bar_value', '').strip()
