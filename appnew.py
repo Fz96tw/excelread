@@ -412,7 +412,7 @@ def save_users(users):
 
 
 class User(UserMixin):
-    def __init__(self, id, username, password, first_name, last_name, date_registered, email=None, auth_provider=None, **kwargs):
+    def __init__(self, id, username, password, first_name, last_name, date_registered, email=None, auth_provider=None, role="user", **kwargs):
         self.id = id
         self.username = username
         self.password = password  # NOTE: hash in real life
@@ -421,6 +421,7 @@ class User(UserMixin):
         self.date_registered = date_registered
         self.email = email
         self.auth_provider = auth_provider
+        self.role = role
     
 @login_manager.user_loader
 def load_user(user_id):
@@ -628,7 +629,8 @@ def register():
             "first_name": first_name,
             "last_name": last_name,
             "email":email,
-            "date_registered": datetime.utcnow().isoformat()
+            "date_registered": datetime.utcnow().isoformat(),
+            "role": "user"
         }
 
         users.append(new_user)
@@ -820,6 +822,7 @@ def google_callback():
                 "email": email,
                 "date_registered": datetime.utcnow().isoformat(),
                 "auth_provider": "google",
+                "role": "user",
             }
             users.append(existing)
             save_users(users)
@@ -1723,7 +1726,8 @@ def index():
                            username=userlogin,
                            auth_username=auth_user_email,
                            google_username=google_user_email,
-                           llm_default=llm_model
+                           llm_default=llm_model,
+                           is_admin=(current_user.role == "admin")
                            )
 
 

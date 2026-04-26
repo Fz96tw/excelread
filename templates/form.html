@@ -961,7 +961,7 @@
       <img src="/static/curiologo.png" alt="Curio" class="top-bar-logo" />
       <div class="top-bar-user">
         <img src="/static/usericon2.png" alt="" />
-        <span class="top-bar-username">{{current_user.email or username}}</span>
+        <span class="top-bar-username">{{current_user.email or username}}{% if is_admin %} [Admin]{% endif %}</span>
       </div>
       <div class="top-bar-status">
         <span class="status-pill">
@@ -1070,7 +1070,7 @@
               <a href="https://www.cloudcurio.com" class="submenu-item"
                 >About</a
               >
-              <a href="/system-info" class="submenu-item">System Info</a>
+              <a href="/system-info" class="submenu-item">System</a>
               <a
                 href="#section9"
                 class="submenu-item"
@@ -1078,8 +1078,9 @@
                   showSection('section9');
                   return false;
                 "
-                >Run History</a
+                >History</a
               >
+              {% if is_admin %}
               <a
                 href="#section3"
                 class="submenu-item"
@@ -1089,6 +1090,7 @@
                 "
                 >Debug Logs</a
               >
+              {% endif %}
             </div>
           </div>
 
