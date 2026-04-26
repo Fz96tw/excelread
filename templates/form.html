@@ -968,7 +968,7 @@
               style="width: 30px; height: 30px"
               alt="" 
         />
-        <span class="top-bar-username">{{current_user.email or username}}{% if is_admin %} [Admin]{% endif %}</span>
+        <span class="top-bar-username">{{current_user.username or current_user.email}}{% if is_admin %} [Admin]{% endif %}</span>
       </div>
       <div class="top-bar-status">
         <span class="status-pill">

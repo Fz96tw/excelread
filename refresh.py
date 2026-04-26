@@ -654,6 +654,28 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
     userfolder = f"{work_dir}/../"
     delete_old_folders_by_hours(userfolder,24)   # remove user-level temporary file that are older than 24 hour
 
+    # Re-queue process_url for every supporting doc that references this sheet so that
+    # stale FAISS indices get refreshed when doc content changes.  process_url does its
+    # own checksum / etag comparison, so unchanged docs are skipped cheaply.
+    try:
+        from vector_worker import process_url  # late import — vector_worker imports refresh at module level
+        docs_json_path = user_config_file(userlogin, "docs.json")
+        if os.path.exists(docs_json_path):
+            with open(docs_json_path) as _f:
+                docs_data = json.load(_f)
+            source_file_key = f"{filename}.{sheet}"
+            queued = 0
+            for entry in docs_data.get("docs", []):
+                if any(r.get("source_file") == source_file_key for r in entry.get("referrers", [])):
+                    doc_url = entry.get("url")
+                    if doc_url:
+                        process_url.delay(userlogin, doc_url)
+                        queued += 1
+                        logger.info(f"Queued process_url for supporting doc: {doc_url}")
+            logger.info(f"Queued {queued} supporting doc(s) for re-vectorization after resync of {source_file_key}")
+    except Exception as e:
+        logger.error(f"Failed to queue supporting docs for re-vectorization: {e}")
+
     # send to vectorizer for indexing in future
     # for now we will copy all the .csv and aibrief.llm.txt files into workdir/vectorstore folder
     vectorstore_dir = os.path.join(userfolder, "vectorstore")
