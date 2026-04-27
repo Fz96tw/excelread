@@ -591,6 +591,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
            
 
 
+    success = True
     try:
         with open(log_file, "w", encoding="utf-8") as log:
             try:
@@ -601,16 +602,16 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                         run_and_log(["python", "-u", download_script, url, timestamp, "user_auth", userlogin], log, f"download.py {url} {timestamp} user_auth {userlogin}")
                     else:
                         run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
-                
+
 
                 logger.info("about to call process_yaml")
                 process_yaml(url, filename, sheet, timestamp, delegated_auth, userlogin)
-                
+
                 logger.info("about to call process_aibrief_yaml")
                 process_aibrief_yaml(url, filename, timestamp, userlogin, delegated_auth)
 
                 # need to download xlsx file again since process_yaml earlier updated
-                # sharepoint and this means the meta data will not match any longer 
+                # sharepoint and this means the meta data will not match any longer
                 if not is_googlesheet(url):
                     logger.info(f"Re-downloading {url}...")
         #            run_and_log(["python", "-u", download_script, url, timestamp], log, f"download.py {url} {timestamp}")
@@ -624,6 +625,7 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
                 process_aibrief_changes_txt(url, sheet, filename, timestamp)
 
             except Exception as e:
+                success = False
                 err_msg = f"Error while running resync: {e}"
                 logger.exception(err_msg)
                 log.write(err_msg + "\n")
@@ -639,9 +641,8 @@ def resync(url: str, userlogin, delegated_auth, workdir = None, ts = None):
         ts_escaped = str(ts).replace(',', '\\,') if ts else ''
         
         # Write to user-specific resync calls log
-        #log_line = f"{start_time_str} {end_time_str} {duration}\n{filename} {sheet}\n{url_escaped} {userlogin},{delegated_auth},{workdir_escaped},{ts_escaped}\n"
-        log_line = f"{start_time_str} {end_time_str} {duration:.0f} {filename} {sheet}\n"
-        #log_line = f"{start_time_str},{end_time_str},{duration},{url},{userlogin},{delegated_auth},{workdir},{ts}\n"
+        status = "OK" if success else "ERR"
+        log_line = f"{start_time_str} {end_time_str} {duration:.0f} {status} {filename} {sheet}\n"
         
         try:
             with open(resync_calls_log, "a", encoding="utf-8") as f:
