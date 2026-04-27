@@ -690,34 +690,24 @@
         }
       }
 
-      /* Schedule form improvements */
-      .schedule-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 20px;
-        margin: 20px 0;
+      /* Schedule modal — day pill toggle buttons */
+      .day-pill input[type="checkbox"] { display: none; }
+      .day-pill span {
+        display: inline-block;
+        padding: 5px 12px;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        font-size: 12px;
+        cursor: pointer;
+        user-select: none;
+        background: var(--bg-white);
+        color: var(--text-light);
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
       }
-
-      .schedule-option {
-        padding: 16px;
-        border: 2px solid var(--border);
-        border-radius: 8px;
-        transition: all 0.2s;
-      }
-
-      .schedule-option:hover {
+      .day-pill input[type="checkbox"]:checked + span {
+        background: var(--primary);
+        color: #fff;
         border-color: var(--primary);
-      }
-
-      .schedule-option input[type="radio"] {
-        margin-right: 8px;
-      }
-
-      #weeklyDays {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
-        gap: 8px;
-        margin-top: 12px;
       }
 
       #weeklyDays label {
@@ -1788,7 +1778,7 @@
                     <td>
                       <button
                         type="button"
-                        onclick="openSchedule('{{ val.location }}')"
+                        onclick="openSchedule('{{ val.location }}', '{{ val.filename }}', '{{ val.sheet }}')"
                         title="Schedule"
                       >
                         <img src="/static/timeicon.png" alt="Schedule" />
@@ -2024,163 +2014,111 @@
     <div id="scheduleModal" class="modal">
       <div class="modal-content">
         <span class="close">&times;</span>
-        <h2
-          style="
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 24px;
-          "
-        >
-          <img src="/static/timeicon.png" style="height: 32px" />
-          Schedule File Sync with AI Agent
+        <h2 style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+          <img src="/static/timeicon.png" style="height:32px;" />
+          Schedule File Sync
         </h2>
 
+        <!-- File label -->
+        <p id="scheduleFileDisplay" style="font-size:15px;font-weight:600;color:var(--text-dark);margin-bottom:4px;"></p>
+        <p id="scheduleFileSubDisplay" style="font-size:12px;color:var(--text-light);margin-bottom:16px;word-break:break-all;"></p>
+
+        <!-- Current schedule summary -->
+        <div id="scheduleCurrentBanner" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:20px;font-size:13px;color:#1d4ed8;">
+          <strong>Currently active:</strong> <span id="scheduleCurrentText"></span>
+        </div>
+
         <form id="scheduleForm" method="POST" action="/schedule">
-          <div style="margin-bottom: 20px">
-            <label style="display: block; font-weight: 500; margin-bottom: 8px"
-              >File</label
-            >
-            <textarea
-              id="scheduleFilename"
-              name="filename"
-              readonly
-              style="
-                width: 100%;
-                padding: 12px;
-                border: 1px solid var(--border);
-                background-color: var(--bg-light);
-                font-size: 14px;
-                border-radius: 8px;
-                resize: none;
-                height: 70px;
-                font-family: inherit;
-              "
-            ></textarea>
-          </div>
+          <input type="hidden" id="scheduleFilename" name="filename" />
 
-          <div class="schedule-grid">
-            <div class="schedule-option">
-              <h4 style="margin-bottom: 12px; color: var(--text-dark)">
-                ⏰ Time-based Schedule
-              </h4>
-              <div style="margin-bottom: 12px">
-                <label
-                  style="display: block; margin-bottom: 6px; font-size: 14px"
-                  >Time (HH:MM)</label
-                >
-                <input
-                  type="text"
-                  id="scheduleTime"
-                  name="time"
-                  placeholder="14:30"
-                  style="
-                    width: 100%;
-                    padding: 8px;
-                    border: 1px solid var(--border);
-                    border-radius: 6px;
-                  "
-                />
-              </div>
-              <div>
-                <label
-                  style="
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    margin-bottom: 8px;
-                    cursor: pointer;
-                  "
-                >
-                  <input
-                    type="radio"
-                    class="scheduleMode"
-                    name="mode"
-                    value="Daily"
-                  />
-                  <span style="font-weight: 500">Daily</span>
-                </label>
-                <label
-                  style="
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    cursor: pointer;
-                  "
-                >
-                  <input
-                    type="radio"
-                    class="scheduleMode"
-                    name="mode"
-                    value="Weekly"
-                  />
-                  <span style="font-weight: 500">Weekly</span>
-                </label>
-              </div>
-              <div id="weeklyDays" style="display: none; margin-top: 12px">
-                <label
-                  ><input type="checkbox" name="days" value="mon" /> Mon</label
-                >
-                <label
-                  ><input type="checkbox" name="days" value="tue" /> Tue</label
-                >
-                <label
-                  ><input type="checkbox" name="days" value="wed" /> Wed</label
-                >
-                <label
-                  ><input type="checkbox" name="days" value="thu" /> Thu</label
-                >
-                <label
-                  ><input type="checkbox" name="days" value="fri" /> Fri</label
-                >
-                <label
-                  ><input type="checkbox" name="days" value="sat" /> Sat</label
-                >
-                <label
-                  ><input type="checkbox" name="days" value="sun" /> Sun</label
-                >
-              </div>
-            </div>
-
-            <div class="schedule-option">
-              <h4 style="margin-bottom: 12px; color: var(--text-dark)">
-                🔄 Interval-based Schedule
-              </h4>
-              <label style="display: block; margin-bottom: 6px; font-size: 14px"
-                >Interval (minutes)</label
-              >
-              <input
-                type="number"
-                id="scheduleInterval"
-                name="interval"
-                min="1"
-                placeholder="30"
-                style="
-                  width: 100%;
-                  padding: 8px;
-                  border: 1px solid var(--border);
-                  border-radius: 6px;
-                "
-              />
-              <p
-                style="
-                  font-size: 12px;
-                  color: var(--text-light);
-                  margin-top: 8px;
-                "
-              >
-                Runs automatically every X minutes
-              </p>
+          <!-- Mode selector -->
+          <div style="margin-bottom:20px;">
+            <label style="display:block;font-weight:500;margin-bottom:10px;font-size:14px;">Schedule type</label>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;">
+                <input type="radio" name="scheduleType" value="off" class="scheduleTypeRadio" />
+                <span>Off <span style="color:var(--text-light);font-size:12px;">— manual sync only</span></span>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;">
+                <input type="radio" name="scheduleType" value="time" class="scheduleTypeRadio" />
+                <span>At a specific time</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;">
+                <input type="radio" name="scheduleType" value="interval" class="scheduleTypeRadio" />
+                <span>On a repeating interval</span>
+              </label>
             </div>
           </div>
 
-          <div style="display: flex; gap: 12px; margin-top: 24px">
-            <button type="submit" id="scheduleSubmit">
-              <!--img src="/static/saveicontransparent.png" alt=""-->
-              Save Schedule
+          <!-- Time-based sub-form -->
+          <div id="schedTimeSub" style="display:none;background:var(--bg-light);border-radius:8px;padding:16px;margin-bottom:20px;">
+            <div style="margin-bottom:14px;">
+              <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px;">Time</label>
+              <input type="time" id="scheduleTime" name="time"
+                style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg-white);" />
+            </div>
+            <div>
+              <label style="display:block;font-size:13px;font-weight:500;margin-bottom:8px;">Repeat</label>
+              <div style="display:flex;gap:20px;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;">
+                  <input type="radio" name="mode" value="Daily" class="scheduleMode" /> Daily
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;">
+                  <input type="radio" name="mode" value="Weekly" class="scheduleMode" /> Weekly
+                </label>
+              </div>
+              <div id="weeklyDays" style="display:none;margin-top:12px;gap:6px;flex-wrap:wrap;">
+                <label class="day-pill"><input type="checkbox" name="days" value="mon" /><span>Mon</span></label>
+                <label class="day-pill"><input type="checkbox" name="days" value="tue" /><span>Tue</span></label>
+                <label class="day-pill"><input type="checkbox" name="days" value="wed" /><span>Wed</span></label>
+                <label class="day-pill"><input type="checkbox" name="days" value="thu" /><span>Thu</span></label>
+                <label class="day-pill"><input type="checkbox" name="days" value="fri" /><span>Fri</span></label>
+                <label class="day-pill"><input type="checkbox" name="days" value="sat" /><span>Sat</span></label>
+                <label class="day-pill"><input type="checkbox" name="days" value="sun" /><span>Sun</span></label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interval-based sub-form -->
+          <div id="schedIntervalSub" style="display:none;background:var(--bg-light);border-radius:8px;padding:16px;margin-bottom:20px;">
+            <label style="display:block;font-size:13px;font-weight:500;margin-bottom:8px;">Run every</label>
+            <select id="scheduleInterval" name="interval"
+              style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg-white);cursor:pointer;">
+              <option value="">— choose —</option>
+              <option value="30">30 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="120">2 hours</option>
+              <option value="240">4 hours</option>
+              <option value="480">8 hours</option>
+              <option value="1440">24 hours</option>
+            </select>
+          </div>
+
+          <!-- Actions -->
+          <div style="display:flex;align-items:center;gap:12px;margin-top:4px;">
+            <button type="submit" id="scheduleSubmit">Save Schedule</button>
+            <button type="button" onclick="document.getElementById('scheduleModal').style.display='none'"
+              style="background:none;border:1px solid var(--border);color:var(--text-dark);padding:8px 16px;border-radius:6px;font-size:14px;cursor:pointer;">
+              Cancel
             </button>
-            <button type="button" id="clearScheduleBtn" class="btn-danger">
-              Clear Schedule
+            <button type="button" id="clearScheduleBtn"
+              onclick="confirmClearSchedule()"
+              style="display:none;background:none;border:none;color:var(--danger);font-size:13px;cursor:pointer;padding:4px 0;text-decoration:underline;">
+              Remove schedule
+            </button>
+          </div>
+
+          <!-- Inline confirm for remove -->
+          <div id="clearScheduleConfirm" style="display:none;margin-top:14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;font-size:13px;color:var(--text-dark);">
+            Remove this schedule permanently?
+            <button type="button" id="clearScheduleConfirmBtn"
+              style="margin-left:12px;background:var(--danger);color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:13px;">
+              Yes, remove
+            </button>
+            <button type="button"
+              onclick="document.getElementById('clearScheduleConfirm').style.display='none'"
+              style="margin-left:6px;background:none;border:none;color:var(--text-light);cursor:pointer;font-size:13px;">
+              Cancel
             </button>
           </div>
         </form>
@@ -2433,82 +2371,153 @@
       // SCHEDULE MODAL
       // =========================================================
 
-      const scheduleModal    = document.getElementById('scheduleModal');
-      const scheduleTime     = document.getElementById('scheduleTime');
-      const scheduleInterval = document.getElementById('scheduleInterval');
-      const modeCheckboxes   = document.querySelectorAll('.scheduleMode');
-      const scheduleData     = {{ schedule_dict | tojson | safe }} || {};
+      const scheduleModal = document.getElementById('scheduleModal');
+      let scheduleData    = {{ schedule_dict | tojson | safe }} || {};
+      let _schedFilename  = null;
 
-      function enforceMutualExclusivity() {
-          const timeVal     = scheduleTime.value.trim();
-          const intervalVal = scheduleInterval.value.trim();
-          scheduleTime.disabled     = !!intervalVal;
-          scheduleInterval.disabled = !!timeVal;
-          modeCheckboxes.forEach(cb => cb.disabled = !!intervalVal);
-          document.getElementById('scheduleSubmit').disabled = !(timeVal || intervalVal);
+      const INTERVAL_LABELS = {30:'Every 30 min',60:'Every hour',120:'Every 2 hours',240:'Every 4 hours',480:'Every 8 hours',1440:'Every 24 hours'};
+
+      function describeSchedule(sched) {
+          if (!sched) return null;
+          if (sched.interval) return INTERVAL_LABELS[sched.interval] || `Every ${sched.interval} min`;
+          if (sched.time && sched.mode) {
+              const days = sched.days?.length ? ` on ${sched.days.map(d => d.charAt(0).toUpperCase()+d.slice(1)).join(', ')}` : '';
+              return `${sched.mode} at ${sched.time}${days}`;
+          }
+          return null;
       }
 
-      if (scheduleTime)     scheduleTime.addEventListener('input', enforceMutualExclusivity);
-      if (scheduleInterval) scheduleInterval.addEventListener('input', enforceMutualExclusivity);
+      function updateScheduleSubForms() {
+          const type = document.querySelector('.scheduleTypeRadio:checked')?.value;
+          document.getElementById('schedTimeSub').style.display     = type === 'time'     ? 'block' : 'none';
+          document.getElementById('schedIntervalSub').style.display = type === 'interval' ? 'block' : 'none';
+          document.getElementById('scheduleSubmit').disabled        = !type || type === 'off';
+          const modeVal = document.querySelector("input[name='mode']:checked")?.value;
+          document.getElementById('weeklyDays').style.display = (type === 'time' && modeVal === 'Weekly') ? 'flex' : 'none';
+      }
 
-      function openSchedule(filename) {
+      document.querySelectorAll('.scheduleTypeRadio').forEach(r => r.addEventListener('change', updateScheduleSubForms));
+      document.querySelectorAll('.scheduleMode').forEach(r => r.addEventListener('change', updateScheduleSubForms));
+
+      function _scheduleBasename(url) {
+          try {
+              const parts = decodeURIComponent(url).replace(/\\/g, '/').split('/');
+              return parts.filter(Boolean).pop() || url;
+          } catch(e) { return url; }
+      }
+
+      function openSchedule(filename, displayName, sheet) {
+          _schedFilename = filename;
           const sched = scheduleData[filename];
-          document.getElementById('scheduleFilename').value  = filename;
-          document.getElementById('scheduleTime').value      = sched?.time     || '';
-          document.getElementById('scheduleInterval').value  = sched?.interval || '';
 
-          document.querySelectorAll("input[name='mode']").forEach(r => r.checked = false);
-          if (sched?.mode) {
-              const el = document.querySelector(`input[name='mode'][value='${sched.mode}']`);
-              if (el) el.checked = true;
+          document.getElementById('scheduleFilename').value = filename;
+
+          const name = displayName || _scheduleBasename(filename);
+          document.getElementById('scheduleFileDisplay').textContent = name;
+          const sub = sheet ? `Sheet: ${sheet}` : (displayName ? '' : filename);
+          document.getElementById('scheduleFileSubDisplay').textContent = sub;
+          document.getElementById('scheduleFileSubDisplay').style.display = sub ? 'block' : 'none';
+
+          // Current schedule banner
+          const desc = describeSchedule(sched);
+          const banner = document.getElementById('scheduleCurrentBanner');
+          if (desc) {
+              document.getElementById('scheduleCurrentText').textContent = desc;
+              banner.style.display = 'block';
+          } else {
+              banner.style.display = 'none';
           }
 
-          const weeklyDays = document.getElementById('weeklyDays');
-          weeklyDays.style.display = sched?.mode?.toLowerCase() === 'weekly' ? 'grid' : 'none';
-
+          // Reset all controls
+          document.querySelectorAll('.scheduleTypeRadio').forEach(r => r.checked = false);
+          document.getElementById('scheduleTime').value     = '';
+          document.getElementById('scheduleInterval').value = '';
+          document.querySelectorAll("input[name='mode']").forEach(r => r.checked = false);
           document.querySelectorAll('#weeklyDays input[type=checkbox]').forEach(cb => cb.checked = false);
-          sched?.days?.forEach(day => {
-              const cb = document.querySelector(`#weeklyDays input[value='${day}']`);
-              if (cb) cb.checked = true;
-          });
+          document.getElementById('clearScheduleConfirm').style.display = 'none';
 
+          // Pre-fill from existing schedule
+          if (sched?.interval) {
+              document.querySelector('.scheduleTypeRadio[value="interval"]').checked = true;
+              document.getElementById('scheduleInterval').value = String(sched.interval);
+          } else if (sched?.time) {
+              document.querySelector('.scheduleTypeRadio[value="time"]').checked = true;
+              document.getElementById('scheduleTime').value = sched.time;
+              const modeEl = document.querySelector(`input[name='mode'][value='${sched.mode}']`);
+              if (modeEl) modeEl.checked = true;
+              sched.days?.forEach(day => {
+                  const cb = document.querySelector(`#weeklyDays input[value='${day}']`);
+                  if (cb) cb.checked = true;
+              });
+          } else {
+              document.querySelector('.scheduleTypeRadio[value="off"]').checked = true;
+          }
+
+          // Show remove button only when a schedule exists
+          document.getElementById('clearScheduleBtn').style.display = desc ? 'inline' : 'none';
+
+          updateScheduleSubForms();
           scheduleModal.style.display = 'block';
-          enforceMutualExclusivity();
       }
 
       // Close modal on X or backdrop click
-      document.querySelector('.close').onclick = () => scheduleModal.style.display = 'none';
-      window.onclick = e => { if (e.target === scheduleModal) scheduleModal.style.display = 'none'; };
+      document.querySelector('#scheduleModal .close').onclick = () => scheduleModal.style.display = 'none';
+      window.addEventListener('click', e => { if (e.target === scheduleModal) scheduleModal.style.display = 'none'; });
 
-      // Schedule form submit
+      // Form submit
       document.getElementById('scheduleForm').addEventListener('submit', function(e) {
           e.preventDefault();
-          const time     = scheduleTime.value.trim();
-          const interval = scheduleInterval.value.trim();
-          if (!time && !interval) { showToast('⚠ Enter time or interval', false); return; }
+          const type     = document.querySelector('.scheduleTypeRadio:checked')?.value;
+          const time     = document.getElementById('scheduleTime').value;
+          const interval = document.getElementById('scheduleInterval').value;
+          const mode     = document.querySelector("input[name='mode']:checked")?.value || '';
 
-          const formData     = new FormData(this);
-          let selectedMode   = '';
-          document.querySelectorAll("input[name='mode']").forEach(r => { if (r.checked) selectedMode = r.value; });
-          formData.append('mode', selectedMode);
+          if (type === 'off') {
+              // Treat "Off" as clearing the schedule
+              _doRemoveSchedule(_schedFilename);
+              return;
+          }
+          if (type === 'time') {
+              if (!time)  { showToast('Select a time', false); return; }
+              if (!mode)  { showToast('Select Daily or Weekly', false); return; }
+          }
+          if (type === 'interval' && !interval) { showToast('Select an interval', false); return; }
 
-          fetch(this.action, { method: 'POST', body: formData })
-              .then(res => {
-                  if (res.ok) {
-                      showToast('✅ Schedule saved successfully');
+          const fd = new FormData();
+          fd.append('filename', _schedFilename);
+          if (type === 'interval') {
+              fd.append('interval', interval);
+          } else {
+              fd.append('time', time);
+              fd.append('mode', mode);
+              document.querySelectorAll('#weeklyDays input:checked').forEach(cb => fd.append('days', cb.value));
+          }
+
+          fetch('/schedule', { method: 'POST', body: fd })
+              .then(r => r.json())
+              .then(data => {
+                  if (data.success) {
+                      // Update in-place — no page reload
+                      if (type === 'interval') {
+                          scheduleData[_schedFilename] = { filename: _schedFilename, interval: parseInt(interval) };
+                      } else {
+                          const days = [...document.querySelectorAll('#weeklyDays input:checked')].map(cb => cb.value);
+                          scheduleData[_schedFilename] = { filename: _schedFilename, time, mode, days };
+                      }
+                      showToast('Schedule saved');
                       scheduleModal.style.display = 'none';
-                      setTimeout(() => location.reload(), 800);
                   } else {
-                      showToast('⚠ Failed to save schedule', false);
+                      showToast('Failed to save schedule', false);
                   }
               })
-              .catch(() => showToast('⚠ Error connecting to server', false));
+              .catch(() => showToast('Error connecting to server', false));
       });
 
-      // Clear schedule button
-      document.getElementById('clearScheduleBtn').addEventListener('click', function() {
-          const filename = document.getElementById('scheduleFilename').value;
-          if (!filename) return;
+      function confirmClearSchedule() {
+          document.getElementById('clearScheduleConfirm').style.display = 'block';
+      }
+
+      function _doRemoveSchedule(filename) {
           fetch('/schedule/clear', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -2517,31 +2526,18 @@
           .then(r => r.json())
           .then(data => {
               if (data.success) {
-                  showToast('✅ Schedule cleared');
+                  delete scheduleData[filename];
+                  showToast('Schedule removed');
                   scheduleModal.style.display = 'none';
-                  setTimeout(() => location.reload(), 800);
               } else {
-                  showToast('⚠ Failed to clear schedule', false);
+                  showToast('Failed to remove schedule', false);
               }
           })
-          .catch(() => showToast('⚠ Error connecting to server', false));
-      });
+          .catch(() => showToast('Error connecting to server', false));
+      }
 
-      // Radio mutual exclusivity + weekly days visibility
-      modeCheckboxes.forEach(cb => {
-          cb.addEventListener('change', function() {
-              if (this.checked) modeCheckboxes.forEach(o => { if (o !== this) o.checked = false; });
-          });
-      });
+      document.getElementById('clearScheduleConfirmBtn').addEventListener('click', () => _doRemoveSchedule(_schedFilename));
 
-      document.querySelectorAll("input[name='mode']").forEach(radio => {
-          radio.addEventListener('change', function() {
-              document.getElementById('weeklyDays').style.display =
-                  this.value.toLowerCase() === 'weekly' ? 'grid' : 'none';
-          });
-      });
-
-      flatpickr('#scheduleTime', { enableTime: true, noCalendar: true, dateFormat: 'H:i', time_24hr: true });
 
       // =========================================================
       // CONTACT FORM (Section 8)
