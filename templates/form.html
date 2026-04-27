@@ -1466,79 +1466,83 @@
           <!-- Section 11: Supporting docs for RAG -->
           <div id="section11" class="section-content">
             <div class="card">
-              <h2>Supporting documents available to Agent for Retrieval</h2>
-              <table>
+              <h2>Supporting Docs</h2>
+              <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
                 <thead>
-                  <tr>
-                    <th style="width: 40px">#</th>
-                    <th style="width: 40px"></th>
-                    <th>File Location</th>
-                    <th style="width: 100px; text-align: center">Update</th>
-                    <th style="width: 180px">Schedule</th>
-                    <th style="width: 60px"></th>
+                  <tr style="color:var(--text-light);font-size:11px;text-transform:uppercase;letter-spacing:.05em;">
+                    <th style="width:70%;padding:0 12px 10px 0;text-align:left;font-weight:500;border-bottom:1px solid var(--border);">Document</th>
+                    <th style="width:15%;padding:0 12px 10px 0;text-align:left;font-weight:500;border-bottom:1px solid var(--border);white-space:nowrap;">Embedded</th>
+                    <th style="width:15%;padding:0 0 10px 0;text-align:right;font-weight:500;border-bottom:1px solid var(--border);">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for val in docs_list %}
-                  <tr>
-                    <td>{{ loop.index }}</td>
-                    <td>
-                      <img src="/static/url-icon.png" style="height: 24px" />
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:10px 12px 10px 0;vertical-align:top;">
+                      <div style="display:flex;align-items:flex-start;gap:10px;">
+                        <img src="/static/url-icon.png" style="height:20px;margin-top:3px;flex-shrink:0;" />
+                        <div style="min-width:0;">
+                          <a href="{{ val.url }}" target="_blank"
+                             style="font-weight:500;color:var(--primary);text-decoration:none;word-break:break-word;display:block;">
+                            {{ val.url.split('/')|last|replace('%20', ' ') or val.url }}
+                          </a>
+                          <div style="font-size:11px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:480px;margin-top:2px;"
+                               title="{{ val.url }}">{{ val.url }}</div>
+                          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
+                            {% set sched = schedule_dict.get(val.url) %}
+                            {% if sched %}
+                              {% if sched.time %}
+                                <button type="button" onclick="openSchedule('{{ val.url }}')"
+                                        style="font-size:11px;background:#eff6ff;color:#1d4ed8;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;">
+                                  📅 {{ sched.mode }} at {{ sched.time }}
+                                </button>
+                              {% elif sched.interval %}
+                                <button type="button" onclick="openSchedule('{{ val.url }}')"
+                                        style="font-size:11px;background:#eff6ff;color:#1d4ed8;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;">
+                                  🔄 Every {{ sched.interval }} min
+                                </button>
+                              {% endif %}
+                            {% else %}
+                              <button type="button" onclick="openSchedule('{{ val.url }}')"
+                                      style="font-size:11px;background:none;color:var(--text-light);border:1px dashed var(--border);padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;">
+                                + Schedule
+                              </button>
+                            {% endif %}
+                            {% if val.referrers|length > 1 %}
+                              <span style="font-size:11px;color:var(--text-light);background:var(--bg-light);padding:2px 8px;border-radius:4px;">
+                                {{ val.referrers|length }} sheets
+                              </span>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </div>
                     </td>
-                    <td>
-                      <a
-                        href="{{ val.url }}"
-                        target="_blank"
-                        style="
-                          font-weight: 500;
-                          color: var(--primary);
-                          text-decoration: none;
-                        "
-                        >{{ val.url.split('/')|last|replace('%20', ' ') or val.url }}</a
-                      >
-                      <br /><small style="color: var(--text-light); word-break: break-all;"
-                        >{{ val.url }}</small
-                      >
-                      <br /><small style="color: var(--text-light)"
-                        >Added: <span class="fmt-dt" data-dt="{{ val.referrers[0].added_at if val.referrers else '' }}">{{ val.referrers[0].added_at[:16] | replace('T', ' ') if val.referrers else 'Unknown' }}</span></small
-                      >
-                      <br /><small style="color: var(--text-light)"
-                        >Embedding: <span class="fmt-dt" data-dt="{{ val.embedding_updated_at or '' }}">{{ val.embedding_updated_at[:16] | replace('T', ' ') if val.embedding_updated_at else 'Never' }}</span></small
-                      >
-                    </td>
-                    <td style="text-align: center">
-                      <button
-                        type="button"
-                        onclick="handleResyncDocs('{{ val.url }}', event)"
-                        title="Force Vectorization"
-                      >
-                        <img src="/static/refreshicon.png" alt="Force Vectorization" />
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        onclick="openSchedule('{{ val.location }}')"
-                        title="Schedule"
-                      >
-                        <img src="/static/timeicon.png" alt="Schedule" />
-                      </button> <br>
-                      {% set sched = schedule_dict.get(val.url) %} {% if sched
-                      %} {% if sched.time %}
-                      <small>{{sched.mode}} at {{ sched.time }}</small>
-                      {% elif sched.interval %}
-                      <small>Every {{ sched.interval }} min</small>
-                      {% endif %} {% else %}
-                      <small style="color: var(--text-light)">None</small>
+                    <td style="padding:10px 12px 10px 0;vertical-align:top;white-space:nowrap;">
+                      {% if val.embedding_updated_at %}
+                        <span class="embed-badge" data-dt="{{ val.embedding_updated_at }}"
+                              style="font-size:12px;padding:3px 8px;border-radius:4px;font-weight:500;background:#f3f4f6;color:#6b7280;">
+                          {{ val.embedding_updated_at[:16]|replace('T', ' ') }}
+                        </span>
+                      {% else %}
+                        <span style="font-size:12px;padding:3px 8px;border-radius:4px;background:#f3f4f6;color:#9ca3af;font-weight:500;">
+                          Never
+                        </span>
                       {% endif %}
                     </td>
-                    <td>
-                      <button
-                        onclick="handleRemoveDocs('{{ val.url }}', event)"
-                        style="padding: 4px 8px"
-                      >
-                        ❌
-                      </button>
+                    <td style="padding:10px 0;vertical-align:top;white-space:nowrap;">
+                      <div style="display:flex;gap:6px;justify-content:flex-end;align-items:flex-start;">
+                        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+                          <button type="button"
+                                  onclick="handleResyncDocs('{{ val.url }}', event, 'doc-resync-{{ loop.index }}')"
+                                  title="Re-vectorize" style="padding:4px 8px;">
+                            <img src="/static/refreshicon.png" alt="Re-vectorize" style="height:16px;" />
+                          </button>
+                          <div id="doc-resync-{{ loop.index }}"
+                               style="font-size:11px;min-height:14px;"></div>
+                        </div>
+                        <button onclick="handleRemoveDocs('{{ val.url }}', event)"
+                                style="padding:4px 8px;" title="Remove">❌</button>
+                      </div>
                     </td>
                   </tr>
                   {% endfor %}
@@ -2569,6 +2573,7 @@
       // =========================================================
 
       const activeTasks = new Map();
+      const docResyncStatusMap = new Map(); // fileUrl → { statusId, btn }
       let globalPollInterval = null;
 
       function formatTime(dateString) {
@@ -2624,7 +2629,7 @@
 
       function removeCompletedTask(taskId) {
           const task = activeTasks.get(taskId);
-          if (task && ['completed', 'failed', 'SUCCESS'].includes(task.status)) {
+          if (task && ['completed', 'failed', 'SUCCESS', 'FAILURE'].includes(task.status)) {
               console.log(`Removing completed task ${taskId} from display and tracking`);
               activeTasks.delete(taskId);
               updateTaskDisplay();
@@ -2654,10 +2659,22 @@
                       status: task.status, started_at: task.started_at,
                       completed_at: task.completed_at, progress: task.progress, error: task.error
                   });
-                  if (['SUCCESS', 'completed', 'failed'].includes(task.status) && !local.removeScheduled) {
+                  if (['SUCCESS', 'completed', 'failed', 'FAILURE'].includes(task.status) && !local.removeScheduled) {
                       local.removeScheduled = true;
                       setTimeout(() => removeCompletedTask(task.task_id), 60000);
                       console.log(`Scheduled removal of task ${task.task_id} in 60 seconds`);
+                      // Update per-row status in supporting docs table
+                      const rowInfo = docResyncStatusMap.get(local.fileUrl);
+                      if (rowInfo) {
+                          const el = rowInfo.statusId ? document.getElementById(rowInfo.statusId) : null;
+                          if (el) {
+                              const ok = ['SUCCESS', 'completed'].includes(task.status);
+                              el.textContent = ok ? 'Done' : 'Failed';
+                              el.style.color = ok ? '#27ae60' : '#c0392b';
+                          }
+                          if (rowInfo.btn) rowInfo.btn.disabled = false;
+                          docResyncStatusMap.delete(local.fileUrl);
+                      }
                   }
               });
               updateTaskDisplay();
@@ -2838,14 +2855,23 @@
           }
       }
 
-      async function handleResyncDocs(fileUrl, event) {
+      async function handleResyncDocs(fileUrl, event, statusId) {
           if (event) event.preventDefault();
+          const statusEl = statusId ? document.getElementById(statusId) : null;
+          const btn = event ? event.currentTarget : null;
           try {
+              if (btn) btn.disabled = true;
+              if (statusEl) statusEl.textContent = 'Queuing…';
               const formData = new FormData();
               formData.append('resync_bar', fileUrl);
               const data = await fetch('/resync_docslist', { method: 'POST', body: formData }).then(r => r.json());
-              if (!data.success) { showToast('Failed to start resync: ' + data.message, false); return; }
-
+              if (!data.success) {
+                  if (statusEl) statusEl.textContent = 'Failed';
+                  if (btn) btn.disabled = false;
+                  showToast('Failed to start resync: ' + data.message, false);
+                  return;
+              }
+              docResyncStatusMap.set(fileUrl, { statusId, btn });
               activeTasks.set(data.task_id, {
                   taskId: data.task_id, fileUrl,
                   status: 'pending', created_at: new Date().toISOString(),
@@ -2854,9 +2880,12 @@
               });
               updateTaskDisplay();
               startGlobalPolling();
+              if (statusEl) statusEl.textContent = 'Queued';
               showToast(`✅ Vectorizing queued for ${getShortFilename(fileUrl)}`);
           } catch (err) {
               console.error('Resync docs error:', err);
+              if (statusEl) statusEl.textContent = 'Error';
+              if (btn) btn.disabled = false;
               showToast('Error starting resync: ' + err.message, false);
           }
       }
@@ -3103,6 +3132,21 @@
       window.addEventListener('DOMContentLoaded', () => {
           document.querySelectorAll('.fmt-dt[data-dt]').forEach(el => {
               if (el.dataset.dt) el.textContent = fmtDt(el.dataset.dt);
+          });
+
+          // Color embedding status badges by age
+          document.querySelectorAll('.embed-badge[data-dt]').forEach(el => {
+              const dt = el.dataset.dt;
+              if (!dt) return;
+              const ageDays = (Date.now() - new Date(dt).getTime()) / 86400000;
+              if (ageDays < 1) {
+                  el.style.background = '#d1fae5'; el.style.color = '#065f46'; // green
+              } else if (ageDays < 7) {
+                  el.style.background = '#fef3c7'; el.style.color = '#92400e'; // amber
+              } else {
+                  el.style.background = '#fee2e2'; el.style.color = '#991b1b'; // red
+              }
+              el.textContent = new Date(dt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
           });
 
           // Restore persisted task queue
