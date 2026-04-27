@@ -308,25 +308,20 @@ def is_logged_in():
 # for user delegated Auth flow
 def get_app_token_delegated():
     print("called get_app_token_delegated()... Acquiring app token...")
-    #global userlogin
     userlogin = current_user.username
-    cache = load_cache(userlogin)  # ✅ Load the cache here
+    return get_delegated_token_for_user(userlogin)
 
-    cca = msal.ConfidentialClientApplication(
-        CLIENT_ID,
-        authority=AUTHORITY,
-        client_credential=CLIENT_SECRET,
-        token_cache=cache  # ✅ Attach cache
-    )
 
+def get_delegated_token_for_user(userlogin: str) -> str:
+    """Acquire a delegated token for any user by loading their token cache.
+    Works both inside and outside a Flask request context."""
+    cache = load_cache(userlogin)
+    cca = _build_msal_app(cache)
     accounts = cca.get_accounts()
     if accounts:
-        print(f"Found {len(accounts)} accounts in cache. Trying silent acquire...")
         result = cca.acquire_token_silent(SCOPES, account=accounts[0])
         if result and "access_token" in result:
-            print("✅ Using cached user token.")
             return result["access_token"]
-
     raise Exception("❌ No cached user token found. Please log in through the Flask app first.")
 
 
@@ -1553,8 +1548,9 @@ def index():
         llm_model = "Local"
     
     schedule_dict = {}
-    for s in schedules:  
-         schedule_dict[s["filename"]] = s
+    for s in schedules:
+        if s.get("filename"):
+            schedule_dict[s["filename"]] = s
 
  
     #if delegated_auth:
@@ -2804,6 +2800,23 @@ def resync_docslist():
     })
 
 
+TEAMS_SYNC_LOG_MAX = 50
+
+
+def _append_teams_sync_log(userlogin: str, entry: dict):
+    """Append one entry to the user's Teams sync log, capped at TEAMS_SYNC_LOG_MAX."""
+    log_path = user_config_file(userlogin, "teams_sync_log.json")
+    try:
+        with open(log_path, "r") as f:
+            log = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        log = []
+    log.insert(0, entry)
+    log = log[:TEAMS_SYNC_LOG_MAX]
+    with open(log_path, "w") as f:
+        json.dump(log, f, indent=2)
+
+
 @app.route("/sync_teams", methods=["POST"])
 @login_required
 def sync_teams():
@@ -2814,15 +2827,29 @@ def sync_teams():
     from teams_chat import fetch_and_save_teams_chats, load_teams_config
 
     userlogin = current_user.username
+    triggered_by = request.json.get("triggered_by", "manual") if request.is_json else "manual"
+
     try:
         token = get_app_token_delegated()
     except Exception as e:
+        _append_teams_sync_log(userlogin, {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "triggered_by": triggered_by,
+            "success": False,
+            "error": "Sync Failed. Please connect to your Microsoft account",
+        })
         return jsonify({"success": False, "message": f"Sync Failed. Please connect to your Microsoft account"}), 401
 
     try:
         cfg = load_teams_config()
         stats = fetch_and_save_teams_chats(token, userlogin, cfg)
     except Exception as e:
+        _append_teams_sync_log(userlogin, {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "triggered_by": triggered_by,
+            "success": False,
+            "error": str(e),
+        })
         return jsonify({"success": False, "message": str(e)}), 500
 
     # Queue an embedding task for each partition file that received new content
@@ -2836,6 +2863,18 @@ def sync_teams():
             redis_client.expire(f"celery:tasks:{userlogin}", 3600)
             task_ids.append(task.id)
 
+    _append_teams_sync_log(userlogin, {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "triggered_by": triggered_by,
+        "success": True,
+        "total_chats": stats["total_chats"],
+        "new_messages": stats["new_messages"],
+        "partitions_updated": stats["partitions_updated"],
+        "skipped_chats": stats["skipped_chats"],
+        "partition_by": stats["partition_by"],
+        "error": None,
+    })
+
     return jsonify({
         "success": True,
         "total_chats": stats["total_chats"],
@@ -2846,6 +2885,133 @@ def sync_teams():
         "output_dir": stats["output_dir"],
         "embed_task_ids": task_ids,
     })
+
+
+@app.route("/teams/sync_log", methods=["GET"])
+@login_required
+def teams_sync_log():
+    """Return the Teams sync history log for the current user."""
+    log_path = user_config_file(current_user.username, "teams_sync_log.json")
+    try:
+        with open(log_path, "r") as f:
+            log = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        log = []
+    return jsonify(log)
+
+
+@app.route("/teams/sync_scheduled", methods=["POST"])
+@csrf.exempt
+def teams_sync_scheduled():
+    """Internal endpoint called by the scheduler to run Teams sync for a specific user."""
+    if not delegated_auth:
+        return jsonify({"success": False, "message": "Teams sync requires delegated auth mode"}), 400
+
+    from teams_chat import fetch_and_save_teams_chats, load_teams_config
+
+    userlogin = request.form.get("userlogin")
+    if not userlogin:
+        return jsonify({"success": False, "message": "No userlogin provided"}), 400
+
+    try:
+        token = get_delegated_token_for_user(userlogin)
+    except Exception as e:
+        _append_teams_sync_log(userlogin, {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "triggered_by": "schedule",
+            "success": False,
+            "error": str(e),
+        })
+        return jsonify({"success": False, "message": str(e)}), 401
+
+    try:
+        cfg = load_teams_config()
+        stats = fetch_and_save_teams_chats(token, userlogin, cfg)
+    except Exception as e:
+        _append_teams_sync_log(userlogin, {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "triggered_by": "schedule",
+            "success": False,
+            "error": str(e),
+        })
+        return jsonify({"success": False, "message": str(e)}), 500
+
+    from vector_worker import embed_local_file
+    for partition_info in stats.get("updated_partitions", {}).values():
+        filepath = partition_info.get("filepath")
+        if filepath:
+            task = embed_local_file.delay(userlogin, filepath)
+            redis_client.sadd(f"celery:tasks:{userlogin}", task.id)
+            redis_client.expire(f"celery:tasks:{userlogin}", 3600)
+
+    _append_teams_sync_log(userlogin, {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "triggered_by": "schedule",
+        "success": True,
+        "total_chats": stats["total_chats"],
+        "new_messages": stats["new_messages"],
+        "partitions_updated": stats["partitions_updated"],
+        "skipped_chats": stats["skipped_chats"],
+        "partition_by": stats["partition_by"],
+        "error": None,
+    })
+
+    return jsonify({"success": True, "new_messages": stats["new_messages"]})
+
+
+TEAMS_SCHEDULE_INTERVALS = {60, 240, 720}  # valid interval_minutes values
+
+
+@app.route("/teams/schedule", methods=["GET"])
+@login_required
+def teams_schedule_get():
+    """Return the current user's Teams auto-sync schedule (interval_minutes or 0 if off)."""
+    userlogin = current_user.username
+    lock = FileLock(SCHEDULE_LOCK)
+    with lock:
+        try:
+            with open(SCHEDULE_FILE, "r") as f:
+                schedules = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            schedules = []
+
+    for s in schedules:
+        if s.get("type") == "teams_sync" and s.get("userlogin") == userlogin:
+            return jsonify({"interval_minutes": s.get("interval", 0)})
+    return jsonify({"interval_minutes": 0})
+
+
+@app.route("/teams/schedule", methods=["POST"])
+@login_required
+def teams_schedule_post():
+    """Save or remove the current user's Teams auto-sync schedule."""
+    userlogin = current_user.username
+    data = request.get_json(force=True)
+    interval = int(data.get("interval_minutes", 0))
+
+    lock = FileLock(SCHEDULE_LOCK)
+    with lock:
+        try:
+            with open(SCHEDULE_FILE, "r") as f:
+                schedules = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            schedules = []
+
+        # Remove any existing teams_sync entry for this user
+        schedules = [s for s in schedules
+                     if not (s.get("type") == "teams_sync" and s.get("userlogin") == userlogin)]
+
+        if interval in TEAMS_SCHEDULE_INTERVALS:
+            schedules.append({
+                "type": "teams_sync",
+                "userlogin": userlogin,
+                "interval": interval,
+            })
+
+        with open(SCHEDULE_FILE, "w") as f:
+            json.dump(schedules, f, indent=2)
+
+    return jsonify({"success": True, "interval_minutes": interval})
 
 
 #--- Google Sheet routes ---

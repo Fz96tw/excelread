@@ -1949,9 +1949,34 @@
                 Fetch all Teams chats you are part of and save transcripts
                 locally so they can be searched and summarized.
               </p>
-              <button id="teamsResyncBtn" onclick="handleTeamsResync(event)">
-                Sync Teams Chats
-              </button>
+              <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+                <button id="teamsResyncBtn" onclick="handleTeamsResync(event)">
+                  Sync Teams Chats
+                </button>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <label for="teamsAutoSyncSelect" style="font-size:13px; color:var(--text-light); white-space:nowrap;">
+                    Auto-sync:
+                  </label>
+                  <select
+                    id="teamsAutoSyncSelect"
+                    onchange="saveTeamsSchedule(this.value)"
+                    style="
+                      font-size:13px;
+                      padding:4px 8px;
+                      border:1px solid var(--border-color);
+                      border-radius:4px;
+                      background:var(--bg-color);
+                      color:var(--text-color);
+                      cursor:pointer;
+                    "
+                  >
+                    <option value="0">Off</option>
+                    <option value="60">Every hour</option>
+                    <option value="240">Every 4 hours</option>
+                    <option value="720">Every 12 hours</option>
+                  </select>
+                </div>
+              </div>
               <div
                 id="teamsResyncResult"
                 style="
@@ -1960,6 +1985,33 @@
                   color: var(--text-light);
                 "
               ></div>
+
+              <!-- Sync History -->
+              <div style="margin-top: 24px;">
+                <button
+                  id="teamsSyncHistoryToggle"
+                  onclick="toggleTeamsSyncHistory()"
+                  style="
+                    background: none;
+                    border: none;
+                    padding: 0;
+                    font-size: 13px;
+                    color: var(--text-light);
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                  "
+                >
+                  <span id="teamsSyncHistoryChevron" style="font-size: 10px;">▶</span>
+                  Sync History
+                </button>
+                <div id="teamsSyncHistoryPanel" style="display:none; margin-top: 12px;">
+                  <div id="teamsSyncHistoryContent">
+                    <span style="font-size:13px; color:var(--text-light);">Loading…</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2200,6 +2252,7 @@
       const sectionOnShow = {
           section3: () => loadRunFolders(),
           section9: () => loadRunLog(),
+          section12: () => loadTeamsSchedule(),
       };
 
       function showSection(sectionId) {
@@ -2663,6 +2716,10 @@
               } else {
                   showToast('✅ Teams sync complete');
                   resultEl.textContent = `Done — ${data.new_messages} new message(s) across ${data.partitions_updated} ${data.partition_by} file(s). ${data.skipped_chats} chat(s) skipped (${data.total_chats} total).`;
+                  // Refresh history if it's already open
+                  if (document.getElementById('teamsSyncHistoryPanel').style.display !== 'none') {
+                      loadTeamsSyncHistory();
+                  }
               }
           } catch (err) {
               showToast('Teams sync error: ' + err.message, false);
@@ -2670,6 +2727,116 @@
           } finally {
               btn.disabled = false;
               btn.textContent = 'Sync Teams Chats';
+          }
+      }
+
+      function toggleTeamsSyncHistory() {
+          const panel = document.getElementById('teamsSyncHistoryPanel');
+          const chevron = document.getElementById('teamsSyncHistoryChevron');
+          const open = panel.style.display === 'none';
+          panel.style.display = open ? 'block' : 'none';
+          chevron.textContent = open ? '▼' : '▶';
+          if (open) {
+              loadTeamsSyncHistory();
+          }
+      }
+
+      async function loadTeamsSyncHistory() {
+          const container = document.getElementById('teamsSyncHistoryContent');
+          try {
+              const log = await fetch('/teams/sync_log').then(r => r.json());
+              if (!log.length) {
+                  container.innerHTML = '<p style="font-size:13px;color:var(--text-light);">No syncs recorded yet.</p>';
+                  return;
+              }
+              const visibleCount = 10;
+              let showing = visibleCount;
+
+              function renderRows() {
+                  const rows = log.slice(0, showing).map(entry => {
+                      const ts = new Date(entry.timestamp);
+                      const dateStr = ts.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                      const byLabel = entry.triggered_by === 'schedule' ? 'auto' : 'manual';
+                      if (!entry.success) {
+                          return `<tr style="color:#c0392b;">
+                              <td style="padding:4px 10px 4px 0;white-space:nowrap;">${dateStr}</td>
+                              <td style="padding:4px 10px 4px 0;">${byLabel}</td>
+                              <td colspan="4" style="padding:4px 0;" title="${entry.error || ''}">Error: ${entry.error || 'unknown'}</td>
+                          </tr>`;
+                      }
+                      const muted = entry.new_messages === 0 ? 'opacity:0.5;' : '';
+                      return `<tr style="${muted}">
+                          <td style="padding:4px 10px 4px 0;white-space:nowrap;">${dateStr}</td>
+                          <td style="padding:4px 10px 4px 0;">${byLabel}</td>
+                          <td style="padding:4px 10px 4px 0;text-align:right;">${entry.new_messages}</td>
+                          <td style="padding:4px 10px 4px 0;text-align:right;">${entry.total_chats}</td>
+                          <td style="padding:4px 10px 4px 0;text-align:right;">${entry.partitions_updated}</td>
+                          <td style="padding:4px 0;text-align:right;">${entry.skipped_chats}</td>
+                      </tr>`;
+                  }).join('');
+
+                  const showMore = log.length > showing
+                      ? `<tr><td colspan="6" style="padding-top:8px;">
+                           <button onclick="showMoreTeamsHistory()" style="background:none;border:none;font-size:12px;color:var(--text-light);cursor:pointer;padding:0;">
+                             Show ${Math.min(10, log.length - showing)} more…
+                           </button>
+                         </td></tr>`
+                      : '';
+
+                  container.innerHTML = `
+                      <table style="font-size:13px;border-collapse:collapse;width:100%;color:var(--text-color);">
+                        <thead>
+                          <tr style="color:var(--text-light);font-size:11px;text-transform:uppercase;letter-spacing:.05em;">
+                            <th style="padding:0 10px 6px 0;text-align:left;font-weight:500;">Time</th>
+                            <th style="padding:0 10px 6px 0;text-align:left;font-weight:500;">By</th>
+                            <th style="padding:0 10px 6px 0;text-align:right;font-weight:500;">New msgs</th>
+                            <th style="padding:0 10px 6px 0;text-align:right;font-weight:500;">Chats</th>
+                            <th style="padding:0 10px 6px 0;text-align:right;font-weight:500;">Updated</th>
+                            <th style="padding:0 0 6px 0;text-align:right;font-weight:500;">Skipped</th>
+                          </tr>
+                        </thead>
+                        <tbody>${rows}${showMore}</tbody>
+                      </table>`;
+              }
+
+              window.showMoreTeamsHistory = function() {
+                  showing = Math.min(showing + 10, log.length);
+                  renderRows();
+              };
+
+              renderRows();
+          } catch (err) {
+              container.innerHTML = `<p style="font-size:13px;color:#c0392b;">Failed to load history: ${err.message}</p>`;
+          }
+      }
+
+      async function loadTeamsSchedule() {
+          try {
+              const data = await fetch('/teams/schedule').then(r => r.json());
+              const sel = document.getElementById('teamsAutoSyncSelect');
+              if (sel) sel.value = String(data.interval_minutes || 0);
+          } catch (err) {
+              console.warn('Could not load Teams schedule:', err);
+          }
+      }
+
+      async function saveTeamsSchedule(value) {
+          const interval = parseInt(value, 10);
+          try {
+              const data = await fetch('/teams/schedule', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ interval_minutes: interval }),
+              }).then(r => r.json());
+              if (data.success) {
+                  const label = interval === 0 ? 'Auto-sync disabled'
+                      : interval === 60 ? 'Auto-sync: every hour'
+                      : interval === 240 ? 'Auto-sync: every 4 hours'
+                      : 'Auto-sync: every 12 hours';
+                  showToast(label);
+              }
+          } catch (err) {
+              showToast('Failed to save schedule: ' + err.message, false);
           }
       }
 

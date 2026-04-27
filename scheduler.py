@@ -145,42 +145,67 @@ def sync_schedules(scheduler, schedule_file: str):
     
     for s in schedules:
         userlogin = s.get("userlogin")
-        filename = s.get("filename")
-        
-        if not userlogin or not filename:
-            logger.warning(f"Skipping invalid schedule entry: {s}")
+        entry_type = s.get("type")
+
+        if not userlogin:
+            logger.warning(f"Skipping invalid schedule entry (no userlogin): {s}")
             continue
-        
+
+        # --- Teams auto-sync jobs ---
+        if entry_type == "teams_sync":
+            interval = s.get("interval")
+            if not interval:
+                logger.warning(f"Skipping teams_sync entry with no interval for user={userlogin}")
+                continue
+            job_id = make_job_id(userlogin, "__teams_sync__")
+            expected_job_ids.add(job_id)
+            logger.info(f"Scheduling teams_sync {job_id} for user={userlogin}: every {interval} minutes")
+            scheduler.add_job(
+                call_teams_sync,
+                "interval",
+                minutes=int(interval),
+                args=[userlogin],
+                id=job_id,
+                replace_existing=True,
+                misfire_grace_time=300,
+                max_instances=1,
+            )
+            continue
+
+        # --- Document resync jobs (existing behaviour) ---
+        filename = s.get("filename")
+        if not filename:
+            logger.warning(f"Skipping invalid schedule entry (no filename): {s}")
+            continue
+
         job_id = make_job_id(userlogin, filename)
         expected_job_ids.add(job_id)
-        
+
         cleaned_filename = clean_sharepoint_url(filename)
-        
+
         # Check if job already exists
         existing_job = scheduler.get_job(job_id)
-        
+
         # Determine if we need to add/update the job
         should_update = False
-        
+
         if not existing_job:
             should_update = True
             logger.info(f"Adding new job: {job_id}")
         else:
-            # Check if schedule parameters have changed
-            # This is a simple check - you might want more sophisticated comparison
             should_update = True
             logger.info(f"Updating existing job: {job_id}")
-        
+
         if should_update:
             # Remove old job if it exists
             if existing_job:
                 scheduler.remove_job(job_id)
-            
+
             # Add job based on interval or time+mode
             if s.get("interval"):
                 interval = int(s["interval"])
                 logger.info(f"Scheduling {job_id}: every {interval} minutes")
-                
+
                 scheduler.add_job(
                     call_resync,
                     "interval",
@@ -190,14 +215,14 @@ def sync_schedules(scheduler, schedule_file: str):
                     replace_existing=True,
                     misfire_grace_time=300,
                     max_instances=1
-                )            
+                )
             elif s.get("time") and s.get("mode"):
                 hour, minute = map(int, s["time"].split(":"))
                 mode = s["mode"].lower()
-                
+
                 if mode == "daily":
                     logger.info(f"Scheduling {job_id}: daily at {hour:02d}:{minute:02d}")
-                    
+
                     scheduler.add_job(
                         call_resync,
                         "cron",
@@ -209,13 +234,13 @@ def sync_schedules(scheduler, schedule_file: str):
                         misfire_grace_time=300,
                         max_instances=1
                     )
-                
+
                 elif mode == "weekly":
                     days = s.get("days", ["mon"])
                     logger.info(
                         f"Scheduling {job_id}: weekly on {','.join(days)} at {hour:02d}:{minute:02d}"
                     )
-                    
+
                     scheduler.add_job(
                         call_resync,
                         "cron",
@@ -282,6 +307,20 @@ def call_resync(filename: str, userlogin: str):
         logger.info(f"Resync API call succeeded: {response.json()}")
 
     return response
+
+
+def call_teams_sync(userlogin: str):
+    """Invoke the Teams chat sync endpoint for a specific user."""
+    endpoint = f"{APPNEW_HOST}/teams/sync_scheduled"
+    logger.info(f"call_teams_sync calling {endpoint} for user={userlogin}")
+    try:
+        response = requests.post(endpoint, data={"userlogin": userlogin}, timeout=300)
+        if response.status_code != 200:
+            logger.error(f"Teams sync API error {response.status_code}: {response.text}")
+        else:
+            logger.info(f"Teams sync API call succeeded: {response.json()}")
+    except Exception as e:
+        logger.error(f"Teams sync API call failed for user={userlogin}: {e}")
 
 
 # -----------------------------------------------------------------------------
