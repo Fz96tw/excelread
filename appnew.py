@@ -483,7 +483,7 @@ def clear_schedule_file(sched_file, filename, userlogin):
         return jsonify({"success": False, "message": "Filename missing"}), 400
 
     schedules = load_schedules(sched_file)
-    new_schedules = [s for s in schedules if s["filename"] != filename or s["userlogin"] != userlogin]
+    new_schedules = [s for s in schedules if s.get("type") == "teams_sync" or s.get("filename") != filename or s.get("userlogin") != userlogin]
     _write_schedules_atomic(sched_file, new_schedules)
     print(f"cleared schedule file = {sched_file}, removed {filename} replaced by {new_schedules}")
 
@@ -2016,7 +2016,7 @@ def schedule_file():
     #existing = next((s for s in schedules if s["filename"] == filename and s.get("userlogin") == userlogin), None)
     existing = None
     for s in schedules:
-        if s["filename"] == filename: #and s["userlogin"] == userlogin:
+        if s.get("filename") == filename: #and s["userlogin"] == userlogin:
             existing = s
 
     if existing:
@@ -2062,7 +2062,7 @@ def clear_schedule():
     schedules = []
 
     schedules = load_schedules(user_sched_file)  # must load for all userlogins
-    schedules = [s for s in schedules if s["filename"] != filename]
+    schedules = [s for s in schedules if s.get("filename") != filename]
 
     print(f"saving schedule file = {user_sched_file}")
     _write_schedules_atomic(user_sched_file, schedules)

@@ -1030,14 +1030,16 @@
 
           <div class="menu-divider"></div>
 
+          {% if is_admin %}
           <button id="btn-section5" title="Local Files">
-            <img 
-              src="/static/localfiles.png" 
+            <img
+              src="/static/localfiles.png"
               style="width: 26px; height: 26px"
               alt=""
             />
             <span>Local Files</span>
           </button>
+          {% endif %}
           <button id="btn-section2" title="SharePoint">
             <img
               src="/static/sharepointicontransparent.png"
@@ -1389,11 +1391,11 @@
                         >{{ val.location }}</small
                       >
                       <br /><small style="color: var(--text-light)"
-                        >Added {{ val.datetime[:16] | replace('T', ' ') if val.datetime else 'Unknown' }}</small
+                        >Added <span class="fmt-dt" data-dt="{{ val.datetime or '' }}">{{ val.datetime[:16] | replace('T', ' ') if val.datetime else 'Unknown' }}</span></small
                       >
                       {% if val.last_resync %}<br /><small
                         style="color: var(--text-light)"
-                        >Updated {{ val.last_resync[:16] | replace('T', ' ') if val.last_resync else 'Unknown' }}</small
+                        >Updated <span class="fmt-dt" data-dt="{{ val.last_resync or '' }}">{{ val.last_resync[:16] | replace('T', ' ') if val.last_resync else 'Unknown' }}</span></small
                       >{% endif %}
                     </td>
                     <td style="text-align: center">
@@ -1508,10 +1510,10 @@
                         >{{ val.url }}</small
                       >
                       <br /><small style="color: var(--text-light)"
-                        >Added: {{ val.referrers[0].added_at[:16] | replace('T', ' ') if val.referrers else 'Unknown' }}</small
+                        >Added: <span class="fmt-dt" data-dt="{{ val.referrers[0].added_at if val.referrers else '' }}">{{ val.referrers[0].added_at[:16] | replace('T', ' ') if val.referrers else 'Unknown' }}</span></small
                       >
                       <br /><small style="color: var(--text-light)"
-                        >Embedding: {{ val.embedding_updated_at[:16] | replace('T', ' ') if val.embedding_updated_at else 'Never' }}</small
+                        >Embedding: <span class="fmt-dt" data-dt="{{ val.embedding_updated_at or '' }}">{{ val.embedding_updated_at[:16] | replace('T', ' ') if val.embedding_updated_at else 'Never' }}</span></small
                       >
                     </td>
                     <td style="text-align: center">
@@ -1765,13 +1767,13 @@
                         >{{ val.location }}</small
                       >
                       <br /><small style="color: var(--text-light)">
-                        Added {{ val.datetime[:16] | replace('T', ' ') if val.datetime else 'Unknown'}}</small
+                        Added <span class="fmt-dt" data-dt="{{ val.datetime or '' }}">{{ val.datetime[:16] | replace('T', ' ') if val.datetime else 'Unknown' }}</span></small
                       >
 
-              
+
                       {% if val.last_resync %}<br /><small
                         style="color: var(--text-light)"
-                        >Updated {{ val.last_resync[:16] | replace('T', ' ') if val.last_resync else 'Unknown' }}</small
+                        >Updated <span class="fmt-dt" data-dt="{{ val.last_resync or '' }}">{{ val.last_resync[:16] | replace('T', ' ') if val.last_resync else 'Unknown' }}</span></small
                       >{% endif %}
                     </td>
                     <td style="text-align: center">
@@ -3019,7 +3021,17 @@
       // SINGLE DOMContentLoaded — all initialisation in one place
       // =========================================================
 
+      function fmtDt(isoStr) {
+          if (!isoStr) return 'Unknown';
+          const d = new Date(isoStr);
+          return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      }
+
       window.addEventListener('DOMContentLoaded', () => {
+          document.querySelectorAll('.fmt-dt[data-dt]').forEach(el => {
+              if (el.dataset.dt) el.textContent = fmtDt(el.dataset.dt);
+          });
+
           // Restore persisted task queue
           const saved = JSON.parse(localStorage.getItem('activeTasks') || '[]');
           saved.forEach(([id, task]) => activeTasks.set(id, task));
