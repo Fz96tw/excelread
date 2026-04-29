@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.\\(py|txt|yml|yaml|md|cfg|ini|toml\\)$\")",
+      "Bash(ls:*)",
+      "Bash(glob:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)"
+    ]
+  }
+}

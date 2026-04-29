@@ -78,7 +78,8 @@ def clean_sharepoint_url(url: str) -> str:
 
 def make_job_id(userlogin: str, filename: str) -> str:
     """Generate a unique job ID from userlogin and filename"""
-    file_hash = hashlib.sha1(filename.encode("utf-8")).hexdigest()[:12]
+    combined = f"{userlogin}:{filename}"
+    file_hash = hashlib.sha1(combined.encode("utf-8")).hexdigest()[:12]
     return file_hash
 
 
@@ -254,8 +255,8 @@ def sync_schedules(scheduler, schedule_file: str):
                         max_instances=1
                     )
     
-    # Remove jobs that are no longer in the schedule file
-    jobs_to_remove = current_job_ids - expected_job_ids
+    # Remove jobs that are no longer in the schedule file (preserve internal jobs)
+    jobs_to_remove = current_job_ids - expected_job_ids - {"__status_dumper__"}
     for job_id in jobs_to_remove:
         logger.info(f"Removing job no longer in schedule: {job_id}")
         scheduler.remove_job(job_id)
