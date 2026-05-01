@@ -98,15 +98,18 @@ def prepare_rag_context(
     
     # Apply score threshold filtering
     print(f"\n[STEP 3] Applying score threshold filtering...")
+    # Use a fixed absolute ceiling for L2 distance (all-MiniLM-L6-v2).
+    # The old auto-threshold (min + 25% of range) was too aggressive: when one
+    # document scored well on an unrelated term in the query, it pulled the
+    # threshold so tight that genuinely relevant results from other sources
+    # (e.g. Teams chats) were dropped.
+    ABSOLUTE_SCORE_CEILING = 1.8
     if score_threshold is None:
-        scores = [r.score for r in results]
-        score_range = max(scores) - min(scores)
-        score_threshold = min(scores) + (score_range * 0.25)
-        print(f"  Auto-calculated threshold: {score_threshold:.4f}")
-        print(f"  Score range: {min(scores):.4f} - {max(scores):.4f}")
+        score_threshold = ABSOLUTE_SCORE_CEILING
+        print(f"  Using absolute ceiling: {score_threshold:.4f}")
     else:
         print(f"  Using provided threshold: {score_threshold:.4f}")
-    
+
     filtered_results = [r for r in results if r.score <= score_threshold]
     print(f"  Results after threshold filter: {len(filtered_results)}")
     

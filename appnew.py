@@ -1,3 +1,5 @@
+from urllib import response
+
 from flask import Flask, render_template, request, redirect, url_for,session, send_from_directory
 import os
 import re
@@ -141,6 +143,15 @@ def before_request_logging():
     app.logger.info("Request started")
 
 
+@app.route('/.well-known/security.txt')
+def security_txt():
+    content = """Contact: mailto:fz96tw@gmail.com
+Expires: 2027-05-01T00:00:00.000Z
+Preferred-Languages: en
+"""
+    return content, 200, {'Content-Type': 'text/plain'}
+
+
 @app.after_request
 def after_request_logging(response):
     if request.path != "/metrics":
@@ -149,6 +160,11 @@ def after_request_logging(response):
 
         g.last_status = response.status_code
         app.logger.info("Request completed")
+    response.headers['Content-Security-Policy-Report-Only'] = "default-src 'self'"    
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
     return response
 
 
