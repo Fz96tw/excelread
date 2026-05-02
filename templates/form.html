@@ -380,6 +380,14 @@
         background: #dc2626;
       }
 
+      .btn-trash {
+        color: #9ca3af;
+        transition: color 0.15s;
+      }
+      .btn-trash:hover {
+        color: #dc2626;
+      }
+
       /* Tables */
       table {
         width: 100%;
@@ -1334,103 +1342,104 @@
 
             <div class="card">
               <h2>Excel files shared with Agent</h2>
-              <table>
+              <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
                 <thead>
-                  <tr>
-                    <th style="width: 40px">#</th>
-                    <th style="width: 40px"></th>
-                    <th>Sheet Location</th>
-                    <th style="width: 100px; text-align: center">UPDATE</th>
-                    <th style="width: 100px">Schedule</th>
-                    <th style="width: 100px">Unshare</th>
+                  <tr style="color:var(--text-light);font-size:11px;text-transform:uppercase;letter-spacing:.05em;">
+                    <th style="width:70%;padding:0 12px 10px 0;text-align:left;font-weight:500;border-bottom:1px solid var(--border);">Document</th>
+                    <th style="width:15%;padding:0 12px 10px 0;text-align:left;font-weight:500;border-bottom:1px solid var(--border);white-space:nowrap;">Updated</th>
+                    <th style="width:15%;padding:0 0 10px 0;text-align:right;font-weight:500;border-bottom:1px solid var(--border);">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for val in shared_files_sharepoint %}
-                  <tr>
-                    <td>{{ loop.index }}</td>
-                    <td>
-                      <img src="/static/excelicon.jpg" style="height: 24px" />
+                  {% set _loc = val.location %}
+                  {% if '#' in _loc %}
+                    {% set _bh = _loc.split('#', 1)[0] %}
+                    {% set _ah = _loc.split('#', 1)[1] %}
+                    {% if '.' not in _bh.split('/')|last and '.' in _ah %}
+                      {% set _norm_loc = _bh + '.' + _ah.rsplit('.', 1)|last + '#' + _ah.rsplit('.', 1)|first %}
+                    {% else %}
+                      {% set _norm_loc = _loc %}
+                    {% endif %}
+                  {% else %}
+                    {% set _norm_loc = _loc %}
+                  {% endif %}
+                  {% set _raw = _norm_loc.split('/')|last|replace('%20', ' ') %}
+                  {% set _fname = _raw.split('#')[0] if '#' in _raw else _raw %}
+                  {% set _sheet = _raw.split('#')[1] if '#' in _raw else '' %}
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:10px 12px 10px 0;vertical-align:top;">
+                      <div style="display:flex;align-items:flex-start;gap:10px;">
+                        <img src="/static/excelicon.jpg" style="height:20px;margin-top:3px;flex-shrink:0;" />
+                        <div style="min-width:0;">
+                          <a href="{{ _norm_loc }}" target="_blank"
+                             style="font-weight:500;color:var(--primary);text-decoration:none;word-break:break-word;display:block;">
+                            {{ _fname }}
+                            {% if _sheet %}<span style="font-size:11px;background:#dcfce7;color:#166534;padding:1px 7px;border-radius:4px;font-weight:500;margin-left:4px;vertical-align:middle;">{{ _sheet }}</span>{% endif %}
+                          </a>
+                          <div style="font-size:11px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:480px;margin-top:2px;"
+                               title="{{ val.location }}">{{ val.location }}</div>
+                          <div style="font-size:11px;color:var(--text-light);margin-top:2px;">
+                            Added <span class="fmt-dt" data-dt="{{ val.datetime or '' }}">{{ val.datetime[:16] | replace('T', ' ') if val.datetime else 'Unknown' }}</span>
+                          </div>
+                          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
+                            {% set sched = schedule_dict.get(val.location) %}
+                            {% if sched %}
+                              {% if sched.time %}
+                                <button type="button" onclick="openSchedule('{{ val.location }}')"
+                                        style="font-size:11px;background:#eff6ff;color:#1d4ed8;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;">
+                                  📅 {{ sched.mode }} at {{ sched.time }}
+                                </button>
+                              {% elif sched.interval %}
+                                <button type="button" onclick="openSchedule('{{ val.location }}')"
+                                        style="font-size:11px;background:#eff6ff;color:#1d4ed8;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;">
+                                  🔄 Every {{ sched.interval }} min
+                                </button>
+                              {% endif %}
+                            {% else %}
+                              <button type="button" onclick="openSchedule('{{ val.location }}')"
+                                      style="font-size:11px;background:none;color:var(--text-light);border:1px dashed var(--border);padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;">
+                                + Schedule
+                              </button>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </div>
                     </td>
-                    <td>
-                      {% set _loc = val.location %}
-                      {% if '#' in _loc %}
-                        {% set _bh = _loc.split('#', 1)[0] %}
-                        {% set _ah = _loc.split('#', 1)[1] %}
-                        {% if '.' not in _bh.split('/')|last and '.' in _ah %}
-                          {% set _norm_loc = _bh + '.' + _ah.rsplit('.', 1)|last + '#' + _ah.rsplit('.', 1)|first %}
-                        {% else %}
-                          {% set _norm_loc = _loc %}
-                        {% endif %}
+                    <td style="padding:10px 12px 10px 0;vertical-align:top;white-space:nowrap;">
+                      {% if val.last_resync %}
+                        <span class="fmt-dt" data-dt="{{ val.last_resync or '' }}"
+                              style="font-size:12px;padding:3px 8px;border-radius:4px;font-weight:500;background:#f3f4f6;color:#6b7280;">
+                          {{ val.last_resync[:16] | replace('T', ' ') }}
+                        </span>
                       {% else %}
-                        {% set _norm_loc = _loc %}
-                      {% endif %}
-                      {% set _raw = _norm_loc.split('/')|last|replace('%20', ' ') %}
-                      {% set _display = (_raw.split('#')[0] + ' [' + _raw.split('#')[1] + ']') if '#' in _raw else _raw %}
-                      <a
-                        href="{{ _norm_loc }}"
-                        target="_blank"
-                        style="
-                          color: var(--primary);
-                          text-decoration: none;
-                          font-weight: 500;
-                        "
-                        >{{ _display }}</a
-                      >
-                      <br /><small style="color: var(--text-light); word-break: break-all;"
-                        >{{ val.location }}</small
-                      >
-                      <br /><small style="color: var(--text-light)"
-                        >Added <span class="fmt-dt" data-dt="{{ val.datetime or '' }}">{{ val.datetime[:16] | replace('T', ' ') if val.datetime else 'Unknown' }}</span></small
-                      >
-                      {% if val.last_resync %}<br /><small
-                        style="color: var(--text-light)"
-                        >Updated <span class="fmt-dt" data-dt="{{ val.last_resync or '' }}">{{ val.last_resync[:16] | replace('T', ' ') if val.last_resync else 'Unknown' }}</span></small
-                      >{% endif %}
-                    </td>
-                    <td style="text-align: center">
-                      <button
-                        type="button"
-                        onclick="handleResync('{{ val.location }}', null, null, event)"
-                        title="Resync"
-                      >
-                        <img src="/static/refreshicon.png" alt="Resync" />
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        onclick="openSchedule('{{ val.location }}')"
-                        title="Schedule"
-                      >
-                        <img src="/static/timeicon.png" alt="Schedule" />
-                      </button> <br>
-                      {% set sched = schedule_dict.get(val.location) %} {% if
-                      sched %} {% if sched.time %}
-                      <small>{{sched.mode}} at {{ sched.time }}</small>
-                      {% elif sched.interval %}
-                      <small>Every {{ sched.interval }} min</small>
-                      {% endif %} {% else %}
-                      <small style="color: var(--text-light)">None</small>
+                        <span style="font-size:12px;padding:3px 8px;border-radius:4px;background:#f3f4f6;color:#9ca3af;font-weight:500;">
+                          Never
+                        </span>
                       {% endif %}
                     </td>
-                    <td>
-                      <form method="POST" action="/remove_sharepoint">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input
-                          type="hidden"
-                          name="remove_bar"
-                          value="{{ val.location }}"
-                        />
-                        <!--button type="submit" onclick="return confirm('Remove {{ val.location }}?')" class="btn-danger" style="padding: 4px 8px;">❌</button-->
-                        <button
-                          type="submit"
-                          onclick="return confirm('Remove {{ val.location }}?')"
-                          style="padding: 4px 8px"
-                        >
-                          ❌
-                        </button>
-                      </form>
+                    <td style="padding:10px 0;vertical-align:top;white-space:nowrap;">
+                      <div style="display:flex;gap:6px;justify-content:flex-end;align-items:flex-start;">
+                        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+                          <button type="button"
+                                  onclick="handleResync('{{ val.location }}', null, null, event, 'sp-resync-{{ loop.index }}')"
+                                  title="Resync" style="padding:4px 8px;">
+                            <img src="/static/refreshicon.png" alt="Resync" style="height:16px;" />
+                          </button>
+                          <div id="sp-resync-{{ loop.index }}" style="font-size:11px;min-height:14px;"></div>
+                        </div>
+                        <form method="POST" action="/remove_sharepoint" style="margin:0;">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                          <input type="hidden" name="remove_bar" value="{{ val.location }}" />
+                          <button type="submit"
+                                  onclick="return confirm('Remove {{ val.location }}?')"
+                                  class="btn-trash" style="padding:4px 8px;" title="Remove">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                            </svg>
+                          </button>
+                        </form>
+                      </div>
                     </td>
                   </tr>
                   {% endfor %}
@@ -1725,94 +1734,89 @@
 
             <div class="card">
               <h2>Google Sheets shared with AI</h2>
-              <table>
+              <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
                 <thead>
-                  <tr>
-                    <th style="width: 40px">#</th>
-                    <th style="width: 40px"></th>
-                    <th>Sheet Location</th>
-                    <th style="width: 100px; text-align: center">Update</th>
-                    <th style="width: 180px">Schedule</th>
-                    <th style="width: 60px">Unshare</th>
+                  <tr style="color:var(--text-light);font-size:11px;text-transform:uppercase;letter-spacing:.05em;">
+                    <th style="width:70%;padding:0 12px 10px 0;text-align:left;font-weight:500;border-bottom:1px solid var(--border);">Sheet</th>
+                    <th style="width:15%;padding:0 12px 10px 0;text-align:left;font-weight:500;border-bottom:1px solid var(--border);white-space:nowrap;">Updated</th>
+                    <th style="width:15%;padding:0 0 10px 0;text-align:right;font-weight:500;border-bottom:1px solid var(--border);">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for val in shared_files_google %}
-                  <tr>
-                    <td>{{ loop.index }}</td>
-                    <td>
-                      <img
-                        src="/static/googlesheetfileicon.png"
-                        style="height: 24px"
-                      />
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:10px 12px 10px 0;vertical-align:top;">
+                      <div style="display:flex;align-items:flex-start;gap:10px;">
+                        <img src="/static/googlesheetfileicon.png" style="height:20px;margin-top:3px;flex-shrink:0;" />
+                        <div style="min-width:0;">
+                          <a href="{{ val.location }}" target="_blank"
+                             style="font-weight:500;color:var(--primary);text-decoration:none;word-break:break-word;display:block;">
+                            {{ val.filename }}
+                            {% if val.sheet %}<span style="font-size:11px;background:#dcfce7;color:#166534;padding:1px 7px;border-radius:4px;font-weight:500;margin-left:4px;vertical-align:middle;">{{ val.sheet }}</span>{% endif %}
+                          </a>
+                          <div style="font-size:11px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:480px;margin-top:2px;"
+                               title="{{ val.location }}">{{ val.location }}</div>
+                          <div style="font-size:11px;color:var(--text-light);margin-top:2px;">
+                            Added <span class="fmt-dt" data-dt="{{ val.datetime or '' }}">{{ val.datetime[:16] | replace('T', ' ') if val.datetime else 'Unknown' }}</span>
+                          </div>
+                          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
+                            {% set sched = schedule_dict.get(val.location) %}
+                            {% if sched %}
+                              {% if sched.time %}
+                                <button type="button" onclick="openSchedule('{{ val.location }}', '{{ val.filename }}', '{{ val.sheet }}')"
+                                        style="font-size:11px;background:#eff6ff;color:#1d4ed8;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;">
+                                  📅 {{ sched.mode }} at {{ sched.time }}
+                                </button>
+                              {% elif sched.interval %}
+                                <button type="button" onclick="openSchedule('{{ val.location }}', '{{ val.filename }}', '{{ val.sheet }}')"
+                                        style="font-size:11px;background:#eff6ff;color:#1d4ed8;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;">
+                                  🔄 Every {{ sched.interval }} min
+                                </button>
+                              {% endif %}
+                            {% else %}
+                              <button type="button" onclick="openSchedule('{{ val.location }}', '{{ val.filename }}', '{{ val.sheet }}')"
+                                      style="font-size:11px;background:none;color:var(--text-light);border:1px dashed var(--border);padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;">
+                                + Schedule
+                              </button>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </div>
                     </td>
-                    <td>
-                      <a
-                        href="{{ val.location }}"
-                        target="_blank"
-                        style="
-                          color: var(--primary);
-                          text-decoration: none;
-                          font-weight: 500;
-                        "
-                        >{{ val.filename }} [{{ val.sheet }}]</a
-                      >
-                      <br /><small style="color: var(--text-light); word-break: break-all;"
-                        >{{ val.location }}</small
-                      >
-                      <br /><small style="color: var(--text-light)">
-                        Added <span class="fmt-dt" data-dt="{{ val.datetime or '' }}">{{ val.datetime[:16] | replace('T', ' ') if val.datetime else 'Unknown' }}</span></small
-                      >
-
-
-                      {% if val.last_resync %}<br /><small
-                        style="color: var(--text-light)"
-                        >Updated <span class="fmt-dt" data-dt="{{ val.last_resync or '' }}">{{ val.last_resync[:16] | replace('T', ' ') if val.last_resync else 'Unknown' }}</span></small
-                      >{% endif %}
-                    </td>
-                    <td style="text-align: center">
-                      <button
-                        type="button"
-                        onclick="handleResync('{{ val.location }}', '{{ val.filename }}', '{{ val.sheet }}', event)"
-                        title="Resync"
-                      >
-                        <img src="/static/refreshicon.png" alt="Resync" />
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        onclick="openSchedule('{{ val.location }}', '{{ val.filename }}', '{{ val.sheet }}')"
-                        title="Schedule"
-                      >
-                        <img src="/static/timeicon.png" alt="Schedule" />
-                      </button><br>
-
-                      {% set sched = schedule_dict.get(val.location) %} {% if
-                      sched %} {% if sched.time %}
-                      <small>{{sched.mode}} at {{ sched.time }}</small>
-                      {% elif sched.interval %}
-                      <small>Every {{ sched.interval }} min</small>
-                      {% endif %} {% else %}
-                      <small style="color: var(--text-light)">None</small>
+                    <td style="padding:10px 12px 10px 0;vertical-align:top;white-space:nowrap;">
+                      {% if val.last_resync %}
+                        <span class="fmt-dt" data-dt="{{ val.last_resync or '' }}"
+                              style="font-size:12px;padding:3px 8px;border-radius:4px;font-weight:500;background:#f3f4f6;color:#6b7280;">
+                          {{ val.last_resync[:16] | replace('T', ' ') }}
+                        </span>
+                      {% else %}
+                        <span style="font-size:12px;padding:3px 8px;border-radius:4px;background:#f3f4f6;color:#9ca3af;font-weight:500;">
+                          Never
+                        </span>
                       {% endif %}
                     </td>
-                    <td>
-                      <form method="POST" action="/remove_google">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input
-                          type="hidden"
-                          name="remove_google"
-                          value="{{ val.location }}"
-                        />
-                        <button
-                          type="submit"
-                          onclick="return confirm('Remove {{ val.location }}?')"
-                          style="padding: 4px 8px"
-                        >
-                          ❌
-                        </button>
-                      </form>
+                    <td style="padding:10px 0;vertical-align:top;white-space:nowrap;">
+                      <div style="display:flex;gap:6px;justify-content:flex-end;align-items:flex-start;">
+                        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+                          <button type="button"
+                                  onclick="handleResync('{{ val.location }}', '{{ val.filename }}', '{{ val.sheet }}', event, 'gsheet-resync-{{ loop.index }}')"
+                                  title="Resync" style="padding:4px 8px;">
+                            <img src="/static/refreshicon.png" alt="Resync" style="height:16px;" />
+                          </button>
+                          <div id="gsheet-resync-{{ loop.index }}" style="font-size:11px;min-height:14px;"></div>
+                        </div>
+                        <form method="POST" action="/remove_google" style="margin:0;">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                          <input type="hidden" name="remove_google" value="{{ val.location }}" />
+                          <button type="submit"
+                                  onclick="return confirm('Remove {{ val.location }}?')"
+                                  class="btn-trash" style="padding:4px 8px;" title="Remove">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                            </svg>
+                          </button>
+                        </form>
+                      </div>
                     </td>
                   </tr>
                   {% endfor %}
@@ -2659,21 +2663,28 @@
                       status: task.status, started_at: task.started_at,
                       completed_at: task.completed_at, progress: task.progress, error: task.error
                   });
+                  const rowInfo = docResyncStatusMap.get(local.fileUrl);
                   if (['SUCCESS', 'completed', 'failed', 'FAILURE'].includes(task.status) && !local.removeScheduled) {
                       local.removeScheduled = true;
                       setTimeout(() => removeCompletedTask(task.task_id), 60000);
                       console.log(`Scheduled removal of task ${task.task_id} in 60 seconds`);
-                      // Update per-row status in supporting docs table
-                      const rowInfo = docResyncStatusMap.get(local.fileUrl);
+                      // Update per-row status in supporting docs / google sheets table
                       if (rowInfo) {
                           const el = rowInfo.statusId ? document.getElementById(rowInfo.statusId) : null;
                           if (el) {
                               const ok = ['SUCCESS', 'completed'].includes(task.status);
-                              el.textContent = ok ? 'Done' : 'Failed';
+                              el.textContent = ok ? 'Completed' : 'Failed';
                               el.style.color = ok ? '#27ae60' : '#c0392b';
                           }
                           if (rowInfo.btn) rowInfo.btn.disabled = false;
                           docResyncStatusMap.delete(local.fileUrl);
+                      }
+                  } else if (rowInfo) {
+                      const el = rowInfo.statusId ? document.getElementById(rowInfo.statusId) : null;
+                      if (el) {
+                          const midStatus = ['STARTED', 'RUNNING', 'running'].includes(task.status) ? 'Running' : 'Queued';
+                          el.textContent = midStatus;
+                          el.style.color = midStatus === 'Running' ? '#1d4ed8' : '';
                       }
                   }
               });
@@ -2693,14 +2704,24 @@
           }, 3000);
       }
 
-      async function handleResync(fileUrl, filename, sheet, event) {
+      async function handleResync(fileUrl, filename, sheet, event, statusId) {
           if (event) event.preventDefault();
+          const statusEl = statusId ? document.getElementById(statusId) : null;
+          const btn = event ? event.currentTarget : null;
           try {
+              if (btn) btn.disabled = true;
+              if (statusEl) statusEl.textContent = 'Queuing…';
               const formData = new FormData();
               formData.append('resync_bar', fileUrl);
               const data = await fetch('/resync_sharepoint', { method: 'POST', body: formData }).then(r => r.json());
-              if (!data.success) { showToast('Failed to start resync: ' + data.message, false); return; }
+              if (!data.success) {
+                  if (statusEl) statusEl.textContent = 'Failed';
+                  if (btn) btn.disabled = false;
+                  showToast('Failed to start resync: ' + data.message, false);
+                  return;
+              }
 
+              if (statusId) docResyncStatusMap.set(fileUrl, { statusId, btn });
               activeTasks.set(data.task_id, {
                   taskId: data.task_id, fileUrl, filename, sheet,
                   status: 'pending', created_at: new Date().toISOString(),
@@ -2709,9 +2730,12 @@
               });
               updateTaskDisplay();
               startGlobalPolling();
+              if (statusEl) statusEl.textContent = 'Queued';
               showToast(`✅ Resync queued for ${getShortFilename(fileUrl)}`);
           } catch (err) {
               console.error('Resync error:', err);
+              if (statusEl) statusEl.textContent = 'Error';
+              if (btn) btn.disabled = false;
               showToast('Error starting resync: ' + err.message, false);
           }
       }
