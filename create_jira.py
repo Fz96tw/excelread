@@ -16,6 +16,7 @@ user_cache = {}
 
 import requests
 from requests.auth import HTTPBasicAuth
+from jira_oauth import create_jira_client as _create_jira_client
 
 
 # Cache dictionary to avoid repeated calls
@@ -28,7 +29,7 @@ def get_user_display_name(account_id):
         return user_cache[account_id]
 
     url = f"{JIRA_URL}/rest/api/3/user?accountId={account_id}"
-    response = requests.get(url, auth=HTTPBasicAuth(JIRA_EMAIL, JIRA_API_TOKEN))
+    response = requests.get(url, auth=jira_requests_auth)
 
     if response.status_code == 200:
         user_data = response.json()
@@ -130,12 +131,13 @@ def get_account_id(jira_client, username_or_email):
     return None
 
 if len(sys.argv) < 4:
-    print("Usage: python create_jira.py <yaml_file> <xlsx file>")
+    print("Usage: python create_jira.py <yaml_file> <xlsx file> <timestamp> [userlogin]")
     sys.exit(1)
 
 yaml_file = sys.argv[1]
 filename = sys.argv[2]
 timestamp = sys.argv[3]
+userlogin = sys.argv[4] if len(sys.argv) > 4 else ""
 
 with open(yaml_file, 'r') as f:
     data = yaml.safe_load(f)
@@ -211,15 +213,12 @@ JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN")
 JIRA_URL = os.environ.get("JIRA_URL")
 JIRA_EMAIL = os.environ.get("JIRA_EMAIL")
 
-if not JIRA_API_TOKEN:
-    print("Error: JIRA_API_TOKEN environment variable not set.")
-    sys.exit(1)
-
-
-# Connect to Jira with basic auth
+# Connect to Jira — OAuth token takes priority over API token
 try:
-    jira = JIRA(server=JIRA_URL, basic_auth=(JIRA_EMAIL, JIRA_API_TOKEN))
-    #print("✅ Successfully connected to Jira.")
+    jira, jira_requests_auth = _create_jira_client(userlogin, JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN)
+    if jira is None:
+        print("❌ No Jira authentication available (OAuth token or API token required).")
+        sys.exit(1)
 except Exception as e:
     print(f"❌ Failed to connect to Jira: {e}")
     sys.exit(1)

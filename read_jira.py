@@ -13,6 +13,7 @@ user_cache = {}
 
 import requests
 from requests.auth import HTTPBasicAuth
+from jira_oauth import create_jira_client as _create_jira_client
 
 from my_utils import *
 
@@ -138,7 +139,7 @@ def get_user_display_name(account_id):
         return user_cache[account_id]
 
     url = f"{JIRA_URL}/rest/api/3/user?accountId={account_id}"
-    response = requests.get(url, auth=HTTPBasicAuth(JIRA_EMAIL, JIRA_API_TOKEN))
+    response = requests.get(url, auth=jira_requests_auth)
 
     if response.status_code == 200:
         user_data = response.json()
@@ -365,22 +366,19 @@ JIRA_URL = os.environ.get("JIRA_URL")
 JIRA_EMAIL = os.environ.get("JIRA_EMAIL")
 JIRA_PASSWORD = os.environ.get("JIRA_PASSWORD")
 
-print(f"load_dotenv({ENV_PATH_USER}) has read JIRA_URL={JIRA_URL} JIRA_EMAIL={JIRA_EMAIL} JIRA_API_TOKEN={JIRA_API_TOKEN}")
+print(f"load_dotenv({ENV_PATH_USER}) has read JIRA_URL={JIRA_URL} JIRA_EMAIL={JIRA_EMAIL} JIRA_API_TOKEN={'set' if JIRA_API_TOKEN else 'not set'}")
 
-if not JIRA_API_TOKEN:
-    print("Error: JIRA_API_TOKEN environment variable not set.")
-    sys.exit(1)
-
-
-# Connect to Jira with basic auth
+# Connect to Jira — OAuth token takes priority over API token
 try:
-    jira = JIRA(server=JIRA_URL, basic_auth=(JIRA_EMAIL, JIRA_API_TOKEN))
-    #print("✅ Successfully connected to Jira.")
+    jira, jira_requests_auth = _create_jira_client(userlogin, JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN)
+    if jira is None:
+        print("❌ No Jira authentication available (OAuth token or API token required).")
+        sys.exit(1)
 except Exception as e:
     print(f"❌ Failed to connect to Jira: {e}")
     sys.exit(1)
 
-print(f"JIRA client connected to {JIRA_URL} login:{JIRA_EMAIL} apitoken:{JIRA_API_TOKEN} ")
+print(f"JIRA client connected to {JIRA_URL}")
 issues = []  # global issues list to hold results from both ID and JQL searches
 
 if import_mode:

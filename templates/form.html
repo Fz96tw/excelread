@@ -971,10 +971,16 @@
         <span class="top-bar-username">{{current_user.username or current_user.email}}{% if is_admin %} [Admin]{% endif %}</span>
       </div>
       <div class="top-bar-status">
-        <span class="status-pill">
+        {% set jira_authed = foo_values.get('jira_oauth_connected') or (foo_values.get('jira_url') and foo_values.get('jira_token')) %}
+        <span class="status-pill {% if jira_authed %}pill-ok{% else %}pill-warn{% endif %}">
           <img src="/static/jiraicon.png" alt="" />
-          {{ (foo_values.get('jira_url') or 'Jira not configured') |
-          truncate(28, True, '…') }}
+          {% if foo_values.get('jira_oauth_connected') %}
+            Jira: OAuth
+          {% elif foo_values.get('jira_url') %}
+            {{ foo_values.get('jira_url') | replace('https://', '') | replace('http://', '') | truncate(18, True, '…') }} · API token
+          {% else %}
+            Jira URL not set
+          {% endif %}
         </span>
         <span class="status-pill">
           <img src="/static/llmicon.png" alt="" />
@@ -1161,6 +1167,29 @@
                 <img src="/static/jiraicon.jpg" alt="Jira" />
                 Jira and Confluence Configuration
               </h2>
+
+              <!-- OAuth status bar -->
+              <div class="section-auth-bar" style="margin-bottom: 16px;">
+                <span class="auth-status {% if foo_values.get('jira_oauth_connected') %}authorized{% else %}unauthorized{% endif %}">
+                  {% if foo_values.get('jira_oauth_connected') %}
+                    ✅ Jira OAuth: Connected
+                  {% else %}
+                    🔒 Jira OAuth: Not connected
+                  {% endif %}
+                </span>
+                {% if foo_values.get('jira_oauth_connected') %}
+                <form method="GET" action="/jira/oauth/logout" style="margin: 0">
+                  <button type="submit" class="btn-danger" style="padding: 6px 12px; font-size: 13px">
+                    Disconnect OAuth
+                  </button>
+                </form>
+                {% else %}
+                <button type="button" onclick="openJiraOAuthPopup(this)" style="padding: 6px 12px; font-size: 13px">
+                  Connect with Jira OAuth
+                </button>
+                {% endif %}
+              </div>
+
               <form id="jiraForm" method="POST" class="left-form">
                 <div class="form-row">
                   <label>Jira Cloud URL</label>
@@ -1172,7 +1201,7 @@
                   />
                 </div>
                 <div class="form-row">
-                  <label>Jira Email</label>
+                  <label>Jira Email <span style="color:var(--text-muted);font-weight:400">(API token auth only)</span></label>
                   <input
                     type="text"
                     name="jira_user"
@@ -1181,7 +1210,7 @@
                   />
                 </div>
                 <div class="form-row">
-                  <label>Jira API Token</label>
+                  <label>Jira API Token <span style="color:var(--text-muted);font-weight:400">(optional if using OAuth)</span></label>
                   <input
                     type="text"
                     name="jira_token"
@@ -1550,7 +1579,11 @@
                                style="font-size:11px;min-height:14px;"></div>
                         </div>
                         <button onclick="handleRemoveDocs('{{ val.url }}', event)"
-                                style="padding:4px 8px;" title="Remove">❌</button>
+                                class="btn-trash" style="padding:4px 8px;" title="Remove">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                          </svg>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1652,9 +1685,10 @@
                         <button
                           type="submit"
                           onclick="return confirm('Remove {{ val.location }}?')"
-                          style="padding: 4px 8px"
-                        >
-                          ❌
+                          class="btn-trash" style="padding:4px 8px;" title="Remove">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                          </svg>
                         </button>
                       </form>
                     </td>
@@ -2370,9 +2404,17 @@
           if (!popup) alert('Please allow popups for this site.');
       }
 
+      let lastJiraOAuthBtn = null;
+      function openJiraOAuthPopup(btn) {
+          lastJiraOAuthBtn = btn;
+          const popup = window.open('/jira/oauth/connect', 'JiraOAuthWindow', 'width=600,height=700');
+          if (!popup) alert('Please allow popups for this site.');
+      }
+
       window.addEventListener('message', function(e) {
           if (e.data === 'login-success'        && lastLoginBtn)       location.reload();
           if (e.data === 'google-login-success' && lastGoogleLoginBtn) location.reload();
+          if (e.data === 'jira-oauth-success'   && lastJiraOAuthBtn)   location.reload();
       });
 
       // =========================================================

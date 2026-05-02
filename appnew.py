@@ -757,6 +757,17 @@ from google_oauth_appnew import (
     SCOPES_DRIVE_CONNECT,
 )
 
+from jira_oauth import (
+    is_jira_oauth_logged_in,
+    load_jira_token,
+    logout_jira_oauth,
+    save_jira_token,
+    fetch_cloud_id,
+    exchange_code_for_token,
+    ATLASSIAN_AUTH_URL,
+    JIRA_OAUTH_SCOPES,
+)
+
 from googleapiclient.discovery import build
 
 @app.route("/auth/google")
@@ -898,6 +909,101 @@ def google_logout():
     userlogin = current_user.username
     logout_google(userlogin)
     return redirect(url_for("index"))
+
+
+# ── Jira OAuth 2.0 (3LO) routes ───────────────────────────────────────────────
+
+@app.route("/jira/oauth/connect")
+@login_required
+def jira_oauth_connect():
+    global callback_host
+    redirectpath = callback_host or "https://trinket.cloudcurio.com"
+
+    userlogin = current_user.username
+
+    from jira_oauth import load_jira_app_credentials
+    client_id, _ = load_jira_app_credentials()
+    if not client_id:
+        return "Jira OAuth app not configured. Add config/jira_oauth_app.json on the server.", 400
+
+    redirect_uri = f"{redirectpath}/jira/oauth/callback"
+
+    from urllib.parse import urlencode
+    params = {
+        "audience": "api.atlassian.com",
+        "client_id": client_id,
+        "scope": JIRA_OAUTH_SCOPES,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "prompt": "consent",
+        "state": userlogin,
+    }
+    auth_url = f"{ATLASSIAN_AUTH_URL}?{urlencode(params)}"
+    print(f"🌐 Redirecting {userlogin} to Jira OAuth...")
+    return redirect(auth_url)
+
+
+@app.route("/jira/oauth/callback")
+def jira_oauth_callback():
+    global callback_host
+    redirectpath = callback_host or "https://trinket.cloudcurio.com"
+
+    code = request.args.get("code")
+    error = request.args.get("error")
+    if error:
+        return f"Jira OAuth error: {error}", 400
+
+    userlogin = request.args.get("state")
+    if not userlogin:
+        return "Missing state parameter", 400
+
+    ENV_PATH_USER = user_config_file(userlogin, "env")
+    jira_url = read_env("JIRA_URL", ENV_PATH_USER)
+    redirect_uri = f"{redirectpath}/jira/oauth/callback"
+
+    token_data, err = exchange_code_for_token(code, redirect_uri)
+    if err:
+        return err, 400
+
+    import time
+    token_data["expires_at"] = time.time() + token_data.get("expires_in", 3600)
+    token_data["jira_url"] = jira_url
+
+    cloud_id, cloud_url = fetch_cloud_id(token_data["access_token"])
+    if cloud_id:
+        token_data["cloud_id"] = cloud_id
+    if cloud_url:
+        token_data["jira_url"] = cloud_url  # actual connected instance, may differ from env config
+
+    save_jira_token(token_data, userlogin)
+    print(f"✅ Jira OAuth connected for user={userlogin}")
+
+    return """
+        <html><body style='font-family:sans-serif;text-align:center;padding:40px;'>
+        <h2>✅ Jira OAuth Connected!</h2>
+        <p>You may close this window.</p>
+        <script>
+            try { window.opener && window.opener.postMessage('jira-oauth-success', '*'); } catch(e) {}
+            setTimeout(() => window.close(), 1000);
+        </script>
+        </body></html>
+    """
+
+
+@app.route("/jira/oauth/logout")
+@login_required
+def jira_oauth_logout():
+    userlogin = current_user.username
+    logout_jira_oauth(userlogin)
+    return redirect(url_for("index"))
+
+
+@app.route("/jira/oauth/status")
+@login_required
+def jira_oauth_status():
+    userlogin = current_user.username
+    connected = is_jira_oauth_logged_in(userlogin)
+    return jsonify({"connected": connected})
 
 
 import os
@@ -1541,6 +1647,12 @@ def index():
     foo_values["jira_url"] = read_env("JIRA_URL", ENV_PATH_USER)
     foo_values["jira_user"] = read_env("JIRA_EMAIL", ENV_PATH_USER)
     foo_values["jira_token"] = read_env("JIRA_API_TOKEN", ENV_PATH_USER)
+    foo_values["jira_oauth_connected"] = is_jira_oauth_logged_in(userlogin)
+    if foo_values["jira_oauth_connected"]:
+        _jira_tok = load_jira_token(userlogin)
+        foo_values["jira_oauth_url"] = _jira_tok.get("jira_url") if _jira_tok else None
+    else:
+        foo_values["jira_oauth_url"] = None
     foo_values["confluence_url"] = read_env("CONFLUENCE_URL", ENV_PATH_USER)
     foo_values["openai_token"] = read_env("OPENAI_API_KEY", ENV_PATH)       # for now keep openai token in system environment. move to user specific later
 
